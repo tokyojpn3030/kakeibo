@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>お家の家計簿</title>
+<meta name="theme-color" content="#1F5FA8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="家計簿">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="config.js"></script>
+<style>
+:root {
+  --bg: #F4F6F9; --surface: #FFFFFF; --surface-2: #EEF1F5;
+  --text: #1B1F24; --text-2: #5A626C; --line: #DDE2E8;
+  --primary: #1F5FA8; --on-primary: #FFFFFF; --primary-soft: #E3EDF9; --on-primary-soft: #0C3C70;
+  --danger: #B3261E; --danger-soft: #FCE8E6; --warn-soft: #FFF4D6; --on-warn: #6B4A00;
+  --blue-bg: #E3EDF9; --blue-fg: #0C3C70;
+  --pink-bg: #FBE6EE; --pink-fg: #72243E;
+  --purple-bg: #ECEBFD; --purple-fg: #3C3489;
+  --teal-bg: #DFF4EC; --teal-fg: #085041;
+  --amber-bg: #FAEEDA; --amber-fg: #633806;
+  --coral-bg: #FAEAE4; --coral-fg: #712B13;
+  --radius: 16px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111418; --surface: #1B1F25; --surface-2: #262B33;
+    --text: #ECEFF3; --text-2: #A7AFB9; --line: #333A44;
+    --primary: #8AB6EC; --on-primary: #0A2747; --primary-soft: #1D3654; --on-primary-soft: #CFE2F8;
+    --danger: #F2B8B5; --danger-soft: #4A1C1A; --warn-soft: #3D3214; --on-warn: #F5D88A;
+    --blue-bg: #1D3654; --blue-fg: #CFE2F8;
+    --pink-bg: #4B1F31; --pink-fg: #F7CADB;
+    --purple-bg: #2E2A5E; --purple-fg: #D5D2FA;
+    --teal-bg: #11392F; --teal-fg: #B4EAD6;
+    --amber-bg: #43300F; --amber-fg: #F8D9A2;
+    --coral-bg: #4A2214; --coral-fg: #F6C9B8;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  font-size: 18px; line-height: 1.6;
+  padding-top: var(--safe-t);
+  padding-bottom: calc(84px + var(--safe-b));
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+input { font: inherit; color: var(--text); }
+.hidden { display: none !important; }
+
+/* 上のバー */
+.topbar { position: sticky; top: 0; z-index: 10; background: var(--bg);
+  display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 8px; }
+.topbar h1 { font-size: 24px; font-weight: 700; margin: 0; }
+.icon-btn { background: none; border: none; width: 48px; height: 48px; border-radius: 24px;
+  display: flex; align-items: center; justify-content: center; color: var(--text-2); }
+.icon-btn:active { background: var(--surface-2); }
+.icon-btn svg { width: 26px; height: 26px; }
+
+.demo-banner { margin: 0 16px 8px; padding: 10px 14px; border-radius: 12px;
+  background: var(--warn-soft); color: var(--on-warn); font-size: 15px; }
+
+main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* カード・部品 */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.total-card { background: var(--primary-soft); color: var(--on-primary-soft); border-radius: 20px; padding: 18px 20px; margin: 8px 0 12px; }
+.total-card .label { font-size: 16px; }
+.total-card .amount { font-size: 36px; font-weight: 700; line-height: 1.3; }
+.month-nav { display: flex; align-items: center; justify-content: space-between; margin: 4px 0; }
+.month-nav .title { font-size: 20px; font-weight: 700; }
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 12px;
+  padding: 8px 16px; font-size: 17px; min-height: 44px; }
+.chip.on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+
+.day-label { font-size: 16px; color: var(--text-2); margin: 16px 4px 6px; }
+.receipt { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px; margin-bottom: 8px; }
+.receipt:active { background: var(--surface-2); }
+.avatar { flex: none; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; }
+.receipt .info { flex: 1; min-width: 0; }
+.receipt .store { font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.receipt .sub { font-size: 15px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.receipt .yen { font-size: 19px; font-weight: 700; white-space: nowrap; }
+
+.empty { text-align: center; color: var(--text-2); padding: 48px 16px; }
+.empty .big { font-size: 20px; color: var(--text); font-weight: 700; margin-bottom: 4px; }
+
+/* ボタン */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 56px; padding: 0 24px; border-radius: 28px; border: none; font-size: 19px; font-weight: 700; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-tonal { background: var(--primary-soft); color: var(--on-primary-soft); }
+.btn-text { background: none; color: var(--primary); }
+.btn-danger { background: var(--danger-soft); color: var(--danger); }
+.btn-block { width: 100%; }
+.btn:disabled { opacity: .5; }
+
+/* 撮影画面 */
+.who-card { display: flex; align-items: center; gap: 12px; }
+.who-card .name { font-size: 22px; font-weight: 700; }
+.who-card .hint { font-size: 15px; color: var(--text-2); }
+.camera-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; height: 240px; margin: 16px 0; border-radius: 28px; border: 2px dashed var(--primary);
+  background: var(--primary-soft); color: var(--on-primary-soft); font-size: 22px; font-weight: 700; }
+.camera-btn svg { width: 64px; height: 64px; }
+.note { font-size: 15px; color: var(--text-2); }
+
+.loading { text-align: center; padding: 32px 0; }
+.spinner { width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 50%;
+  border: 5px solid var(--primary-soft); border-top-color: var(--primary); animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.preview { width: 100%; max-height: 220px; object-fit: contain; border-radius: 12px; background: var(--surface-2); }
+
+/* 確認フォーム */
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 16px; color: var(--text-2); margin-bottom: 4px; }
+.input { width: 100%; min-height: 52px; padding: 10px 14px; font-size: 19px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+.item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.item-row .name { flex: 1; min-width: 0; }
+.item-row .price { width: 110px; text-align: right; }
+.item-row .del { flex: none; }
+.sum-line { display: flex; justify-content: space-between; font-size: 17px; color: var(--text-2); margin: 4px 2px; }
+.warn { background: var(--warn-soft); color: var(--on-warn); border-radius: 12px; padding: 10px 14px; font-size: 15px; margin: 8px 0; }
+.error { background: var(--danger-soft); color: var(--danger); border-radius: 12px; padding: 12px 14px; font-size: 16px; margin: 8px 0; }
+.section-title { font-size: 18px; font-weight: 700; margin: 18px 0 8px; }
+
+/* 集計 */
+.bar-row { margin-bottom: 14px; }
+.bar-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.bar-head .who { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+.bar-head .avatar { width: 36px; height: 36px; font-size: 16px; }
+.bar-track { height: 14px; border-radius: 7px; background: var(--surface-2); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 7px; }
+.bar-sub { font-size: 14px; color: var(--text-2); margin-top: 4px; }
+
+/* 下のナビ */
+.bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: flex; justify-content: space-around; background: var(--surface);
+  border-top: 1px solid var(--line); padding: 6px 0 calc(8px + var(--safe-b)); }
+.nav-item { flex: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center;
+  gap: 2px; font-size: 14px; color: var(--text-2); padding: 4px 0; }
+.nav-item .pill { width: 64px; height: 34px; border-radius: 17px; display: flex; align-items: center; justify-content: center; }
+.nav-item svg { width: 26px; height: 26px; }
+.nav-item.on { color: var(--text); font-weight: 700; }
+.nav-item.on .pill { background: var(--primary-soft); color: var(--on-primary-soft); }
+
+/* 下から出るシート */
+.sheet-back { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.4);
+  display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto; background: var(--surface);
+  border-radius: 28px 28px 0 0; padding: 12px 20px calc(20px + var(--safe-b)); }
+.sheet .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
+.sheet h2 { font-size: 22px; margin: 4px 0 2px; }
+.sheet .meta { color: var(--text-2); font-size: 16px; margin-bottom: 12px; }
+.line-item { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
+.line-item.total { border-bottom: none; font-weight: 700; font-size: 20px; padding-top: 14px; }
+.minus { color: var(--danger); }
+
+/* 初回設定 */
+.setup { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto;
+  padding: calc(32px + var(--safe-t)) 24px 32px; }
+.setup-inner { max-width: 480px; margin: 0 auto; }
+.setup h2 { font-size: 26px; margin: 0 0 8px; }
+.setup p { color: var(--text-2); margin: 0 0 20px; }
+.member-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+.member-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 8px;
+  border: 2px solid var(--line); border-radius: 20px; background: var(--surface); font-size: 19px; font-weight: 700; }
+.member-btn .avatar { width: 56px; height: 56px; font-size: 24px; }
+.member-btn.on { border-color: var(--primary); background: var(--primary-soft); }
+
+/* メンバー編集 */
+.mem-row { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid transparent; font-size: 17px; font-weight: 700; }
+.swatch.on { border-color: var(--text); }
+.icons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.icon-pick { min-width: 44px; height: 44px; padding: 0 6px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); font-size: 22px; }
+.icon-pick[data-ic=""] { font-size: 14px; color: var(--text-2); }
+.icon-pick.on { border-color: var(--primary); background: var(--primary-soft); }
+.check { display: flex; align-items: center; gap: 10px; font-size: 17px; margin: 12px 0 4px; }
+.check input { width: 24px; height: 24px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(100px + var(--safe-b)); transform: translateX(-50%);
+  z-index: 50; background: var(--text); color: var(--bg); padding: 12px 22px; border-radius: 14px; font-size: 17px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>お家の家計簿</h1>
+  <div style="display:flex">
+    <button class="icon-btn" id="btnRefresh" aria-label="最新にする">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
+    </button>
+    <button class="icon-btn" id="btnSettings" aria-label="設定">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+</header>
+<div class="demo-banner hidden" id="demoBanner">デモモードで動いています。データはこのスマホの中だけに仮保存されます。</div>
+
+<main>
+  <!-- 履歴 -->
+  <section class="screen active" id="screen-history">
+    <div class="month-nav">
+      <button class="icon-btn" data-month="-1" aria-label="前の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="title" id="histMonth"></span>
+      <button class="icon-btn" data-month="1" aria-label="次の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="total-card">
+      <div class="label" id="histTotalLabel">合計</div>
+      <div class="amount" id="histTotal">¥0</div>
+    </div>
+    <div class="chips" id="histChips"></div>
+    <div id="histList"></div>
+  </section>
+
+  <!-- 撮影 -->
+  <section class="screen" id="screen-capture">
+    <div id="capStart">
+      <div class="card who-card">
+        <div class="avatar" id="capAvatar"></div>
+        <div style="flex:1">
+          <div class="hint">記録する人</div>
+          <div class="name" id="capName"></div>
+        </div>
+        <button class="btn btn-text" id="capChange" style="min-height:44px;padding:0 12px">変更</button>
+      </div>
+      <div class="chips hidden" id="capChips" style="margin-top:12px"></div>
+      <button class="camera-btn" id="btnCamera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h1a2 2 0 0 0 2-2 1 1 0 0 1 1-1h6a1 1 0 0 1 1 1 2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2"/><circle cx="12" cy="13" r="3.5"/></svg>
+        レシートを撮る
+      </button>
+      <p class="note">明るい場所で、レシート全体が写るように撮ってください。長いレシートは少し離れて撮ると読み取りやすくなります。</p>
+      <input type="file" accept="image/*" capture="environment" id="fileInput" class="hidden">
+    </div>
+
+    <div id="capLoading" class="hidden">
+      <img class="preview" id="capPreview" alt="撮ったレシート">
+      <div class="loading">
+        <div class="spinner"></div>
+        <div style="font-size:20px;font-weight:700">レシートを読み取り中…</div>
+        <div class="note">10秒ほどかかることがあります</div>
+      </div>
+    </div>
+
+    <div id="capConfirm" class="hidden">
+      <div class="section-title" style="margin-top:4px">読み取り結果を確認</div>
+      <div class="field">
+        <label>買った人</label>
+        <div class="chips" id="cfPerson" style="margin:0"></div>
+      </div>
+      <div class="field">
+        <label for="cfStore">お店</label>
+        <input class="input" id="cfStore" placeholder="スーパー○○">
+      </div>
+      <div class="field">
+        <label for="cfDate">買った日</label>
+        <input class="input" id="cfDate" type="date">
+      </div>
+      <div class="section-title">品目</div>
+      <div id="cfItems"></div>
+      <button class="btn btn-text" id="cfAddItem" style="padding:0 8px">+ 品目を追加</button>
+      <div class="field" style="margin-top:12px">
+        <label for="cfTotal">支払った合計(円)</label>
+        <input class="input" id="cfTotal" type="number" inputmode="numeric" style="font-size:24px;font-weight:700">
+      </div>
+      <div class="sum-line"><span>品目を足した金額</span><span id="cfItemsSum">¥0</span></div>
+      <div class="warn hidden" id="cfWarn"></div>
+      <div class="error hidden" id="cfError"></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin:20px 0">
+        <button class="btn btn-primary btn-block" id="cfSave">保存する</button>
+        <button class="btn btn-text btn-block" id="cfCancel">やめる</button>
+      </div>
+    </div>
+
+    <div id="capError" class="hidden">
+      <div class="error" id="capErrorText"></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+        <button class="btn btn-primary btn-block" id="capRetry">撮り直す</button>
+        <button class="btn btn-tonal btn-block" id="capManual">手で入力する</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 集計 -->
+  <section class="screen" id="screen-summary">
+    <div class="month-nav">
+      <button class="icon-btn" data-month="-1" aria-label="前の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="title" id="sumMonth"></span>
+      <button class="icon-btn" data-month="1" aria-label="次の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="total-card">
+      <div class="label">家族全員の合計</div>
+      <div class="amount" id="sumTotal">¥0</div>
+    </div>
+    <div class="section-title">人ごと</div>
+    <div class="card" id="sumPeople"></div>
+    <div class="section-title">よく行くお店</div>
+    <div class="card" id="sumStores"></div>
+  </section>
+</main>
+
+<nav class="bottom-nav">
+  <button class="nav-item on" data-screen="history">
+    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/></svg></span>履歴
+  </button>
+  <button class="nav-item" data-screen="capture">
+    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h1a2 2 0 0 0 2-2 1 1 0 0 1 1-1h6a1 1 0 0 1 1 1 2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2"/><circle cx="12" cy="13" r="3"/></svg></span>撮影
+  </button>
+  <button class="nav-item" data-screen="summary">
+    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h16M7 16V10M12 16V5M17 16v-4"/></svg></span>集計
+  </button>
+</nav>
+
+<!-- 初回設定 -->
+<div class="setup hidden" id="setup">
+  <div class="setup-inner">
+    <h2>はじめに</h2>
+    <p>このスマホを使う人と、家族の合言葉を設定します。次からは入力しなくて大丈夫です。</p>
+    <div class="section-title">このスマホを使うのは誰ですか?</div>
+    <div class="member-grid" id="setupMembers"></div>
+    <div id="setupPassWrap">
+      <div class="section-title">家族の合言葉</div>
+      <input class="input" id="setupPass" type="password" inputmode="numeric" autocomplete="off" placeholder="合言葉を入力">
+    </div>
+    <div class="error hidden" id="setupError"></div>
+    <button class="btn btn-primary btn-block" id="setupDone" style="margin-top:24px">はじめる</button>
+  </div>
+</div>
+
+<div class="sheet-back hidden" id="sheetBack"><div class="sheet" id="sheet"></div></div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- 設定と状態 ---------- */
+  var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
+  var DEMO = !CFG.API_URL;
+  var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
+  var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
+
+  var store = {
+    get: function (k) { try { return localStorage.getItem('kakeibo.' + k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem('kakeibo.' + k, v); } catch (e) {} },
+    del: function (k) { try { localStorage.removeItem('kakeibo.' + k); } catch (e) {} }
+  };
+
+  // 家族のメンバー:前回スプレッドシートから受け取ったもの → なければ config.js の初期値
+  var MEMBERS = (function () {
+    try { var m = JSON.parse(store.get('members') || 'null'); if (m && m.length) return m; } catch (e) {}
+    return CFG.MEMBERS.slice();
+  })();
+
+  var state = {
+    owner: store.get('owner'),
+    pass: store.get('pass') || '',
+    person: null,          // 今回記録する人
+    month: thisMonth(),
+    filter: '',            // 履歴の絞り込み('' は全員)
+    receipts: [],
+    loadedMonth: null,
+    draft: null            // 確認中のレシート
+  };
+
+  /* ---------- 小さな道具 ---------- */
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function yen(n) { n = Math.round(Number(n) || 0); return (n < 0 ? '-¥' : '¥') + Math.abs(n).toLocaleString('ja-JP'); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function thisMonth() { return today().slice(0, 7); }
+  function shiftMonth(m, diff) {
+    var y = +m.slice(0, 4), mo = +m.slice(5, 7) - 1 + diff;
+    var d = new Date(y, mo, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1);
+  }
+  function monthLabel(m) { return +m.slice(0, 4) + '年' + (+m.slice(5, 7)) + '月'; }
+  function dayLabel(d) {
+    if (!d) return '日付なし';
+    var w = '日月火水木金土'.charAt(new Date(d + 'T00:00:00').getDay());
+    var t = today();
+    var y = new Date(); y.setDate(y.getDate() - 1);
+    var ys = y.getFullYear() + '-' + pad(y.getMonth() + 1) + '-' + pad(y.getDate());
+    var base = (+d.slice(5, 7)) + '月' + (+d.slice(8, 10)) + '日(' + w + ')';
+    if (d === t) return '今日 ' + base;
+    if (d === ys) return '昨日 ' + base;
+    return base;
+  }
+  function member(name) {
+    for (var i = 0; i < MEMBERS.length; i++) if (MEMBERS[i].name === name) return MEMBERS[i];
+    name = name || '不明';
+    return { name: name, short: name.charAt(0), color: 'amber', icon: '' };
+  }
+  function label(name) { var m = member(name); return (m.icon ? m.icon + ' ' : '') + m.name; }
+  function nm(name) { return esc(label(name)); }
+  function avatarStyle(m) { return 'background:var(--' + m.color + '-bg);color:var(--' + m.color + '-fg)'; }
+  function avatarHtml(name, extra) {
+    var m = member(name);
+    return '<div class="avatar ' + (extra || '') + '" style="' + avatarStyle(m) + '">' + esc(m.short) + '</div>';
+  }
+  var toastTimer;
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.add('hidden'); }, 2200);
+  }
+  function show(id, on) { $(id).classList.toggle('hidden', !on); }
+
+  /* ---------- 窓口とのやりとり ---------- */
+  function api(action, data) {
+    if (DEMO) return demoApi(action, data || {});
+    var body = Object.assign({ action: action, pass: state.pass }, data || {});
+    return fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('通信エラー(' + r.status + ')');
+        return r.json();
+      }, function () { throw new Error('インターネットにつながっていないようです'); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.error || 'エラーが起きました');
+        return res;
+      });
+  }
+
+  /* デモモード:このスマホの中だけに保存 */
+  function demoLoad() { try { return JSON.parse(store.get('demo') || '[]'); } catch (e) { return []; } }
+  function demoSave(list) { store.set('demo', JSON.stringify(list)); }
+  function demoApi(action, data) {
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        var list = demoLoad();
+        if (action === 'ping') return resolve({ ok: true });
+        if (action === 'analyze') return resolve({ ok: true, receipt: {
+          store: 'スーパーみどり', date: today(), total: 1288,
+          items: [{ name: '牛乳 1L', price: 238 }, { name: '食パン 6枚', price: 178 },
+                  { name: 'たまご 10個', price: 298 }, { name: '豚こま切れ', price: 498 },
+                  { name: 'バナナ', price: 158 }, { name: '値引', price: -82 }] } });
+        if (action === 'save') {
+          var r = Object.assign({ id: String(Date.now()) }, data.receipt);
+          list.push(r); demoSave(list); return resolve({ ok: true, id: r.id });
+        }
+        if (action === 'list') {
+          if (!list.length) { list = demoSamples(); demoSave(list); }
+          return resolve({ ok: true, receipts: list.filter(function (r) { return (r.date || '').slice(0, 7) === data.month; })
+            .sort(function (a, b) { return a.date < b.date ? 1 : -1; }) });
+        }
+        if (action === 'delete') {
+          demoSave(list.filter(function (r) { return r.id !== data.id; })); return resolve({ ok: true });
+        }
+        if (action === 'members') {
+          var dm = null; try { dm = JSON.parse(store.get('demoMembers') || 'null'); } catch (e) {}
+          return resolve({ ok: true, members: dm });
+        }
+        if (action === 'saveMembers') {
+          store.set('demoMembers', JSON.stringify(data.members));
+          (data.renames || []).forEach(function (rn) {
+            list.forEach(function (r) { if (r.person === rn.from) r.person = rn.to; });
+          });
+          demoSave(list);
+          return resolve({ ok: true, members: data.members });
+        }
+        resolve({ ok: false, error: '不明' });
+      }, action === 'analyze' ? 1500 : 250);
+    });
+  }
+  function demoSamples() {
+    var d = new Date(), out = [];
+    function ds(back) { var x = new Date(d); x.setDate(x.getDate() - back);
+      return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); }
+    var all = MEMBERS.map(function (m) { return m.name; });
+    var names = [0, 1, 2, 3].map(function (i) { return all[i % all.length]; });
+    out.push({ id: 's1', date: ds(1), person: names[1], store: 'ドラッグストア', total: 2980,
+      items: [{ name: 'シャンプー', price: 980 }, { name: '化粧水', price: 1280 }, { name: 'ティッシュ', price: 398 }, { name: 'のど飴', price: 322 }] });
+    out.push({ id: 's2', date: ds(1), person: names[3], store: 'スーパー', total: 4312,
+      items: [{ name: '牛乳', price: 238 }, { name: 'たまご', price: 298 }, { name: '豚肉', price: 698 }, { name: 'キャベツ', price: 198 }, { name: 'お米 5kg', price: 2880 }] });
+    out.push({ id: 's3', date: ds(2), person: names[2], store: 'コンビニ', total: 398,
+      items: [{ name: 'おにぎり', price: 160 }, { name: 'お茶', price: 238 }] });
+    out.push({ id: 's4', date: ds(3), person: names[0], store: 'ホームセンター', total: 1560,
+      items: [{ name: '電池', price: 680 }, { name: '延長コード', price: 880 }] });
+    return out;
+  }
+
+  /* ---------- 画面切り替え ---------- */
+  function go(name) {
+    document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('active', s.id === 'screen-' + name); });
+    document.querySelectorAll('.nav-item').forEach(function (b) { b.classList.toggle('on', b.dataset.screen === name); });
+    window.scrollTo(0, 0);
+    if (name === 'history' || name === 'summary') loadMonth(false);
+    if (name === 'capture') resetCapture();
+  }
+  document.querySelectorAll('.nav-item').forEach(function (b) {
+    b.addEventListener('click', function () { go(b.dataset.screen); });
+  });
+  document.querySelectorAll('[data-month]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.month = shiftMonth(state.month, +b.dataset.month); loadMonth(true);
+    });
+  });
+  $('btnRefresh').addEventListener('click', function () { refreshMembers(); loadMonth(true); });
+
+  /* ---------- 履歴・集計 ---------- */
+  function loadMonth(force) {
+    $('histMonth').textContent = monthLabel(state.month);
+    $('sumMonth').textContent = monthLabel(state.month);
+    if (!force && state.loadedMonth === state.month) { renderHistory(); renderSummary(); return; }
+    $('histList').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+    var m = state.month;
+    api('list', { month: m }).then(function (res) {
+      if (m !== state.month) return;
+      state.receipts = res.receipts || []; state.loadedMonth = m;
+      renderHistory(); renderSummary();
+    }).catch(function (err) {
+      $('histList').innerHTML = '<div class="error">' + esc(err.message) + '</div>';
+    });
+  }
+
+  function renderHistory() {
+    var chips = '<button class="chip' + (state.filter ? '' : ' on') + '" data-f="">全員</button>';
+    MEMBERS.forEach(function (m) {
+      chips += '<button class="chip' + (state.filter === m.name ? ' on' : '') + '" data-f="' + esc(m.name) + '">' + nm(m.name) + '</button>';
+    });
+    $('histChips').innerHTML = chips;
+    $('histChips').querySelectorAll('.chip').forEach(function (c) {
+      c.addEventListener('click', function () { state.filter = c.dataset.f; renderHistory(); });
+    });
+
+    var list = state.receipts.filter(function (r) { return !state.filter || r.person === state.filter; });
+    var total = list.reduce(function (s, r) { return s + (Number(r.total) || 0); }, 0);
+    $('histTotalLabel').textContent = monthLabel(state.month) + 'の合計' + (state.filter ? '(' + state.filter + ')' : '');
+    $('histTotal').textContent = yen(total);
+
+    if (!list.length) {
+      $('histList').innerHTML = '<div class="empty"><div class="big">まだ記録がありません</div>下の「撮影」からレシートを撮ってみましょう</div>';
+      return;
+    }
+    var html = '', lastDay = null;
+    list.forEach(function (r) {
+      if (r.date !== lastDay) { html += '<div class="day-label">' + esc(dayLabel(r.date)) + '</div>'; lastDay = r.date; }
+      var items = (r.items || []).filter(function (it) { return it.price >= 0; });
+      var sub = items.slice(0, 2).map(function (it) { return it.name; }).join('、');
+      if (items.length > 2) sub += ' ほか' + (items.length - 2) + '点';
+      html += '<button class="receipt" data-id="' + esc(r.id) + '">' + avatarHtml(r.person) +
+        '<div class="info"><div class="store">' + esc(r.store || 'お店の名前なし') + '</div>' +
+        '<div class="sub">' + nm(r.person) + (sub ? ' ・ ' + esc(sub) : '') + '</div></div>' +
+        '<div class="yen">' + yen(r.total) + '</div></button>';
+    });
+    $('histList').innerHTML = html;
+    $('histList').querySelectorAll('.receipt').forEach(function (b) {
+      b.addEventListener('click', function () { openDetail(b.dataset.id); });
+    });
+  }
+
+  function renderSummary() {
+    var rs = state.receipts;
+    var total = rs.reduce(function (s, r) { return s + (Number(r.total) || 0); }, 0);
+    $('sumTotal').textContent = yen(total);
+
+    var by = {};
+    rs.forEach(function (r) { var k = r.person; by[k] = by[k] || { sum: 0, n: 0 }; by[k].sum += Number(r.total) || 0; by[k].n++; });
+    var names = MEMBERS.map(function (m) { return m.name; });
+    Object.keys(by).forEach(function (k) { if (names.indexOf(k) < 0) names.push(k); });
+    var max = Math.max.apply(null, names.map(function (n) { return by[n] ? by[n].sum : 0; }).concat([1]));
+    $('sumPeople').innerHTML = names.map(function (n) {
+      var v = by[n] || { sum: 0, n: 0 }, m = member(n);
+      return '<div class="bar-row"><div class="bar-head"><div class="who">' + avatarHtml(n) + nm(n) + '</div>' +
+        '<div style="font-size:19px;font-weight:700">' + yen(v.sum) + '</div></div>' +
+        '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round(v.sum / max * 100) + '%;background:var(--' + m.color + '-fg)"></div></div>' +
+        '<div class="bar-sub">' + v.n + '回の買い物</div></div>';
+    }).join('');
+
+    var st = {};
+    rs.forEach(function (r) { var k = r.store || 'お店の名前なし'; st[k] = st[k] || { sum: 0, n: 0 }; st[k].sum += Number(r.total) || 0; st[k].n++; });
+    var top = Object.keys(st).sort(function (a, b) { return st[b].sum - st[a].sum; }).slice(0, 5);
+    $('sumStores').innerHTML = top.length ? top.map(function (k, i) {
+      return '<div class="line-item"' + (i === top.length - 1 ? ' style="border-bottom:none"' : '') + '><span>' + esc(k) +
+        ' <span style="color:var(--text-2);font-size:15px">' + st[k].n + '回</span></span><span>' + yen(st[k].sum) + '</span></div>';
+    }).join('') : '<div class="note">まだ記録がありません</div>';
+  }
+
+  /* ---------- 詳細シート ---------- */
+  function openDetail(id) {
+    var r = state.receipts.filter(function (x) { return x.id === id; })[0];
+    if (!r) return;
+    var items = (r.items || []).map(function (it) {
+      return '<div class="line-item"><span>' + esc(it.name) + '</span><span class="' + (it.price < 0 ? 'minus' : '') + '">' + yen(it.price) + '</span></div>';
+    }).join('');
+    openSheet('<div class="grip"></div>' +
+      '<div style="display:flex;align-items:center;gap:12px">' + avatarHtml(r.person) +
+      '<div><h2>' + esc(r.store || 'お店の名前なし') + '</h2><div class="meta" style="margin:0">' + esc(dayLabel(r.date)) + ' ・ ' + nm(r.person) + '</div></div></div>' +
+      '<div style="margin-top:12px">' + (items || '<div class="note">品目の記録はありません</div>') +
+      '<div class="line-item total"><span>合計</span><span>' + yen(r.total) + '</span></div></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
+      '<button class="btn btn-tonal btn-block" id="dtClose">閉じる</button>' +
+      '<button class="btn btn-danger btn-block" id="dtDelete">このレシートを削除</button></div>');
+    $('dtClose').addEventListener('click', closeSheet);
+    $('dtDelete').addEventListener('click', function () {
+      if (!confirm('このレシートを削除しますか?\n(スプレッドシートからも消えます)')) return;
+      this.disabled = true;
+      api('delete', { id: id }).then(function () {
+        closeSheet(); toast('削除しました'); loadMonth(true);
+      }).catch(function (err) { alert(err.message); });
+    });
+  }
+  function openSheet(html) { $('sheet').innerHTML = html; show('sheetBack', true); }
+  function closeSheet() { show('sheetBack', false); }
+  $('sheetBack').addEventListener('click', function (e) { if (e.target === this) closeSheet(); });
+
+  /* ---------- 撮影 ---------- */
+  function resetCapture() {
+    state.person = state.owner;
+    state.draft = null;
+    show('capStart', true); show('capLoading', false); show('capConfirm', false); show('capError', false);
+    show('capChips', false);
+    renderWho();
+  }
+  function renderWho() {
+    var m = member(state.person);
+    $('capAvatar').setAttribute('style', avatarStyle(m)); $('capAvatar').textContent = m.short;
+    $('capName').textContent = label(m.name);
+    $('capChips').innerHTML = MEMBERS.map(function (x) {
+      return '<button class="chip' + (x.name === state.person ? ' on' : '') + '" data-p="' + esc(x.name) + '">' + nm(x.name) + '</button>';
+    }).join('');
+    $('capChips').querySelectorAll('.chip').forEach(function (c) {
+      c.addEventListener('click', function () { state.person = c.dataset.p; show('capChips', false); renderWho(); });
+    });
+  }
+  $('capChange').addEventListener('click', function () { $('capChips').classList.toggle('hidden'); });
+  $('btnCamera').addEventListener('click', function () { $('fileInput').value = ''; $('fileInput').click(); });
+  $('capRetry').addEventListener('click', function () { resetCapture(); $('fileInput').value = ''; $('fileInput').click(); });
+  $('capManual').addEventListener('click', function () {
+    openConfirm({ store: '', date: today(), total: 0, items: [{ name: '', price: 0 }] });
+  });
+
+  $('fileInput').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file) return;
+    show('capStart', false); show('capLoading', true);
+    var url = URL.createObjectURL(file);
+    $('capPreview').src = url;
+    shrinkImage(url).then(function (b64) {
+      return api('analyze', { image: b64, mimeType: 'image/jpeg' });
+    }).then(function (res) {
+      var r = res.receipt || {};
+      if (!r.date) r.date = today();
+      if (!r.items || !r.items.length) r.items = [{ name: '', price: 0 }];
+      openConfirm(r);
+    }).catch(function (err) {
+      show('capLoading', false); show('capError', true);
+      $('capErrorText').textContent = err.message;
+    });
+  });
+
+  /* 送る前に写真を小さくする(通信を軽く、速くするため) */
+  function shrinkImage(url) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var MAX = 1600, w = img.naturalWidth, h = img.naturalHeight;
+        var s = Math.min(1, MAX / Math.max(w, h));
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * s); c.height = Math.round(h * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      };
+      img.onerror = function () { reject(new Error('写真を開けませんでした')); };
+      img.src = url;
+    });
+  }
+
+  /* ---------- 確認フォーム ---------- */
+  function openConfirm(r) {
+    state.draft = { person: state.person, store: r.store || '', date: r.date || today(),
+      total: r.total || 0, items: (r.items || []).map(function (it) { return { name: it.name, price: it.price }; }) };
+    show('capStart', false); show('capLoading', false); show('capError', false); show('capConfirm', true);
+    show('cfError', false);
+    $('cfStore').value = state.draft.store;
+    $('cfDate').value = state.draft.date;
+    $('cfTotal').value = state.draft.total || '';
+    renderConfirmPerson(); renderItems(); window.scrollTo(0, 0);
+  }
+  function renderConfirmPerson() {
+    $('cfPerson').innerHTML = MEMBERS.map(function (x) {
+      return '<button class="chip' + (x.name === state.draft.person ? ' on' : '') + '" data-p="' + esc(x.name) + '">' + nm(x.name) + '</button>';
+    }).join('');
+    $('cfPerson').querySelectorAll('.chip').forEach(function (c) {
+      c.addEventListener('click', function () { state.draft.person = c.dataset.p; renderConfirmPerson(); });
+    });
+  }
+  function renderItems() {
+    $('cfItems').innerHTML = state.draft.items.map(function (it, i) {
+      return '<div class="item-row">' +
+        '<input class="input name" data-i="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="品名">' +
+        '<input class="input price" data-i="' + i + '" data-k="price" type="number" inputmode="numeric" value="' + (it.price || it.price === 0 ? it.price : '') + '">' +
+        '<button class="icon-btn del" data-del="' + i + '" aria-label="この品目を消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
+    }).join('');
+    $('cfItems').querySelectorAll('input').forEach(function (inp) {
+      inp.addEventListener('input', function () {
+        var it = state.draft.items[+inp.dataset.i];
+        it[inp.dataset.k] = inp.dataset.k === 'price' ? Math.round(Number(inp.value) || 0) : inp.value;
+        updateSums();
+      });
+    });
+    $('cfItems').querySelectorAll('[data-del]').forEach(function (b) {
+      b.addEventListener('click', function () { state.draft.items.splice(+b.dataset.del, 1); renderItems(); });
+    });
+    updateSums();
+  }
+  function itemsSum() { return state.draft.items.reduce(function (s, it) { return s + (Number(it.price) || 0); }, 0); }
+  function updateSums() {
+    var s = itemsSum(), t = Math.round(Number($('cfTotal').value) || 0);
+    $('cfItemsSum').textContent = yen(s);
+    var diff = t - s;
+    if (t && s && diff !== 0) {
+      $('cfWarn').textContent = '支払った合計と品目の合計が ' + yen(Math.abs(diff)) + ' 違います。' +
+        '消費税や読み取りの間違いかもしれません。気になる場合は直してください。';
+      show('cfWarn', true);
+    } else show('cfWarn', false);
+  }
+  $('cfTotal').addEventListener('input', updateSums);
+  $('cfAddItem').addEventListener('click', function () { state.draft.items.push({ name: '', price: 0 }); renderItems(); });
+  $('cfCancel').addEventListener('click', function () {
+    if (confirm('このレシートを保存せずに戻りますか?')) resetCapture();
+  });
+  $('cfSave').addEventListener('click', function () {
+    var d = state.draft;
+    d.store = $('cfStore').value.trim();
+    d.date = $('cfDate').value;
+    d.total = Math.round(Number($('cfTotal').value) || 0);
+    if (!d.total) d.total = itemsSum();
+    d.items = d.items.filter(function (it) { return (it.name || '').trim() || it.price; });
+    show('cfError', false);
+    if (!d.date) { $('cfError').textContent = '買った日を入れてください'; show('cfError', true); return; }
+    if (!d.total) { $('cfError').textContent = '合計金額を入れてください'; show('cfError', true); return; }
+    var btn = this; btn.disabled = true; btn.textContent = '保存中…';
+    api('save', { receipt: d }).then(function () {
+      btn.disabled = false; btn.textContent = '保存する';
+      toast(label(d.person) + 'の買い物を保存しました');
+      state.month = d.date.slice(0, 7);
+      state.loadedMonth = null;
+      go('history');
+    }).catch(function (err) {
+      btn.disabled = false; btn.textContent = '保存する';
+      $('cfError').textContent = err.message; show('cfError', true);
+    });
+  });
+
+  /* ---------- 初回設定と設定 ---------- */
+  var setupPick = null;
+  function openSetup() {
+    setupPick = state.owner;
+    show('setupPassWrap', !DEMO);
+    $('setupPass').value = state.pass;
+    show('setupError', false);
+    renderSetupMembers();
+    show('setup', true);
+  }
+  function renderSetupMembers() {
+    $('setupMembers').innerHTML = MEMBERS.map(function (m) {
+      return '<button class="member-btn' + (setupPick === m.name ? ' on' : '') + '" data-p="' + esc(m.name) + '">' +
+        '<div class="avatar" style="' + avatarStyle(m) + '">' + esc(m.short) + '</div>' + nm(m.name) + '</button>';
+    }).join('');
+    $('setupMembers').querySelectorAll('.member-btn').forEach(function (b) {
+      b.addEventListener('click', function () { setupPick = b.dataset.p; renderSetupMembers(); });
+    });
+  }
+  $('setupDone').addEventListener('click', function () {
+    show('setupError', false);
+    if (!setupPick) { $('setupError').textContent = '使う人を選んでください'; show('setupError', true); return; }
+    var pass = $('setupPass').value.trim();
+    if (!DEMO && !pass) { $('setupError').textContent = '合言葉を入れてください'; show('setupError', true); return; }
+    var btn = this; btn.disabled = true; btn.textContent = '確認中…';
+    var oldPass = state.pass; state.pass = pass;
+    api('ping').then(function () {
+      return refreshMembers();
+    }).then(function () {
+      // 別のスマホでメンバーが変えられていた場合は、選び直してもらう
+      if (!MEMBERS.some(function (m) { return m.name === setupPick; })) {
+        store.set('pass', pass); setupPick = null; renderSetupMembers();
+        throw new Error('家族のメンバーが新しくなっていました。使う人をもう一度選んでください');
+      }
+      state.owner = setupPick; store.set('owner', setupPick); store.set('pass', pass);
+      show('setup', false); toast('ようこそ、' + label(setupPick) + 'さん');
+      state.loadedMonth = null; go('history');
+    }).catch(function (err) {
+      if (!store.get('pass')) state.pass = oldPass;
+      $('setupError').textContent = err.message; show('setupError', true);
+    }).then(function () { btn.disabled = false; btn.textContent = 'はじめる'; });
+  });
+  /* ---------- 設定メニュー ---------- */
+  $('btnSettings').addEventListener('click', function () {
+    openSheet('<div class="grip"></div><h2>設定</h2>' +
+      '<div class="meta">このスマホを使う人:' + esc(state.owner || '未設定') + '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
+      '<button class="btn btn-tonal btn-block" id="stMembers">🏠 家族のメンバーを編集</button>' +
+      '<button class="btn btn-tonal btn-block" id="stOwner">使う人・合言葉を変える</button>' +
+      '<button class="btn btn-text btn-block" id="stClose">閉じる</button></div>');
+    $('stMembers').addEventListener('click', openMemberEditor);
+    $('stOwner').addEventListener('click', function () { closeSheet(); openSetup(); });
+    $('stClose').addEventListener('click', closeSheet);
+  });
+
+  /* ---------- メンバーの編集 ---------- */
+  var edit = null; // [{orig, name, short, color}]
+  function openMemberEditor() {
+    edit = MEMBERS.map(function (m) { return { orig: m.name, name: m.name, short: m.short, color: m.color, icon: m.icon || '' }; });
+    renderMemberEditor();
+  }
+  function renderMemberEditor() {
+    var rows = edit.map(function (m, i) {
+      var swatches = COLORS.map(function (c) {
+        return '<button class="swatch' + (m.color === c ? ' on' : '') + '" data-i="' + i + '" data-c="' + c + '" ' +
+          'style="background:var(--' + c + '-bg);color:var(--' + c + '-fg)" aria-label="色">' + esc(m.short || '?') + '</button>';
+      }).join('');
+      return '<div class="mem-row">' +
+        '<div style="display:flex;gap:8px;align-items:center">' +
+        '<input class="input" data-i="' + i + '" data-k="name" value="' + esc(m.name) + '" placeholder="名前" style="flex:1;min-width:0">' +
+        '<input class="input" data-i="' + i + '" data-k="short" value="' + esc(m.short) + '" maxlength="2" placeholder="字" style="width:64px;text-align:center">' +
+        '<button class="icon-btn" data-del="' + i + '" aria-label="この人を消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button>' +
+        '</div><div class="swatches">' + swatches + '</div>' +
+        '<div class="icons">' + ['', ].concat(ICONS).map(function (ic) {
+          return '<button class="icon-pick' + ((m.icon || '') === ic ? ' on' : '') + '" data-i="' + i + '" data-ic="' + ic + '" aria-label="アイコン">' + (ic || 'なし') + '</button>';
+        }).join('') + '</div>' +
+        (m.orig && m.orig !== m.name.trim() && m.name.trim() ? '<div class="note" style="margin-top:4px">「' + esc(m.orig) + '」から名前を変えます</div>' : '') +
+        '</div>';
+    }).join('');
+    var anyRename = edit.some(function (m) { return m.orig && m.name.trim() && m.orig !== m.name.trim(); });
+    openSheet('<div class="grip"></div><h2>🏠 家族のメンバー</h2>' +
+      '<div class="meta">名前・アイコンの字・色を変えられます。保存すると家族全員のスマホに反映されます。</div>' +
+      rows +
+      '<button class="btn btn-text" id="meAdd" style="padding:0 8px">+ メンバーを追加</button>' +
+      (anyRename ? '<label class="check"><input type="checkbox" id="meRenamePast" checked> 過去の記録の名前も新しい名前に変える</label>' : '') +
+      '<div class="error hidden" id="meError"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
+      '<button class="btn btn-primary btn-block" id="meSave">保存する</button>' +
+      '<button class="btn btn-text btn-block" id="meCancel">やめる</button></div>');
+
+    $('sheet').querySelectorAll('.mem-row input').forEach(function (inp) {
+      inp.addEventListener('input', function () {
+        edit[+inp.dataset.i][inp.dataset.k] = inp.value;
+        if (inp.dataset.k === 'short') {
+          $('sheet').querySelectorAll('.swatch[data-i="' + inp.dataset.i + '"]').forEach(function (s) { s.textContent = inp.value || '?'; });
+        }
+      });
+      if (inp.dataset.k === 'name') inp.addEventListener('change', function () {
+        var m = edit[+inp.dataset.i];
+        if (!m.short.trim() && m.name.trim()) m.short = m.name.trim().charAt(0);
+        keepScroll(renderMemberEditor);
+      });
+    });
+    $('sheet').querySelectorAll('.icon-pick').forEach(function (b) {
+      b.addEventListener('click', function () { edit[+b.dataset.i].icon = b.dataset.ic; keepScroll(renderMemberEditor); });
+    });
+    $('sheet').querySelectorAll('.swatch').forEach(function (b) {
+      b.addEventListener('click', function () { edit[+b.dataset.i].color = b.dataset.c; keepScroll(renderMemberEditor); });
+    });
+    $('sheet').querySelectorAll('[data-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var m = edit[+b.dataset.del];
+        if (m.orig && !confirm('「' + m.orig + '」をメンバーから外しますか?\n(これまでの記録は残ります)')) return;
+        edit.splice(+b.dataset.del, 1); keepScroll(renderMemberEditor);
+      });
+    });
+    $('meAdd').addEventListener('click', function () {
+      var used = edit.map(function (m) { return m.color; });
+      var color = COLORS.filter(function (c) { return used.indexOf(c) < 0; })[0] || 'amber';
+      var usedIc = edit.map(function (m) { return m.icon; });
+      var icon = ICONS.filter(function (c) { return usedIc.indexOf(c) < 0; })[0] || '';
+      edit.push({ orig: null, name: '', short: '', color: color, icon: icon });
+      keepScroll(renderMemberEditor);
+      var inputs = $('sheet').querySelectorAll('.mem-row input[data-k="name"]');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+    $('meCancel').addEventListener('click', closeSheet);
+    $('meSave').addEventListener('click', saveMembers);
+  }
+  function keepScroll(fn) { var y = $('sheet').scrollTop; fn(); $('sheet').scrollTop = y; }
+
+  function saveMembers() {
+    var err = function (msg) { $('meError').textContent = msg; show('meError', true); };
+    show('meError', false);
+    var list = edit.map(function (m) {
+      var name = m.name.trim();
+      return { orig: m.orig, name: name, short: (m.short || '').trim().slice(0, 2) || name.charAt(0), color: m.color, icon: m.icon || '' };
+    });
+    if (!list.length) return err('メンバーを1人以上入れてください');
+    var seen = {};
+    for (var i = 0; i < list.length; i++) {
+      if (!list[i].name) return err('名前が空の人がいます');
+      if (seen[list[i].name]) return err('「' + list[i].name + '」が2回出てきます');
+      seen[list[i].name] = true;
+    }
+    var renamePast = $('meRenamePast') ? $('meRenamePast').checked : false;
+    var renames = list.filter(function (m) { return m.orig && m.orig !== m.name; })
+      .map(function (m) { return { from: m.orig, to: m.name }; });
+    var btn = $('meSave'); btn.disabled = true; btn.textContent = '保存中…';
+    api('saveMembers', {
+      members: list.map(function (m) { return { name: m.name, short: m.short, color: m.color, icon: m.icon }; }),
+      renames: renamePast ? renames : []
+    }).then(function (res) {
+      // このスマホの「使う人」の名前が変わった/消えた場合の対応
+      var mine = renames.filter(function (r) { return r.from === state.owner; })[0];
+      if (mine) { state.owner = mine.to; store.set('owner', mine.to); }
+      setMembers(res.members || list);
+      closeSheet(); toast('メンバーを保存しました');
+      if (state.owner && !MEMBERS.some(function (m) { return m.name === state.owner; })) {
+        state.owner = null; store.del('owner'); openSetup();
+      }
+      state.loadedMonth = null; loadMonth(true);
+    }).catch(function (e) {
+      btn.disabled = false; btn.textContent = '保存する'; err(e.message);
+    });
+  }
+
+  function setMembers(list) {
+    if (!list || !list.length) return;
+    MEMBERS = list;
+    store.set('members', JSON.stringify(list));
+    if (state.loadedMonth) { renderHistory(); renderSummary(); }
+  }
+  // スプレッドシートから最新のメンバーを受け取る(なければ今のまま)
+  function refreshMembers() {
+    return api('members').then(function (res) { if (res.members) setMembers(res.members); }).catch(function () {});
+  }
+
+  /* ---------- 起動 ---------- */
+  show('demoBanner', DEMO);
+  function ownerMissing() { return !MEMBERS.some(function (m) { return m.name === state.owner; }); }
+  if (!state.owner || (!DEMO && !state.pass) || ownerMissing()) openSetup();
+  else {
+    refreshMembers().then(function () { if (ownerMissing()) openSetup(); });
+    loadMonth(true);
+  }
+
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
