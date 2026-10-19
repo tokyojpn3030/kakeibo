@@ -400,7 +400,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-19 22:31 版15';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-19 22:37 版16';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -456,7 +456,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   function addHome(info) {
     var same = HOMES.filter(function (h) { return h.url === info.url; })[0];
-    if (same) return same;
+    if (same) {
+      // 招待リンクに書いてある家の名前のほうが新しいので、そちらに合わせる
+      if (info.name && info.name !== same.name) { same.name = info.name; saveHomes(HOMES); }
+      return same;
+    }
     var h = { id: 'h' + Date.now().toString(36), name: info.name || 'お家', url: info.url };
     HOMES = HOMES.filter(function (x) { return x.url; });  // 本物の家ができたらデモの家は外す
     HOMES.push(h); saveHomes(HOMES);
@@ -1115,7 +1119,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stUpdate">⬆ 新しい版に更新する</button>' +
       '<button class="btn btn-text btn-block" id="stClose">閉じる</button></div>' +
       '<div class="note" style="text-align:center;margin-top:8px">アプリの版:' + APP_VERSION + '</div>');
-    $('stInvite').addEventListener('click', openInvite);
+    $('stInvite').addEventListener('click', function () { openInvite(); });
     $('stMembers').addEventListener('click', openMemberEditor);
     $('stDelete').addEventListener('click', openDelete);
     $('stHomes').addEventListener('click', openHomes);
@@ -1201,7 +1205,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function backButton(id) { return '<button class="btn btn-text btn-block" id="' + id + '">← 設定に戻る</button>'; }
 
   /* ---------- 家族を招待 ---------- */
-  function openInvite() {
+  function openInvite(checked) {
+    if (!DEMO && !checked) {
+      // 送る前に、スプレッドシートに登録した家の名前を確かめる
+      return api('ping').then(function (res) {
+        if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); $('homeLabel').textContent = '🏠 ' + HOME.name; }
+      }).catch(function () {}).then(function () { openInvite(true); });
+    }
     if (DEMO) {
       openSheet('<div class="grip"></div><h2>💌 家族を招待する</h2><div class="note">デモの家では招待リンクは作れません。</div>' + backButton('ivBack'));
       $('ivBack').addEventListener('click', openSettings); return;
