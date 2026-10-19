@@ -396,7 +396,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-19 版12';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-19 版13';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -441,11 +441,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function b64url(s) { return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function unb64url(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); }
   function inviteLink(h) {
-    return location.origin + location.pathname + '#join=' + b64url(JSON.stringify({ u: h.url, n: h.name }));
+    return location.origin + location.pathname + '?join=' + b64url(JSON.stringify({ u: h.url, n: h.name }));
   }
   function parseJoin(text) {
     text = String(text || '').trim();
-    var m = text.match(/#join=([A-Za-z0-9_-]+)/);
+    var m = text.match(/[?#&]join=([A-Za-z0-9_-]+)/);
     if (m) { try { var o = JSON.parse(unb64url(m[1])); if (o && o.u) return { url: o.u, name: o.n || '' }; } catch (e) {} }
     if (/^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec$/.test(text)) return { url: text, name: '' };
     return null;
@@ -460,10 +460,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   // 招待リンクで開かれたとき(開いたままのアプリでリンクを押した場合も)
   window.addEventListener('hashchange', function () { if (/#join=/.test(location.hash)) location.reload(); });
+  // ホーム画面から開いたアプリかどうか
+  var STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  var JOINED = false;   // 招待リンクで開いた(案内を出すため)
   var RELOADING = (function () {
-    var j = parseJoin(location.hash);
+    var j = parseJoin(location.search + location.hash);
     if (!j) return false;
-    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    // ホーム画面に追加するときにリンクの情報が残るよう、ブラウザで開いているあいだはアドレスを消さない
+    if (STANDALONE) {
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      // アイコンには招待の情報がずっと付いているので、使うのは最初の1回だけ(あとで家を切り替えても戻されない)
+      var key = 'usedJoin.' + j.url;
+      if (G.get(key)) return false;
+      G.set(key, '1');
+    } else JOINED = true;
     var h = addHome(j);
     if (h.id !== HOME.id) { G.set('home', h.id); location.reload(); return true; }
     return false;
@@ -1503,8 +1513,23 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     return api('members').then(function (res) { if (res.members) setMembers(res.members); }).catch(function () {});
   }
 
+  /* ---------- 招待リンクをブラウザで開いたときの案内 ---------- */
+  function openAddHomeGuide(after) {
+    var ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    openSheet('<div class="grip"></div><h2>📲 まずホーム画面に追加しましょう</h2>' +
+      '<div class="meta">「' + esc(HOME.name) + '」の家計簿に招待されました。ホーム画面に追加すると、アプリのように使えます。</div>' +
+      (ios
+        ? '<ol style="padding-left:22px;margin:8px 0 16px"><li>下の <b>共有ボタン(□に↑)</b> を押す</li><li><b>「ホーム画面に追加」</b> を押す</li><li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>合言葉を入れて、自分の名前を選ぶ</li></ol>' +
+          '<div class="note" style="margin-bottom:12px">LINE の中で開いているときは、先に右下のメニューから「Safari で開く」を選んでください。</div>'
+        : '<ol style="padding-left:22px;margin:8px 0 16px"><li>右上の <b>︙</b> を押す</li><li><b>「ホーム画面に追加」</b>(または「アプリをインストール」)を押す</li><li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>合言葉を入れて、自分の名前を選ぶ</li></ol>' +
+          '<div class="note" style="margin-bottom:12px">LINE の中で開いているときは、先に右上のメニューから「ブラウザで開く」を選んでください。</div>') +
+      '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>');
+    $('agLater').addEventListener('click', function () { closeSheet(); if (after) after(); });
+  }
+
   /* ---------- 起動 ---------- */
   if (RELOADING) return;
+  if (JOINED && !store.get('owner')) { show('demoBanner', DEMO); $('homeLabel').textContent = '🏠 ' + HOME.name; openAddHomeGuide(openSetup); return; }
   show('demoBanner', DEMO);
   $('homeLabel').textContent = '🏠 ' + HOME.name;
   function ownerMissing() { return !MEMBERS.some(function (m) { return m.name === state.owner; }); }
