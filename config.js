@@ -2,8 +2,12 @@
 // ここだけ書き換えれば、別の家族用にも使えます。
 
 window.KAKEIBO_CONFIG = {
+  // 最初につなぐ家の名前(アプリの ⚙ →「家の切り替え・追加」で変えられます)
+  HOME_NAME: '三姉妹の家',
+
   // Apps Script を「ウェブアプリ」として公開したときの URL を '' の中に貼ります。
   // 空のままだと「デモモード」で動きます(このスマホの中だけに仮保存)。
+  // ほかの家は、アプリの招待リンクで追加します。
   API_URL: 'https://script.google.com/macros/s/AKfycbzkXYUdw_1e5d5fjSeTz3xUz46V0U7G70uYbgwk3p6hSjMZ7X6SDJHQi04td7aBT9ob/exec',
 
   // 最初のメンバー(アプリの ⚙設定 →「家族のメンバーを編集」でいつでも変えられます。
