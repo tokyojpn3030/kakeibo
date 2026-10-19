@@ -1192,7 +1192,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       api('resetHome', { confirm: '初期化' }).then(function () {
         store.del('owner'); store.del('members'); state.owner = null;
         MEMBERS = CFG.MEMBERS.slice(); state.receipts = []; state.loadedMonth = null;
-        closeSheet(); toast('初期化しました'); openSetup();
+        openSheet('<div class="grip"></div><h2>✅ 初期化が完了しました</h2>' +
+          '<div class="meta">「' + esc(HOME.name) + '」の記録・ゴミ箱・メンバーをすべて消しました。</div>' +
+          '<div class="note" style="margin-bottom:16px">次は、合言葉を入れて、家族の名前を入れる画面に進みます。</div>' +
+          '<button class="btn btn-primary btn-block" id="rsDone">はじめから設定する</button>');
+        $('rsDone').addEventListener('click', function () { closeSheet(); openSetup(); });
       }).catch(function (e) { btn.disabled = false; btn.textContent = '初期化する'; fail(e.message); });
     });
   }
