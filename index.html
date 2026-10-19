@@ -375,7 +375,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-19 版6';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-19 版7';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -1134,7 +1134,6 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var chip = function (key, val, text) {
       return '<button class="chip' + (del[key] === val ? ' on' : '') + '" data-k="' + key + '" data-v="' + val + '">' + text + '</button>';
     };
-    var needPass = del.who === 'all' || del.purge;
     openSheet('<div class="grip"></div><h2>🗑 記録の削除</h2>' +
       '<div class="meta">消すのは記録だけです。家・メンバー・名前・合言葉は残ります。</div>' +
       '<div class="field"><label>消すもの</label>' +
@@ -1148,8 +1147,6 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<div class="note">選んだ月の前の月まで(選んだ月は残ります)</div>' : '') + '</div>' +
       '<div class="field"><label>消し方</label><div class="chips" style="margin:0">' +
       chip('purge', 'false', 'ゴミ箱へ(30日以内なら戻せる)') + chip('purge', 'true', 'すぐに完全に消す') + '</div></div>' +
-      (needPass ? '<div class="field"><label for="dlPass">確認のため、合言葉をもう一度</label>' +
-        '<input class="input" id="dlPass" type="password" inputmode="numeric" autocomplete="off"></div>' : '') +
       '<div class="error hidden" id="dlError"></div>' +
       '<div class="warn hidden" id="dlPreview"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
@@ -1184,12 +1181,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
     $('dlGo').addEventListener('click', function () {
       show('dlError', false);
-      var typed = $('dlPass') ? $('dlPass').value.trim() : null;
-      if (typed === '' && !DEMO) return fail('合言葉を入れてください');
       var p = params(), btn = this;
       btn.disabled = true; btn.textContent = '削除中…';
-      api('bulkDelete', p, DEMO ? null : typed).then(function (res) {
-        if (typed && !DEMO && typed !== state.pass) { state.pass = typed; store.set('pass', typed); }
+      api('bulkDelete', p).then(function (res) {
         closeSheet();
         toast(res.result.receipts + '件を' + (p.purge ? '削除しました' : 'ゴミ箱に移しました'));
         state.loadedMonth = null; loadMonth(true);
@@ -1206,7 +1200,6 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="meta">「' + esc(HOME.name) + '」を、最初に使い始めたときの状態に戻します。テストのあと、家族に渡す前に使ってください。</div>' +
       '<div class="error" style="margin:0 0 12px">次のものが<b>すべて消えます。元に戻せません。</b><br>・買い物の記録(全員分・全期間)<br>・ゴミ箱の中身<br>・家族のメンバー(名前・絵文字・色)</div>' +
       '<div class="note" style="margin-bottom:12px">残るもの:家・合言葉・招待リンク。次に開いたときは、家族の名前を入れる画面から始まります。</div>' +
-      (DEMO ? '' : '<div class="field"><label for="rsPass">合言葉</label><input class="input" id="rsPass" type="password" inputmode="numeric" autocomplete="off"></div>') +
       '<div class="field"><label for="rsWord">確認のため「初期化」と入力してください</label><input class="input" id="rsWord" autocomplete="off" placeholder="初期化"></div>' +
       '<div class="error hidden" id="rsError"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
@@ -1216,12 +1209,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('rsBack').addEventListener('click', openDelete);
     $('rsGo').addEventListener('click', function () {
       show('rsError', false);
-      var typed = DEMO ? '' : $('rsPass').value.trim();
-      if (!DEMO && !typed) return fail('合言葉を入れてください');
       if ($('rsWord').value.trim().replace(/\s/g, '') !== '初期化') return fail('「初期化」と入力してください');
       var btn = this; btn.disabled = true; btn.textContent = '初期化中…';
-      api('resetHome', { confirm: '初期化' }, DEMO ? null : typed).then(function () {
-        if (!DEMO && typed !== state.pass) { state.pass = typed; store.set('pass', typed); }
+      api('resetHome', { confirm: '初期化' }).then(function () {
         store.del('owner'); store.del('members'); state.owner = null;
         MEMBERS = CFG.MEMBERS.slice(); state.receipts = []; state.loadedMonth = null;
         openSheet('<div class="grip"></div><h2>✅ 初期化が完了しました</h2>' +
