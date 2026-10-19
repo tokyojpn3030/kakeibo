@@ -198,6 +198,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
 .toast { position: fixed; left: 50%; bottom: calc(100px + var(--safe-b)); transform: translateX(-50%);
   z-index: 50; background: var(--text); color: var(--bg); padding: 12px 22px; border-radius: 14px; font-size: 17px; }
+.pwwrap{position:relative;display:block}
+.pwwrap .input{padding-right:64px}
+.pweye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:52px;height:52px;border:none;background:transparent;font-size:26px;border-radius:12px;cursor:pointer}
+.pweye:active{background:rgba(0,0,0,.06)}
 </style>
 </head>
 <body>
@@ -396,7 +400,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-19 22:28 版14';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-19 22:31 版15';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -784,6 +788,26 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }).catch(function (err) { alert(err.message); });
     });
   }
+  // 合言葉の欄に「👁 見る」ボタンを付ける(押すたびに、見せる/隠すが切り替わる)
+  function addEyes(root) {
+    (root || document).querySelectorAll('input[type="password"]:not([data-eye])').forEach(function (inp) {
+      inp.setAttribute('data-eye', '1');
+      var w = document.createElement('span'); w.className = 'pwwrap';
+      inp.parentNode.insertBefore(w, inp); w.appendChild(inp);
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'pweye';
+      b.textContent = '👁'; b.setAttribute('aria-label', '合言葉を見る');
+      b.addEventListener('click', function () {
+        var hide = inp.type === 'password';
+        inp.type = hide ? 'text' : 'password';
+        b.textContent = hide ? '🙈' : '👁';
+        b.setAttribute('aria-label', hide ? '合言葉を隠す' : '合言葉を見る');
+        inp.focus();
+      });
+      w.appendChild(b);
+    });
+  }
+  addEyes();
+  new MutationObserver(function () { addEyes(); }).observe(document.body, { childList: true, subtree: true });
   function openSheet(html) { $('sheet').innerHTML = html; show('sheetBack', true); }
   function closeSheet() { show('sheetBack', false); }
   $('sheetBack').addEventListener('click', function (e) { if (e.target === this) closeSheet(); });
