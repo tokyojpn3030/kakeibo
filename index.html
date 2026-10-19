@@ -346,6 +346,19 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <button class="btn btn-primary btn-block" id="passNext" style="margin-top:24px">次へ</button>
     </div>
 
+    <!-- 1'. 初期化のあと:新しい合言葉を決める -->
+    <div id="stepNewPass" class="hidden">
+      <div class="section-title">この家の合言葉を決めてください</div>
+      <p>家族みんなで使う合言葉です。家族に伝えて、紙などに控えておいてください。</p>
+      <div class="field"><label for="npP1">新しい合言葉(4〜8桁の数字)</label>
+        <input class="input" id="npP1" type="password" inputmode="numeric" autocomplete="new-password"></div>
+      <div class="field"><label for="npP2">確認のため、もう一度</label>
+        <input class="input" id="npP2" type="password" inputmode="numeric" autocomplete="new-password"></div>
+      <div class="note">1234 や 1111 のような簡単な番号は使えません。</div>
+      <div class="error hidden" id="npError"></div>
+      <button class="btn btn-primary btn-block" id="npNext" style="margin-top:16px">この合言葉にする</button>
+    </div>
+
     <!-- 2. 家族の名前(その家で初めて使うときだけ) -->
     <div id="stepNames" class="hidden">
       <div class="section-title">この家で使う家族の名前</div>
@@ -375,7 +388,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-19 版10';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-19 版11';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -918,7 +931,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   var setupPick = null, setupPass = '', names = [];
   function setupError(msg) { $('setupError').textContent = msg; show('setupError', !!msg); }
   function setupStep(name) {
-    ['Pass', 'Names', 'Pick'].forEach(function (n) { show('step' + n, n === name); });
+    ['Pass', 'NewPass', 'Names', 'Pick'].forEach(function (n) { show('step' + n, n === name); });
     setupError(''); window.scrollTo(0, 0); $('setup').scrollTop = 0;
   }
   function openSetup() {
@@ -926,9 +939,23 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('setupHome').textContent = '🏠 ' + HOME.name;
     show('setupPassWrap', !DEMO);
     $('setupPass').value = state.pass;
-    setupStep('Pass');
     show('setup', true);
+    if (store.get('needNewPass') && !DEMO) { $('npP1').value = ''; $('npP2').value = ''; setupStep('NewPass'); }
+    else if (store.get('needNewPass') && DEMO) { store.del('needNewPass'); setupPass = ''; openNames(); }
+    else setupStep('Pass');
   }
+  $('npNext').addEventListener('click', function () {
+    var np = readPass('np');
+    if (np === false) return;
+    if (!np) { $('npError').textContent = '新しい合言葉を入れてください'; show('npError', true); return; }
+    var b = this; b.disabled = true; b.textContent = '保存中…';
+    changePasscode(np).then(function () {
+      store.del('needNewPass'); setupPass = np; openNames();
+    }).catch(function (e) {
+      if (e.message === '合言葉が違います') { store.del('needNewPass'); setupStep('Pass'); setupError('このスマホの合言葉が古くなっています。今の合言葉を入れてください'); return; }
+      $('npError').textContent = e.message; show('npError', true);
+    }).then(function () { b.disabled = false; b.textContent = 'この合言葉にする'; });
+  });
   $('passNext').addEventListener('click', function () {
     var pass = $('setupPass').value.trim();
     if (!DEMO && !pass) return setupError('合言葉を入れてください');
@@ -1252,7 +1279,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>🔄 家を初期化する</h2>' +
       '<div class="meta">「' + esc(HOME.name) + '」を、最初に使い始めたときの状態に戻します。テストのあと、家族に渡す前に使ってください。</div>' +
       '<div class="error" style="margin:0 0 12px">次のものが<b>すべて消えます。元に戻せません。</b><br>・買い物の記録(全員分・全期間)<br>・ゴミ箱の中身<br>・家族のメンバー(名前・絵文字・色)</div>' +
-      '<div class="note" style="margin-bottom:12px">残るもの:家・合言葉・招待リンク。次に開いたときは、家族の名前を入れる画面から始まります。</div>' +
+      '<div class="note" style="margin-bottom:12px">初期化のあと、合言葉・家族の名前・このスマホを使う人を、はじめから決め直します。</div>' +
       '<label class="check" style="margin:4px 0 12px"><input type="checkbox" id="rsOk"> 消えることを分かったうえで初期化します</label>' +
       '<div class="error hidden" id="rsError"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
@@ -1268,21 +1295,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         store.del('owner'); store.del('members'); state.owner = null;
         MEMBERS = CFG.MEMBERS.slice(); state.receipts = []; state.loadedMonth = null;
         openSheet('<div class="grip"></div><h2>✅ 初期化が完了しました</h2>' +
-          '<div class="meta">「' + esc(HOME.name) + '」の記録・ゴミ箱・メンバーをすべて消しました。</div>' +
-          (DEMO ? '' : passFields('rs2', '家族に渡すときの、新しい合言葉(変えない場合は空のまま)')) +
-          '<div class="error hidden" id="rs2Error"></div>' +
+          '<div class="meta">「' + esc(HOME.name) + '」の記録・ゴミ箱・メンバーをすべて消しました。合言葉も新しく決め直します。</div>' +
+          '<div class="note" style="margin-bottom:16px">次の画面から、合言葉・家族の名前・このスマホを使う人を、はじめから決めます。</div>' +
           '<button class="btn btn-primary btn-block" id="rsDone">はじめから設定する</button>');
-        $('rsDone').addEventListener('click', function () {
-          var np = DEMO ? '' : readPass('rs2');
-          if (np === false) return;
-          var next = function () { closeSheet(); openSetup(); };
-          if (!np) return next();
-          var b = this; b.disabled = true; b.textContent = '合言葉を変えています…';
-          changePasscode(np).then(next).catch(function (e) {
-            b.disabled = false; b.textContent = 'はじめから設定する';
-            $('rs2Error').textContent = e.message; show('rs2Error', true);
-          });
-        });
+        store.set('needNewPass', '1');
+        $('rsDone').addEventListener('click', function () { closeSheet(); openSetup(); });
       }).catch(function (e) { btn.disabled = false; btn.textContent = '初期化する'; fail(e.message); });
     });
   }
