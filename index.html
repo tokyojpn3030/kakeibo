@@ -346,6 +346,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <button class="btn btn-primary btn-block" id="passNext" style="margin-top:24px">次へ</button>
     </div>
 
+    <!-- 家の名前(初期化のあと・その家で初めて使うとき) -->
+    <div id="stepHomeName" class="hidden">
+      <div class="section-title">このアプリを使う家の名前を入力</div>
+      <p>家族で使うなら「○○家」、自分だけで使うなら「自分の家計簿」など、好きな名前を入れてください。アプリの上に表示されます。</p>
+      <input class="input" id="hnInput" maxlength="30" placeholder="例:佐藤家 / 自分の家計簿">
+      <button class="btn btn-primary btn-block" id="hnNext" style="margin-top:20px">次へ</button>
+    </div>
+
     <!-- 1'. 初期化のあと:新しい合言葉を決める -->
     <div id="stepNewPass" class="hidden">
       <div class="section-title">この家の合言葉を決めてください</div>
@@ -388,7 +396,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-19 版11';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-19 版12';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -585,6 +593,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           return resolve({ ok: true, result: res });
         }
         if (action === 'setPasscode') return resolve({ ok: true });
+        if (action === 'setHomeName') return resolve({ ok: true, name: String(data.name || '').trim() });
         if (action === 'resetHome') {
           if (data.confirm !== '初期化') return resolve({ ok: false, error: '確認の言葉が違います' });
           demoSave([]); store.del('demoTrash'); store.del('demoMembers'); store.set('demoSeeded', '1');
@@ -931,7 +940,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   var setupPick = null, setupPass = '', names = [];
   function setupError(msg) { $('setupError').textContent = msg; show('setupError', !!msg); }
   function setupStep(name) {
-    ['Pass', 'NewPass', 'Names', 'Pick'].forEach(function (n) { show('step' + n, n === name); });
+    ['Pass', 'HomeName', 'NewPass', 'Names', 'Pick'].forEach(function (n) { show('step' + n, n === name); });
     setupError(''); window.scrollTo(0, 0); $('setup').scrollTop = 0;
   }
   function openSetup() {
@@ -940,10 +949,32 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('setupPassWrap', !DEMO);
     $('setupPass').value = state.pass;
     show('setup', true);
-    if (store.get('needNewPass') && !DEMO) { $('npP1').value = ''; $('npP2').value = ''; setupStep('NewPass'); }
-    else if (store.get('needNewPass') && DEMO) { store.del('needNewPass'); setupPass = ''; openNames(); }
+    if (store.get('needNewPass')) openHomeName(true, function () {   // 初期化のあと:家の名前 → 合言葉 → 家族の名前
+      if (DEMO) { store.del('needNewPass'); setupPass = ''; openNames(); return; }
+      $('npP1').value = ''; $('npP2').value = ''; setupStep('NewPass');
+    });
     else setupStep('Pass');
   }
+
+  // 家の名前を決める画面。決めたら after() へ進む
+  var homeNameAfter = null;
+  function openHomeName(fresh, after) {
+    homeNameAfter = after;
+    if (fresh) $('setupHome').textContent = '🏠 (これから決めます)';
+    $('hnInput').value = (!fresh && HOME.name && HOME.name !== 'お家' && HOME.name !== 'デモの家') ? HOME.name : '';
+    setupStep('HomeName');
+  }
+  $('hnNext').addEventListener('click', function () {
+    var n = $('hnInput').value.trim();
+    if (!n) return setupError('家の名前を入れてください');
+    var b = this; b.disabled = true; b.textContent = '保存中…';
+    api('setHomeName', { name: n }).then(function (res) {
+      HOME.name = res.name || n; saveHomes(HOMES);
+      $('setupHome').textContent = '🏠 ' + HOME.name; $('homeLabel').textContent = '🏠 ' + HOME.name;
+      if (homeNameAfter) homeNameAfter();
+    }).catch(function (e) { setupError(e.message); })
+      .then(function () { b.disabled = false; b.textContent = '次へ'; });
+  });
   $('npNext').addEventListener('click', function () {
     var np = readPass('np');
     if (np === false) return;
@@ -961,13 +992,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!DEMO && !pass) return setupError('合言葉を入れてください');
     var btn = this; btn.disabled = true; btn.textContent = '確認中…';
     var oldPass = state.pass; state.pass = pass;
+    var serverName = '';
     api('ping').then(function (res) {
+      serverName = res.name || '';
       if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); $('setupHome').textContent = '🏠 ' + HOME.name; }
       return api('members');
     }).then(function (res) {
       setupPass = pass;
       if (res.members && res.members.length) { setMembers(res.members); goPick(); }
-      else openNames();   // この家で初めて:家族の名前から
+      else if (!serverName && !DEMO) openHomeName(false, openNames);   // この家で初めて:家の名前 → 家族の名前
+      else openNames();
     }).catch(function (err) {
       state.pass = oldPass; setupError(err.message);
     }).then(function () { btn.disabled = false; btn.textContent = '次へ'; });
@@ -1278,8 +1312,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function openReset() {
     openSheet('<div class="grip"></div><h2>🔄 家を初期化する</h2>' +
       '<div class="meta">「' + esc(HOME.name) + '」を、最初に使い始めたときの状態に戻します。テストのあと、家族に渡す前に使ってください。</div>' +
-      '<div class="error" style="margin:0 0 12px">次のものが<b>すべて消えます。元に戻せません。</b><br>・買い物の記録(全員分・全期間)<br>・ゴミ箱の中身<br>・家族のメンバー(名前・絵文字・色)</div>' +
-      '<div class="note" style="margin-bottom:12px">初期化のあと、合言葉・家族の名前・このスマホを使う人を、はじめから決め直します。</div>' +
+      '<div class="error" style="margin:0 0 12px">次のものが<b>すべて消えます。元に戻せません。</b><br>・買い物の記録(全員分・全期間)<br>・ゴミ箱の中身<br>・家族のメンバー(名前・絵文字・色)<br>・家の名前と合言葉(このあと決め直します)</div>' +
+      '<div class="note" style="margin-bottom:12px">初期化のあと、家の名前・合言葉・家族の名前・このスマホを使う人を、はじめから決め直します。</div>' +
       '<label class="check" style="margin:4px 0 12px"><input type="checkbox" id="rsOk"> 消えることを分かったうえで初期化します</label>' +
       '<div class="error hidden" id="rsError"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
@@ -1295,8 +1329,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         store.del('owner'); store.del('members'); state.owner = null;
         MEMBERS = CFG.MEMBERS.slice(); state.receipts = []; state.loadedMonth = null;
         openSheet('<div class="grip"></div><h2>✅ 初期化が完了しました</h2>' +
-          '<div class="meta">「' + esc(HOME.name) + '」の記録・ゴミ箱・メンバーをすべて消しました。合言葉も新しく決め直します。</div>' +
-          '<div class="note" style="margin-bottom:16px">次の画面から、合言葉・家族の名前・このスマホを使う人を、はじめから決めます。</div>' +
+          '<div class="meta">「' + esc(HOME.name) + '」の記録・ゴミ箱・メンバーをすべて消しました。家の名前と合言葉も新しく決め直します。</div>' +
+          '<div class="note" style="margin-bottom:16px">次の画面から、家の名前・合言葉・家族の名前・このスマホを使う人を、はじめから決めます。</div>' +
           '<button class="btn btn-primary btn-block" id="rsDone">はじめから設定する</button>');
         store.set('needNewPass', '1');
         $('rsDone').addEventListener('click', function () { closeSheet(); openSetup(); });
