@@ -510,11 +510,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function show(id, on) { $(id).classList.toggle('hidden', !on); }
 
   /* ---------- 窓口とのやりとり ---------- */
-  function api(action, data) {
+  function api(action, data, passOverride) {
     if (DEMO) return demoApi(action, data || {}).then(function (res) {
       if (!res.ok) throw new Error(res.error || 'エラーが起きました'); return res;
     });
-    var body = Object.assign({ action: action, pass: state.pass }, data || {});
+    var body = Object.assign({ action: action, pass: passOverride != null ? passOverride : state.pass }, data || {});
     return fetch(HOME.url, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
       .then(function (r) {
         if (!r.ok) throw new Error('通信エラー(' + r.status + ')');
@@ -1141,7 +1141,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if ($('dlBefore')) del.before = $('dlBefore').value;
       return { person: del.who === 'me' ? state.owner : '', before: del.range === 'before' ? del.before : '', purge: del.purge };
     };
-    var fail = function (msg) { $('dlError').textContent = msg; show('dlError', true); };
+    var fail = function (msg) { show('dlError', false); setTimeout(function () { $('dlError').textContent = msg; show('dlError', true); }, 150); };
     $('dlCheck').addEventListener('click', function () {
       show('dlError', false); show('dlGo', false); show('dlPreview', false);
       var p = params();
@@ -1156,10 +1156,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
     $('dlGo').addEventListener('click', function () {
       show('dlError', false);
-      if ($('dlPass') && $('dlPass').value.trim() !== String(state.pass)) return fail(DEMO ? 'デモの家では合言葉の確認はありません' : '合言葉が違います');
+      var typed = $('dlPass') ? $('dlPass').value.trim() : null;
+      if (typed === '' && !DEMO) return fail('合言葉を入れてください');
       var p = params(), btn = this;
       btn.disabled = true; btn.textContent = '削除中…';
-      api('bulkDelete', p).then(function (res) {
+      api('bulkDelete', p, DEMO ? null : typed).then(function (res) {
+        if (typed && !DEMO && typed !== state.pass) { state.pass = typed; store.set('pass', typed); }
         closeSheet();
         toast(res.result.receipts + '件を' + (p.purge ? '削除しました' : 'ゴミ箱に移しました'));
         state.loadedMonth = null; loadMonth(true);
@@ -1182,14 +1184,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
       '<button class="btn btn-danger btn-block" id="rsGo">初期化する</button>' +
       '<button class="btn btn-text btn-block" id="rsBack">← 削除の画面に戻る</button></div>');
-    var fail = function (m) { $('rsError').textContent = m; show('rsError', true); };
+    var fail = function (m) { show('rsError', false); setTimeout(function () { $('rsError').textContent = m; show('rsError', true); }, 150); };
     $('rsBack').addEventListener('click', openDelete);
     $('rsGo').addEventListener('click', function () {
       show('rsError', false);
-      if (!DEMO && $('rsPass').value.trim() !== String(state.pass)) return fail('合言葉が違います');
-      if ($('rsWord').value.trim() !== '初期化') return fail('「初期化」と入力してください');
+      var typed = DEMO ? '' : $('rsPass').value.trim();
+      if (!DEMO && !typed) return fail('合言葉を入れてください');
+      if ($('rsWord').value.trim().replace(/\s/g, '') !== '初期化') return fail('「初期化」と入力してください');
       var btn = this; btn.disabled = true; btn.textContent = '初期化中…';
-      api('resetHome', { confirm: '初期化' }).then(function () {
+      api('resetHome', { confirm: '初期化' }, DEMO ? null : typed).then(function () {
+        if (!DEMO && typed !== state.pass) { state.pass = typed; store.set('pass', typed); }
         store.del('owner'); store.del('members'); state.owner = null;
         MEMBERS = CFG.MEMBERS.slice(); state.receipts = []; state.loadedMonth = null;
         openSheet('<div class="grip"></div><h2>✅ 初期化が完了しました</h2>' +
