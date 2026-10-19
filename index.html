@@ -335,15 +335,35 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   <div class="setup-inner">
     <h2>はじめに</h2>
     <div class="total-card" style="margin:0 0 16px"><div class="label">つなぐ家</div><div style="font-size:22px;font-weight:700" id="setupHome"></div></div>
-    <p>このスマホを使う人と、家族の合言葉を設定します。次からは入力しなくて大丈夫です。</p>
-    <div class="section-title">このスマホを使うのは誰ですか?</div>
-    <div class="member-grid" id="setupMembers"></div>
-    <div id="setupPassWrap">
-      <div class="section-title">家族の合言葉</div>
-      <input class="input" id="setupPass" type="password" inputmode="numeric" autocomplete="off" placeholder="合言葉を入力">
+
+    <!-- 1. 合言葉 -->
+    <div id="stepPass">
+      <p>家族の合言葉を入れてください。次からは入力しなくて大丈夫です。</p>
+      <div id="setupPassWrap">
+        <div class="section-title">家族の合言葉</div>
+        <input class="input" id="setupPass" type="password" inputmode="numeric" autocomplete="off" placeholder="合言葉を入力">
+      </div>
+      <button class="btn btn-primary btn-block" id="passNext" style="margin-top:24px">次へ</button>
     </div>
+
+    <!-- 2. 家族の名前(その家で初めて使うときだけ) -->
+    <div id="stepNames" class="hidden">
+      <div class="section-title">この家で使う家族の名前</div>
+      <p>この家計簿を使う人の名前を入れてください。あとから ⚙ 設定でいつでも変えられます。</p>
+      <div id="namesList"></div>
+      <button class="btn btn-text" id="namesAdd" style="padding:0 8px">+ 名前を追加</button>
+      <button class="btn btn-primary btn-block" id="namesNext" style="margin-top:16px">この名前で決める</button>
+    </div>
+
+    <!-- 3. このスマホを使う人 -->
+    <div id="stepPick" class="hidden">
+      <div class="section-title">このスマホを使うのは誰ですか?</div>
+      <div class="member-grid" id="setupMembers"></div>
+      <button class="btn btn-primary btn-block" id="setupDone" style="margin-top:8px">はじめる</button>
+      <button class="btn btn-text btn-block" id="pickBack">← 合言葉の入力に戻る</button>
+    </div>
+
     <div class="error hidden" id="setupError"></div>
-    <button class="btn btn-primary btn-block" id="setupDone" style="margin-top:24px">はじめる</button>
   </div>
 </div>
 
@@ -473,6 +493,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     name = name || '不明';
     return { name: name, short: name.charAt(0), color: 'amber', icon: '' };
   }
+  // 丸アイコンの字:名前の中の最初の漢字(なければ最初の字)
+  function shortOf(n) { var k = String(n).match(/[\u4e00-\u9fff]/); return k ? k[0] : String(n).charAt(0); }
   function label(name) { var m = member(name); return (m.icon ? m.icon + ' ' : '') + m.name; }
   function nm(name) { return esc(label(name)); }
   function avatarStyle(m) { return 'background:var(--' + m.color + '-bg);color:var(--' + m.color + '-fg)'; }
@@ -881,16 +903,81 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
   });
 
-  /* ---------- 初回設定と設定 ---------- */
-  var setupPick = null;
+  /* ---------- 初回設定 ----------
+     1. 合言葉 → 2. 家族の名前(その家でまだ決まっていないときだけ)→ 3. このスマホを使う人 */
+  var setupPick = null, setupPass = '', names = [];
+  function setupError(msg) { $('setupError').textContent = msg; show('setupError', !!msg); }
+  function setupStep(name) {
+    ['Pass', 'Names', 'Pick'].forEach(function (n) { show('step' + n, n === name); });
+    setupError(''); window.scrollTo(0, 0); $('setup').scrollTop = 0;
+  }
   function openSetup() {
     setupPick = state.owner;
     $('setupHome').textContent = '🏠 ' + HOME.name;
     show('setupPassWrap', !DEMO);
     $('setupPass').value = state.pass;
-    show('setupError', false);
-    renderSetupMembers();
+    setupStep('Pass');
     show('setup', true);
+  }
+  $('passNext').addEventListener('click', function () {
+    var pass = $('setupPass').value.trim();
+    if (!DEMO && !pass) return setupError('合言葉を入れてください');
+    var btn = this; btn.disabled = true; btn.textContent = '確認中…';
+    var oldPass = state.pass; state.pass = pass;
+    api('ping').then(function (res) {
+      if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); $('setupHome').textContent = '🏠 ' + HOME.name; }
+      return api('members');
+    }).then(function (res) {
+      setupPass = pass;
+      if (res.members && res.members.length) { setMembers(res.members); goPick(); }
+      else openNames();   // この家で初めて:家族の名前から
+    }).catch(function (err) {
+      state.pass = oldPass; setupError(err.message);
+    }).then(function () { btn.disabled = false; btn.textContent = '次へ'; });
+  });
+
+  function openNames() {
+    names = [{ name: '' }];
+    renderNames(); setupStep('Names');
+  }
+  function renderNames() {
+    $('namesList').innerHTML = names.map(function (n, i) {
+      var ic = ICONS[i % ICONS.length], c = COLORS[i % COLORS.length];
+      return '<div class="item-row">' +
+        '<div class="avatar" style="flex:none;' + avatarStyle({ color: c }) + '">' + ic + '</div>' +
+        '<input class="input name" data-i="' + i + '" value="' + esc(n.name) + '" placeholder="例:' + ['お母さん', '長女', '次女', '三女', 'お父さん', 'おばあちゃん'][i % 6] + '">' +
+        (names.length > 1 ? '<button class="icon-btn del" data-del="' + i + '" aria-label="この名前を消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' : '') +
+        '</div>';
+    }).join('');
+    $('namesList').querySelectorAll('input').forEach(function (inp) {
+      inp.addEventListener('input', function () { names[+inp.dataset.i].name = inp.value; });
+    });
+    $('namesList').querySelectorAll('[data-del]').forEach(function (b) {
+      b.addEventListener('click', function () { names.splice(+b.dataset.del, 1); renderNames(); });
+    });
+  }
+  $('namesAdd').addEventListener('click', function () {
+    names.push({ name: '' }); renderNames();
+    var ins = $('namesList').querySelectorAll('input'); if (ins.length) ins[ins.length - 1].focus();
+  });
+  $('namesNext').addEventListener('click', function () {
+    var list = names.map(function (n) { return n.name.trim(); }).filter(function (n) { return n; });
+    if (!list.length) return setupError('名前を1人以上入れてください');
+    var seen = {};
+    for (var i = 0; i < list.length; i++) { if (seen[list[i]]) return setupError('「' + list[i] + '」が2回出てきます'); seen[list[i]] = true; }
+    var members = list.map(function (n, i) {
+      return { name: n, short: shortOf(n), color: COLORS[i % COLORS.length], icon: ICONS[i % ICONS.length] };
+    });
+    var btn = this; btn.disabled = true; btn.textContent = '保存中…';
+    api('saveMembers', { members: members, renames: [] }).then(function (res) {
+      setMembers(res.members || members); setupPick = null; goPick();
+    }).catch(function (err) { setupError(err.message); })
+      .then(function () { btn.disabled = false; btn.textContent = 'この名前で決める'; });
+  });
+
+  function goPick() {
+    if (!MEMBERS.some(function (m) { return m.name === setupPick; })) setupPick = MEMBERS.length === 1 ? MEMBERS[0].name : null;
+    renderSetupMembers(); setupStep('Pick');
   }
   function renderSetupMembers() {
     $('setupMembers').innerHTML = MEMBERS.map(function (m) {
@@ -901,30 +988,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       b.addEventListener('click', function () { setupPick = b.dataset.p; renderSetupMembers(); });
     });
   }
+  $('pickBack').addEventListener('click', function () { setupStep('Pass'); });
   $('setupDone').addEventListener('click', function () {
-    show('setupError', false);
-    if (!setupPick) { $('setupError').textContent = '使う人を選んでください'; show('setupError', true); return; }
-    var pass = $('setupPass').value.trim();
-    if (!DEMO && !pass) { $('setupError').textContent = '合言葉を入れてください'; show('setupError', true); return; }
-    var btn = this; btn.disabled = true; btn.textContent = '確認中…';
-    var oldPass = state.pass; state.pass = pass;
-    api('ping').then(function (res) {
-      if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); }
-      return refreshMembers();
-    }).then(function () {
-      // 別のスマホでメンバーが変えられていた場合は、選び直してもらう
-      if (!MEMBERS.some(function (m) { return m.name === setupPick; })) {
-        store.set('pass', pass); setupPick = null; renderSetupMembers();
-        throw new Error('家族のメンバーが新しくなっていました。使う人をもう一度選んでください');
-      }
-      state.owner = setupPick; store.set('owner', setupPick); store.set('pass', pass);
-      show('setup', false); toast('ようこそ、' + label(setupPick) + 'さん');
-      state.loadedMonth = null; go('history');
-    }).catch(function (err) {
-      if (!store.get('pass')) state.pass = oldPass;
-      $('setupError').textContent = err.message; show('setupError', true);
-    }).then(function () { btn.disabled = false; btn.textContent = 'はじめる'; });
+    if (!setupPick) return setupError('使う人を選んでください');
+    state.owner = setupPick; store.set('owner', setupPick); store.set('pass', setupPass);
+    show('setup', false); toast('ようこそ、' + label(setupPick) + 'さん');
+    state.loadedMonth = null; go('history');
   });
+
   /* ---------- 設定メニュー ---------- */
   function openSettings() {
     openSheet('<div class="grip"></div><h2>設定</h2>' +
@@ -1176,7 +1247,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       });
       if (inp.dataset.k === 'name') inp.addEventListener('change', function () {
         var m = edit[+inp.dataset.i];
-        if (!m.short.trim() && m.name.trim()) m.short = m.name.trim().charAt(0);
+        if (!m.short.trim() && m.name.trim()) m.short = shortOf(m.name.trim());
         keepScroll(renderMemberEditor);
       });
     });
