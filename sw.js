@@ -1,6 +1,6 @@
 // お家の家計簿 — オフライン用の小さな仕組み
 // いつもは最新のファイルを取りに行き、電波がないときだけ保存しておいたものを使います。
-const CACHE = 'kakeibo-v2';
+const CACHE = 'kakeibo-v5';
 const FILES = ['./', 'index.html', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
@@ -18,7 +18,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(req).then((res) => {
+    // 毎回サーバーに新しい版がないか確かめる(古い版を覚えたままにしない)
+    fetch(req, { cache: 'no-cache' }).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(req, copy));
       return res;
