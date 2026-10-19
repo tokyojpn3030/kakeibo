@@ -375,7 +375,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-19 版8';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-19 版9';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -1396,6 +1396,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   if (!state.owner || (!DEMO && !state.pass) || ownerMissing()) openSetup();
   else {
     refreshMembers().then(function () { if (ownerMissing()) openSetup(); });
+    // 家の名前(Apps Script の HOME_NAME)が変わっていたら表示を合わせる
+    api('ping').then(function (res) {
+      if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); $('homeLabel').textContent = '🏠 ' + HOME.name; }
+    }).catch(function () {});
     loadMonth(true);
   }
 
