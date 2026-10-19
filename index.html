@@ -511,7 +511,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   /* ---------- 窓口とのやりとり ---------- */
   function api(action, data) {
-    if (DEMO) return demoApi(action, data || {});
+    if (DEMO) return demoApi(action, data || {}).then(function (res) {
+      if (!res.ok) throw new Error(res.error || 'エラーが起きました'); return res;
+    });
     var body = Object.assign({ action: action, pass: state.pass }, data || {});
     return fetch(HOME.url, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
       .then(function (r) {
@@ -567,6 +569,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
             store.set('demoTrash', JSON.stringify(tr));
           }
           return resolve({ ok: true, result: res });
+        }
+        if (action === 'resetHome') {
+          if (data.confirm !== '初期化') return resolve({ ok: false, error: '確認の言葉が違います' });
+          demoSave([]); store.del('demoTrash'); store.del('demoMembers'); store.set('demoSeeded', '1');
+          return resolve({ ok: true, result: {} });
         }
         if (action === 'trash') {
           return resolve({ ok: true, batches: demoTrash().map(function (b) {
@@ -992,7 +999,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('setupDone').addEventListener('click', function () {
     if (!setupPick) return setupError('使う人を選んでください');
     state.owner = setupPick; store.set('owner', setupPick); store.set('pass', setupPass);
-    show('setup', false); toast('ようこそ、' + label(setupPick) + 'さん');
+    show('setup', false); toast('ようこそ、' + label(setupPick) + (/(さん|ちゃん|くん|様)$/.test(setupPick) ? '' : 'さん'));
     state.loadedMonth = null; go('history');
   });
 
@@ -1121,6 +1128,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="dlCheck">件数を確認する</button>' +
       '<button class="btn btn-danger btn-block hidden" id="dlGo">削除する</button>' +
       '<button class="btn btn-tonal btn-block" id="dlTrash">♻ ゴミ箱を見る</button>' +
+      '<button class="btn btn-tonal btn-block" id="dlReset">🔄 家を初期化する(テストのあと)</button>' +
       backButton('dlBack') + '</div>');
     $('sheet').querySelectorAll('.chip[data-k]').forEach(function (c) {
       c.addEventListener('click', function () {
@@ -1158,7 +1166,35 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }).catch(function (e) { btn.disabled = false; btn.textContent = '削除する'; fail(e.message); });
     });
     $('dlTrash').addEventListener('click', openTrash);
+    $('dlReset').addEventListener('click', openReset);
     $('dlBack').addEventListener('click', openSettings);
+  }
+
+  /* ---------- 家の初期化 ---------- */
+  function openReset() {
+    openSheet('<div class="grip"></div><h2>🔄 家を初期化する</h2>' +
+      '<div class="meta">「' + esc(HOME.name) + '」を、最初に使い始めたときの状態に戻します。テストのあと、家族に渡す前に使ってください。</div>' +
+      '<div class="error" style="margin:0 0 12px">次のものが<b>すべて消えます。元に戻せません。</b><br>・買い物の記録(全員分・全期間)<br>・ゴミ箱の中身<br>・家族のメンバー(名前・絵文字・色)</div>' +
+      '<div class="note" style="margin-bottom:12px">残るもの:家・合言葉・招待リンク。次に開いたときは、家族の名前を入れる画面から始まります。</div>' +
+      (DEMO ? '' : '<div class="field"><label for="rsPass">合言葉</label><input class="input" id="rsPass" type="password" inputmode="numeric" autocomplete="off"></div>') +
+      '<div class="field"><label for="rsWord">確認のため「初期化」と入力してください</label><input class="input" id="rsWord" autocomplete="off" placeholder="初期化"></div>' +
+      '<div class="error hidden" id="rsError"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
+      '<button class="btn btn-danger btn-block" id="rsGo">初期化する</button>' +
+      '<button class="btn btn-text btn-block" id="rsBack">← 削除の画面に戻る</button></div>');
+    var fail = function (m) { $('rsError').textContent = m; show('rsError', true); };
+    $('rsBack').addEventListener('click', openDelete);
+    $('rsGo').addEventListener('click', function () {
+      show('rsError', false);
+      if (!DEMO && $('rsPass').value.trim() !== String(state.pass)) return fail('合言葉が違います');
+      if ($('rsWord').value.trim() !== '初期化') return fail('「初期化」と入力してください');
+      var btn = this; btn.disabled = true; btn.textContent = '初期化中…';
+      api('resetHome', { confirm: '初期化' }).then(function () {
+        store.del('owner'); store.del('members'); state.owner = null;
+        MEMBERS = CFG.MEMBERS.slice(); state.receipts = []; state.loadedMonth = null;
+        closeSheet(); toast('初期化しました'); openSetup();
+      }).catch(function (e) { btn.disabled = false; btn.textContent = '初期化する'; fail(e.message); });
+    });
   }
 
   function openTrash() {
