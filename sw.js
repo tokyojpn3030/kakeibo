@@ -1,6 +1,6 @@
 // お家の家計簿 — オフライン用の小さな仕組み
 // いつもは最新のファイルを取りに行き、電波がないときだけ保存しておいたものを使います。
-const CACHE = 'kakeibo-v5';
+const CACHE = 'kakeibo-v6';
 const FILES = ['./', 'index.html', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
