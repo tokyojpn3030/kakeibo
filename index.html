@@ -285,7 +285,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 <body>
 
 <header class="topbar">
-  <div><h1>お家の家計簿</h1><div class="note" id="homeLabel" style="margin-top:-2px"></div></div>
+  <div><h1>お家の家計簿</h1><div class="note" id="homeLabel" style="margin-top:-2px"></div>
+    <div class="note" id="verLabel" style="font-size:13px;margin-top:-2px"></div></div>
   <div style="display:flex">
     <button class="icon-btn" id="btnRefresh" aria-label="最新にする">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
@@ -562,7 +563,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-22 00:34 版31';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-22 01:04 版32';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2628,6 +2629,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
 
   /* ---------- 起動 ---------- */
+  $('verLabel').textContent = 'アプリの版:' + APP_VERSION;
   if (RELOADING) return;
   if (!DEMO) autoMove().then(function (changed) { if (changed) location.reload(); });
   if (JOINED && !store.get('owner')) { show('demoBanner', DEMO); $('homeLabel').textContent = '🏠 ' + HOME.name; openAddHomeGuide(openSetup); return; }
