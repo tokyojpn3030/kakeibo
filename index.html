@@ -302,9 +302,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <input class="input" id="cfStore" placeholder="スーパー○○">
       </div>
       <div class="field">
-        <label for="cfPurpose">何の支払い</label>
+        <label for="cfPurpose">何の支払い(分類)</label>
         <div class="chips" id="cfPurposeChips" style="margin:0 0 8px"></div>
-        <input class="input" id="cfPurpose" placeholder="ほかの内容はここに書く(例:プレゼント)">
+        <input class="input" id="cfPurpose" placeholder="ほかの分類はここに書く(例:プレゼント)">
       </div>
       <div class="field">
         <label for="cfDate">買った日</label>
@@ -389,7 +389,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <button class="btn btn-tonal btn-block hidden" id="pcToReceipt" style="margin-bottom:12px">🧾 これはお店のレシートです(買い物として読み直す)</button>
       <div class="field"><label for="pcTitle">支払いの名前</label>
         <input class="input" id="pcTitle" placeholder="例:住民税、国民健康保険料"></div>
-      <div class="field"><label>分類</label><div class="chips" id="pcCat" style="margin:0"></div></div>
+      <div class="field"><label for="pcCatText">何の支払い(分類)</label><div class="chips" id="pcCat" style="margin:0 0 8px"></div>
+        <input class="input" id="pcCatText" placeholder="ほかの分類はここに書く(例:町内会費)"></div>
       <div class="field"><label for="pcAnnual">年間の合計(年税額など・分かれば)</label>
         <input class="input" id="pcAnnual" type="number" inputmode="numeric" placeholder="0"></div>
       <div class="section-title">💴 自分で払う分</div>
@@ -500,7 +501,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 23:03 版21';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 23:06 版22';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -1050,17 +1051,22 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('cfTotal').value = state.draft.total || '';
     renderConfirmPerson(); renderItems(); window.scrollTo(0, 0);
   }
-  var PURPOSES = ['食料品', '日用品', '外食', '衣類', '住民税', '社会保険料', '公共料金', 'その他'];
-  function drawPurpose() {
-    var cur = $('cfPurpose').value.trim();
-    $('cfPurposeChips').innerHTML = PURPOSES.map(function (x) {
-      return '<button class="chip' + (x === cur ? ' on' : '') + '" data-pu="' + x + '">' + x + '</button>';
-    }).join('');
-    $('cfPurposeChips').querySelectorAll('[data-pu]').forEach(function (b) {
-      b.addEventListener('click', function () { $('cfPurpose').value = b.dataset.pu === cur ? '' : b.dataset.pu; drawPurpose(); });
-    });
+  // 何の支払い(分類):ボタンで選ぶか、文字で書く。買い物と支払いで同じ一覧を使う
+  var CATS = ['食料品', '日用品', '外食', '衣類', '住民税', '社会保険料', 'ほかの税金', '公共料金', '通信費', 'その他'];
+  function catField(chipsId, inputId, onChange) {
+    var draw = function () {
+      var cur = $(inputId).value.trim();
+      $(chipsId).innerHTML = CATS.map(function (x) {
+        return '<button type="button" class="chip' + (x === cur ? ' on' : '') + '" data-cat="' + x + '">' + x + '</button>';
+      }).join('');
+      $(chipsId).querySelectorAll('[data-cat]').forEach(function (b) {
+        b.addEventListener('click', function () { $(inputId).value = b.dataset.cat === cur ? '' : b.dataset.cat; draw(); if (onChange) onChange($(inputId).value.trim()); });
+      });
+    };
+    $(inputId).oninput = function () { draw(); if (onChange) onChange($(inputId).value.trim()); };
+    draw();
   }
-  $('cfPurpose').addEventListener('input', drawPurpose);
+  function drawPurpose() { catField('cfPurposeChips', 'cfPurpose'); }
   function renderConfirmPerson() {
     $('cfPerson').innerHTML = MEMBERS.map(function (x) {
       return '<button class="chip' + (x.name === state.draft.person ? ' on' : '') + '" data-p="' + esc(x.name) + '">' + nm(x.name) + '</button>';
@@ -1379,7 +1385,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="field"><label for="peLabel">期(例:第3期)</label><input class="input" id="peLabel" value="' + esc(p.label) + '"></div>' +
       '<div class="field"><label for="peDue">' + (p.status === '天引き' ? '天引きの月' : '期限') + '</label><input class="input" id="peDue" type="date" value="' + esc(p.due) + '"></div>' +
       '<div class="field"><label for="peAmount">金額(円)</label><input class="input" id="peAmount" type="number" inputmode="numeric" value="' + p.amount + '"></div>' +
-      '<div class="field"><label>分類</label><div class="chips" id="peCat" style="margin:0"></div></div>' +
+      '<div class="field"><label for="peCatText">何の支払い(分類)</label><div class="chips" id="peCat" style="margin:0 0 8px"></div>' +
+      '<input class="input" id="peCatText" value="' + esc(catOf(p)) + '" placeholder="ほかの分類はここに書く"></div>' +
       '<div class="field"><label>状態</label><div class="chips" id="peStatus" style="margin:0"></div></div>' +
       '<div id="pePaidBox"><div class="field"><label for="pePaid">払った日</label><input class="input" id="pePaid" type="date" value="' + esc(p.paidDate || today()) + '"></div>' +
       '<div class="field"><label for="pePlace">払った場所</label><input class="input" id="pePlace" value="' + esc(p.place || '') + '" placeholder="コンビニ、銀行 など"></div></div>' +
@@ -1387,8 +1394,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
       '<button class="btn btn-primary btn-block" id="peSave">保存する</button>' +
       '<button class="btn btn-text btn-block" id="peBack">← 戻る</button></div>');
-    var st = p.status, cat = catOf(p);
-    var pickC = function (c) { cat = c; catChips('peCat', c, pickC); }; pickC(cat);
+    var st = p.status;
+    catField('peCat', 'peCatText');
     var drawSt = function () {
       $('peStatus').innerHTML = ['これから', '済み', '天引き'].map(function (x) {
         return '<button class="chip' + (x === st ? ' on' : '') + '" data-st="' + x + '">' + statusLabel(x) + '</button>';
@@ -1403,7 +1410,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         title: $('peTitle').value.trim(), label: $('peLabel').value.trim(), due: $('peDue').value,
         amount: Math.round(Number($('peAmount').value) || 0), status: st,
         paidDate: st === '済み' ? ($('pePaid').value || today()) : '',
-        place: st === '済み' ? $('pePlace').value.trim() : '', category: cat
+        place: st === '済み' ? $('pePlace').value.trim() : '', category: $('peCatText').value.trim() || 'その他'
       });
       if (!n.title || !n.due) { $('peError').textContent = '名前と日付を入れてください'; show('peError', true); return; }
       var b = this; b.disabled = true;
@@ -1467,18 +1474,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }).catch(function (err) { $('payErrorText').textContent = err.message; payView('error'); });
   });
 
-  var PAY_CATS = ['住民税', '社会保険料', 'ほかの税金', '公共料金', '通信費', 'その他'];
-  function catOf(p) { return PAY_CATS.indexOf(p.category) >= 0 ? p.category : 'その他'; }
-  function catChips(id, cur, onPick) {
-    $(id).innerHTML = PAY_CATS.map(function (c) { return '<button class="chip' + (c === cur ? ' on' : '') + '" data-cat="' + c + '">' + c + '</button>'; }).join('');
-    $(id).querySelectorAll('[data-cat]').forEach(function (b) { b.addEventListener('click', function () { onPick(b.dataset.cat); }); });
-  }
+  function catOf(p) { return String(p.category || '').trim() || 'その他'; }
   function openSlip(r) {
     var t = today();
     if (!(r.installments || []).length && !(r.withheld || []).length) r.installments = [{ label: '', due: '', amount: 0 }];
     show('pcToReceipt', !!lastShot);
     pay.draft = {
-      title: r.title || '', annual: r.annual || 0, category: PAY_CATS.indexOf(r.category) >= 0 ? r.category : 'その他',
+      title: r.title || '', annual: r.annual || 0, category: r.category || '',
       rows: (r.installments || []).map(function (x) {
         // 期限が過ぎた期は「もう払いましたか?」と聞く(はじめは「払った」にしておく)
         return { label: x.label, due: x.due, amount: x.amount, status: 'これから', past: !!(x.due && x.due < t) };
@@ -1488,8 +1490,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     };
     $('pcTitle').value = pay.draft.title;
     $('pcAnnual').value = pay.draft.annual || '';
-    var pickCat = function (c) { pay.draft.category = c; catChips('pcCat', c, pickCat); };
-    pickCat(pay.draft.category);
+    $('pcCatText').value = pay.draft.category;
+    catField('pcCat', 'pcCatText');
     show('pcError', false);
     renderSlipRows(); payView('confirm');
   }
@@ -1548,6 +1550,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var d = pay.draft, t = today();
     d.title = $('pcTitle').value.trim();
     d.annual = Math.round(Number($('pcAnnual').value) || 0);
+    d.category = $('pcCatText').value.trim() || 'その他';
     var rows = d.rows.filter(function (x) { return x.amount || x.due || x.label; });
     var err = function (m) { $('pcError').textContent = m; show('pcError', true); };
     show('pcError', false);
