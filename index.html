@@ -565,7 +565,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-22 01:11 版33';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-22 01:12 版34';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -720,14 +720,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function show(id, on) { $(id).classList.toggle('hidden', !on); }
 
   /* ---------- 窓口とのやりとり ---------- */
+  var RESET_NOTE = '※ 読み取りの回数は、毎日 日本時間の夕方(16〜17時ごろ)に0回に戻ります。';
   // 読み取り回数の表示(今日の回数 / 1日の目安)
   function showUsage(u) {
     if (!u) return;
     var warn = u.limit && u.count >= u.limit * 0.8;
     var t = '📊 今日の読み取り ' + u.count + '回 / 目安 ' + u.limit + '回' + (u.shared ? '(ほかの家と合わせた回数)' : '') +
-      (warn ? ' ・ 残りわずかです。回数は夕方(16〜17時ごろ)に戻ります' : '');
+      (warn ? ' ・ 残りわずかです' : '');
     ['capUsage', 'payUsage'].forEach(function (id) {
-      $(id).textContent = t; $(id).style.color = warn ? 'var(--danger)' : ''; show(id, true);
+      $(id).innerHTML = esc(t) + '<br><span style="font-size:14px">' + esc(RESET_NOTE) + '</span>';
+      $(id).style.color = warn ? 'var(--danger)' : ''; show(id, true);
     });
   }
   // 窓口(Apps Script)が古い版で「見分けて読む」がないときは、今までの読み方に切り替える
@@ -1121,7 +1123,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       show('capLoading', false);
       if (state.editingId && state.draft) { show('capConfirm', true); $('cfError').textContent = err.message; show('cfError', true); return; }
       show('capError', true);
-      $('capErrorText').textContent = err.message;
+      $('capErrorText').textContent = err.message + (/上限|無料枠|休んで/.test(err.message) ? '\n' + RESET_NOTE + '\n今すぐ記録したいときは「手で入力する」を使ってください(回数は使いません)。' : '');
+      $('capErrorText').style.whiteSpace = 'pre-line';
     });
   });
 
@@ -1701,7 +1704,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       .then(function (res) {
         if (res.kind === 'receipt') { toast('お店のレシートとして読み取りました'); return showReceipt(res.receipt); }
         openSlip(res.slip || {});
-      }).catch(function (err) { $('payErrorText').textContent = err.message; payView('error'); });
+      }).catch(function (err) {
+        $('payErrorText').textContent = err.message + (/上限|無料枠|休んで/.test(err.message) ? '\n' + RESET_NOTE + '\n今すぐ記録したいときは「手で入力する」を使ってください(回数は使いません)。' : '');
+        $('payErrorText').style.whiteSpace = 'pre-line'; payView('error');
+      });
   });
 
   function catOf(p) { return String(p.category || '').trim() || 'その他'; }
@@ -2042,6 +2048,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stPass">🔑 家の合言葉を変える</button>' +
       '<button class="btn btn-tonal btn-block" id="stOwner">使う人を変える・合言葉を入れ直す</button>' +
       '<button class="btn btn-tonal btn-block" id="stUpdate">⬆ 新しい版に更新する</button>' +
+      '<button class="btn btn-text btn-block" id="stHelp">❓ 読み取りの回数について</button>' +
       '<button class="btn btn-text btn-block" id="stAdmin">🛠 管理人(家を作る・引っ越し)</button>' +
       '<button class="btn btn-text btn-block" id="stClose">閉じる</button></div>' +
       '<div class="note" style="text-align:center;margin-top:8px">アプリの版:' + APP_VERSION + '</div>');
@@ -2054,6 +2061,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stClose').addEventListener('click', closeSheet);
     $('stUpdate').addEventListener('click', updateApp);
     $('stAdmin').addEventListener('click', openAdmin);
+    $('stHelp').addEventListener('click', function () {
+      openSheet('<div class="grip"></div><h2>❓ 読み取りの回数について</h2>' +
+        '<div class="meta">レシートや納付書の読み取りには Google の Gemini を使っています。無料で使える回数に上限があります。</div>' +
+        '<div class="kv"><span>1日の上限</span><b>目安 ' + esc(($('capUsage').textContent.match(/目安 (\d+)/) || [])[1] || '250') + '回</b></div>' +
+        '<div class="kv"><span>短い時間の上限</span><b>1分に数回まで</b></div>' +
+        '<div class="note" style="margin:10px 0">' + esc(RESET_NOTE) + '</div>' +
+        '<div class="note">・続けて何度も撮ると「1〜2分待ってください」と出ることがあります。少し待てばまた使えます。<br>' +
+        '・上限に達しても「手で入力する」なら記録できます(回数は使いません)。<br>' +
+        '・今日の回数は、撮影の画面と支払いの画面に出ます。</div>' + backButton('hpB'));
+      $('hpB').addEventListener('click', openSettings);
+    });
     $('stPass').addEventListener('click', openPasscode);
   }
   $('btnSettings').addEventListener('click', openSettings);
@@ -2234,6 +2252,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="note" style="margin-bottom:10px">家ごとに回数を分けるには、Google AI Studio で <b>家ごとに別のプロジェクト</b> を作り、そのプロジェクトで鍵を作ってください(同じプロジェクトの鍵は回数が共通です)。鍵は人に見せないでください。</div>' +
       '<div class="field"><label for="hkKey">この家だけの鍵(変えないときは空のまま)</label>' +
       '<input class="input" id="hkKey" type="password" autocomplete="off" placeholder="AIza…"></div>' +
+      '<div class="note" style="margin-bottom:8px">' + RESET_NOTE + '</div>' +
       '<div class="field"><label for="hkLimit">1日の回数の目安</label>' +
       '<input class="input" id="hkLimit" type="number" inputmode="numeric" value="' + esc(h.limit || '') + '"></div>' +
       '<div class="error hidden" id="hkErr"></div>' +
