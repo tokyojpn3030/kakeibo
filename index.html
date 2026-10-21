@@ -397,6 +397,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="note" style="margin:-4px 0 8px">ここでは全部「支払い」として保存します。もう払った期は、保存したあとで一覧の「払った」を押し、いつ・どこで払ったかを入れてください。</div>
       <div id="pcRows"></div>
       <button class="btn btn-text" id="pcAdd" style="padding:0 8px">+ 自分で払う分を追加</button>
+      <button class="btn btn-tonal btn-block" id="pcMore" style="margin:6px 0">📷 別のページ・用紙を撮って足す</button>
+      <div class="note hidden" id="pcMoreMsg"></div>
+      <input type="file" accept="image/*" capture="environment" id="payFileMore" class="hidden">
       <div class="sum-line" style="margin-top:8px"><span>自分で払う分の合計</span><span id="pcSum">¥0</span></div>
       <div class="section-title">🏦 年金などから天引きされる分</div>
       <div class="note" style="margin:-4px 0 8px">自分で払う必要はありません。合計を出すために記録します。</div>
@@ -501,7 +504,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 23:06 版22';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 23:30 版23';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -1478,7 +1481,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function openSlip(r) {
     var t = today();
     if (!(r.installments || []).length && !(r.withheld || []).length) r.installments = [{ label: '', due: '', amount: 0 }];
-    show('pcToReceipt', !!lastShot);
+    show('pcToReceipt', !!lastShot); show('pcMoreMsg', false);
     pay.draft = {
       title: r.title || '', annual: r.annual || 0, category: r.category || '',
       rows: (r.installments || []).map(function (x) {
@@ -1509,7 +1512,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     };
     var mine = [], withheld = [];
     pay.draft.rows.forEach(function (x, i) { (x.status === '天引き' ? withheld : mine).push(rowHtml(x, i)); });
-    $('pcRows').innerHTML = mine.join('') || '<div class="note" style="margin-bottom:8px">ありません</div>';
+    var wSum = pay.draft.rows.reduce(function (a, x) { return a + (x.status === '天引き' ? (Number(x.amount) || 0) : 0); }, 0);
+    $('pcRows').innerHTML = mine.join('') || ('<div class="warn" style="margin-bottom:8px">自分で払う分(第1期〜第4期など)が読み取れませんでした。' +
+      (wSum ? '読み取れたのは年金から天引きされる分だけです。' : '') +
+      '期別と納期限が載っているページや納付書を「📷 別のページ・用紙を撮って足す」で撮るか、「+ 自分で払う分を追加」で入れてください。</div>');
     $('pcWithheld').innerHTML = withheld.join('') || '<div class="note" style="margin-bottom:8px">ありません</div>';
     var root = $('payConfirm');
     root.querySelectorAll('[data-k]').forEach(function (inp) {
@@ -1539,6 +1545,31 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   $('pcAdd').addEventListener('click', function () {
     pay.draft.rows.push({ label: '', due: '', amount: 0, status: 'これから', past: false }); renderSlipRows();
+  });
+  // 別のページ(納付書など)を撮って、読み取った分を今の内容に足す
+  $('pcMore').addEventListener('click', function () { $('payFileMore').value = ''; $('payFileMore').click(); });
+  $('payFileMore').addEventListener('change', function () {
+    var file = this.files && this.files[0]; if (!file) return;
+    var b = $('pcMore'); b.disabled = true; b.textContent = '読み取り中…'; show('pcMoreMsg', false);
+    shrinkImage(URL.createObjectURL(file)).then(function (b64) { return api('analyzePayment', { image: b64, mimeType: 'image/jpeg' }); })
+      .then(function (res) {
+        var r = res.slip || {}, d = pay.draft, t = today(), added = 0;
+        var has = function (x, st) { return d.rows.some(function (y) { return (y.status === '天引き') === (st === '天引き') && y.amount === x.amount && (y.label === x.label || (y.due && x.due && y.due.slice(0, 7) === x.due.slice(0, 7))); }); };
+        (r.installments || []).forEach(function (x) {
+          if (!x.amount || has(x, 'これから')) return;
+          d.rows.push({ label: x.label, due: x.due, amount: x.amount, status: 'これから', past: !!(x.due && x.due < t) }); added++;
+        });
+        (r.withheld || []).forEach(function (x) {
+          if (!x.amount || has(x, '天引き')) return;
+          d.rows.push({ label: x.label, due: x.due, amount: x.amount, status: '天引き', past: false }); added++;
+        });
+        d.rows = d.rows.filter(function (x) { return x.amount || x.due || x.label; });
+        if (!$('pcTitle').value.trim() && r.title) $('pcTitle').value = r.title;
+        if (!Number($('pcAnnual').value) && r.annual) $('pcAnnual').value = r.annual;
+        $('pcMoreMsg').textContent = added ? added + '件 足しました。内容を確かめてください。' : '新しく足すものはありませんでした(同じ内容はすでに入っています)。';
+        show('pcMoreMsg', true); renderSlipRows();
+      }).catch(function (e) { $('pcMoreMsg').textContent = e.message; show('pcMoreMsg', true); })
+      .then(function () { b.disabled = false; b.textContent = '📷 別のページ・用紙を撮って足す'; });
   });
   $('pcAddW').addEventListener('click', function () {
     pay.draft.rows.push({ label: '', due: '', amount: 0, status: '天引き', past: false }); renderSlipRows();
