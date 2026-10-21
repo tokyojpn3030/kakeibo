@@ -218,6 +218,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .slip-row { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; background: var(--surface); }
 .slip-row .two { display: flex; gap: 8px; }
 .slip-row .two > * { flex: 1; min-width: 0; }
+.slip-row .paidchk { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 12px;
+  border-radius: 12px; background: var(--surface-2); font-size: 19px; font-weight: 700; }
+.slip-row .paidchk input { width: 30px; height: 30px; flex: none; }
+.slip-row .paidchk.on { background: var(--teal-bg); color: var(--teal-fg); }
 .slip-row .ask { font-size: 15px; color: var(--on-warn); background: var(--warn-soft); border-radius: 10px; padding: 6px 10px; margin: 8px 0 0; }
 .pwwrap{position:relative;display:block}
 .pwwrap .input{padding-right:64px}
@@ -380,10 +384,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <input class="input" id="pcTitle" placeholder="例:住民税、国民健康保険料"></div>
       <div class="field"><label for="pcAnnual">年間の合計(年税額など・分かれば)</label>
         <input class="input" id="pcAnnual" type="number" inputmode="numeric" placeholder="0"></div>
-      <div class="section-title">期ごとの支払い</div>
+      <div class="section-title">💴 自分で払う分</div>
+      <div class="note" style="margin:-4px 0 8px">もう払った期には「支払い済み」にチェックを入れてください。チェックがない期は、これから払う支払いになり、期限前にお知らせします。</div>
       <div id="pcRows"></div>
-      <button class="btn btn-text" id="pcAdd" style="padding:0 8px">+ 支払いを追加</button>
+      <button class="btn btn-text" id="pcAdd" style="padding:0 8px">+ 自分で払う分を追加</button>
       <div class="sum-line" style="margin-top:8px"><span>自分で払う分の合計</span><span id="pcSum">¥0</span></div>
+      <div class="section-title">🏦 年金などから天引きされる分</div>
+      <div class="note" style="margin:-4px 0 8px">自分で払う必要はありません。合計を出すために記録します。</div>
+      <div id="pcWithheld"></div>
+      <button class="btn btn-text" id="pcAddW" style="padding:0 8px">+ 天引きの分を追加</button>
       <div class="error hidden" id="pcError"></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin:20px 0">
         <button class="btn btn-primary btn-block" id="pcSave">保存する</button>
@@ -483,7 +492,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 15:50 版17';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 17:02 版18';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -1374,29 +1383,43 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     renderSlipRows(); payView('confirm');
   }
   function renderSlipRows() {
-    $('pcRows').innerHTML = pay.draft.rows.map(function (x, i) {
+    var rowHtml = function (x, i) {
+      var w = x.status === '天引き';
       return '<div class="slip-row">' +
-        '<div class="two"><div><label class="note">期</label><input class="input" data-i="' + i + '" data-k="label" value="' + esc(x.label) + '" placeholder="第1期"></div>' +
+        '<div class="two"><div><label class="note">' + (w ? '何月分' : '期') + '</label><input class="input" data-i="' + i + '" data-k="label" value="' + esc(x.label) + '" placeholder="' + (w ? '10月分' : '第1期') + '"></div>' +
         '<div><label class="note">金額(円)</label><input class="input" data-i="' + i + '" data-k="amount" type="number" inputmode="numeric" value="' + (x.amount || '') + '"></div></div>' +
-        '<div style="margin-top:6px"><label class="note">' + (x.status === '天引き' ? '天引きの月' : '期限') + '</label><input class="input" data-i="' + i + '" data-k="due" type="date" value="' + esc(x.due) + '"></div>' +
-        (x.past ? '<div class="ask">期限が過ぎています。もう払いましたか?</div>' : '') +
-        '<div style="display:flex;align-items:center;gap:6px;margin-top:8px"><div class="chips" style="margin:0;flex:1">' +
-        ['これから', '済み', '天引き'].map(function (s) {
-          return '<button class="chip' + (x.status === s ? ' on' : '') + '" data-i="' + i + '" data-st="' + s + '">' + statusLabel(s) + '</button>';
-        }).join('') + '</div>' +
-        '<button class="icon-btn" data-del="' + i + '" aria-label="この支払いを消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div>';
-    }).join('');
-    $('pcRows').querySelectorAll('input').forEach(function (inp) {
+        '<div style="margin-top:6px"><label class="note">' + (w ? '天引きの月' : '期限') + '</label><input class="input" data-i="' + i + '" data-k="due" type="date" value="' + esc(x.due) + '"></div>' +
+        (w ? '' :
+          (x.past && x.status !== '済み' ? '<div class="ask">期限が過ぎています。もう払っていれば、下にチェックを入れてください。</div>' : '') +
+          '<label class="paidchk' + (x.status === '済み' ? ' on' : '') + '"><input type="checkbox" data-paidchk="' + i + '"' + (x.status === '済み' ? ' checked' : '') + '>' +
+          '<span>' + (x.status === '済み' ? '✅ 支払い済み' : '支払い済み') + '</span></label>') +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">' +
+        '<button class="btn btn-text" data-move="' + i + '" style="min-height:40px;padding:0 6px;font-size:15px">' + (w ? '↑ 自分で払う分に移す' : '↓ 天引きの分に移す') + '</button>' +
+        '<button class="icon-btn" data-del="' + i + '" aria-label="これを消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div>';
+    };
+    var mine = [], withheld = [];
+    pay.draft.rows.forEach(function (x, i) { (x.status === '天引き' ? withheld : mine).push(rowHtml(x, i)); });
+    $('pcRows').innerHTML = mine.join('') || '<div class="note" style="margin-bottom:8px">ありません</div>';
+    $('pcWithheld').innerHTML = withheld.join('') || '<div class="note" style="margin-bottom:8px">ありません</div>';
+    var root = $('payConfirm');
+    root.querySelectorAll('[data-k]').forEach(function (inp) {
       inp.addEventListener('input', function () {
         var x = pay.draft.rows[+inp.dataset.i], k = inp.dataset.k;
         x[k] = k === 'amount' ? Math.round(Number(inp.value) || 0) : inp.value;
         if (k === 'amount') slipSum();
       });
     });
-    $('pcRows').querySelectorAll('[data-st]').forEach(function (b) {
-      b.addEventListener('click', function () { pay.draft.rows[+b.dataset.i].status = b.dataset.st; renderSlipRows(); });
+    root.querySelectorAll('[data-paidchk]').forEach(function (c) {
+      c.addEventListener('change', function () { pay.draft.rows[+c.dataset.paidchk].status = c.checked ? '済み' : 'これから'; renderSlipRows(); });
     });
-    $('pcRows').querySelectorAll('[data-del]').forEach(function (b) {
+    root.querySelectorAll('[data-move]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var x = pay.draft.rows[+b.dataset.move];
+        x.status = x.status === '天引き' ? (x.due && x.due < today() ? '済み' : 'これから') : '天引き';
+        renderSlipRows();
+      });
+    });
+    root.querySelectorAll('[data-del]').forEach(function (b) {
       b.addEventListener('click', function () { pay.draft.rows.splice(+b.dataset.del, 1); renderSlipRows(); });
     });
     slipSum();
@@ -1406,6 +1429,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   $('pcAdd').addEventListener('click', function () {
     pay.draft.rows.push({ label: '', due: '', amount: 0, status: 'これから', past: false }); renderSlipRows();
+  });
+  $('pcAddW').addEventListener('click', function () {
+    pay.draft.rows.push({ label: '', due: '', amount: 0, status: '天引き', past: false }); renderSlipRows();
   });
   $('pcCancel').addEventListener('click', function () {
     if (confirm('この納付書を保存せずに戻りますか?')) payView('main');
