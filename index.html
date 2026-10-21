@@ -302,6 +302,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <input class="input" id="cfStore" placeholder="スーパー○○">
       </div>
       <div class="field">
+        <label for="cfPurpose">何の支払い</label>
+        <div class="chips" id="cfPurposeChips" style="margin:0 0 8px"></div>
+        <input class="input" id="cfPurpose" placeholder="ほかの内容はここに書く(例:プレゼント)">
+      </div>
+      <div class="field">
         <label for="cfDate">買った日</label>
         <input class="input" id="cfDate" type="date">
       </div>
@@ -495,7 +500,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 22:54 版20';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 23:03 版21';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -671,7 +676,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         var list = demoLoad();
         if (action === 'ping') return resolve({ ok: true, name: '' });
         if (action === 'analyze') return resolve({ ok: true, receipt: {
-          store: 'スーパーみどり', date: today(), total: 1288,
+          store: 'スーパーみどり', purpose: '食料品', date: today(), total: 1288,
           items: [{ name: '牛乳 1L', price: 238 }, { name: '食パン 6枚', price: 178 },
                   { name: 'たまご 10個', price: 298 }, { name: '豚こま切れ', price: 498 },
                   { name: 'バナナ', price: 158 }, { name: '値引', price: -82 }] } });
@@ -843,7 +848,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var sub = items.slice(0, 2).map(function (it) { return it.name; }).join('、');
       if (items.length > 2) sub += ' ほか' + (items.length - 2) + '点';
       html += '<button class="receipt" data-id="' + esc(r.id) + '">' + avatarHtml(r.person) +
-        '<div class="info"><div class="store">' + esc(r.store || 'お店の名前なし') + '</div>' +
+        '<div class="info"><div class="store">' + esc(r.store || 'お店の名前なし') + (r.purpose ? ' <span class="days" style="background:var(--surface-2);color:var(--text-2)">' + esc(r.purpose) + '</span>' : '') + '</div>' +
         '<div class="sub">' + nm(r.person) + (sub ? ' ・ ' + esc(sub) : '') + '</div></div>' +
         '<div class="yen">' + yen(r.total) + '</div></button>';
     });
@@ -890,6 +895,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div>' +
       '<div style="display:flex;align-items:center;gap:12px">' + avatarHtml(r.person) +
       '<div><h2>' + esc(r.store || 'お店の名前なし') + '</h2><div class="meta" style="margin:0">' + esc(dayLabel(r.date)) + ' ・ ' + nm(r.person) + '</div></div></div>' +
+      (r.purpose ? '<div class="kv" style="margin-top:8px"><span>何の支払い</span><b>' + esc(r.purpose) + '</b></div>' : '') +
       '<div style="margin-top:12px">' + (items || '<div class="note">品目の記録はありません</div>') +
       '<div class="line-item total"><span>合計</span><span>' + yen(r.total) + '</span></div></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
@@ -1031,7 +1037,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   /* ---------- 確認フォーム ---------- */
   function openConfirm(r) {
-    state.draft = { person: state.person, store: r.store || '', date: r.date || today(),
+    state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', date: r.date || today(),
       total: r.total || 0, items: (r.items || []).map(function (it) { return { name: it.name, price: it.price }; }) };
     show('capStart', false); show('capLoading', false); show('capError', false); show('capConfirm', true);
     show('cfError', false);
@@ -1039,10 +1045,22 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('cfRescan', !!state.editingId);
     show('cfToBill', !state.editingId && !!lastShot);
     $('cfStore').value = state.draft.store;
+    $('cfPurpose').value = state.draft.purpose; drawPurpose();
     $('cfDate').value = state.draft.date;
     $('cfTotal').value = state.draft.total || '';
     renderConfirmPerson(); renderItems(); window.scrollTo(0, 0);
   }
+  var PURPOSES = ['食料品', '日用品', '外食', '衣類', '住民税', '社会保険料', '公共料金', 'その他'];
+  function drawPurpose() {
+    var cur = $('cfPurpose').value.trim();
+    $('cfPurposeChips').innerHTML = PURPOSES.map(function (x) {
+      return '<button class="chip' + (x === cur ? ' on' : '') + '" data-pu="' + x + '">' + x + '</button>';
+    }).join('');
+    $('cfPurposeChips').querySelectorAll('[data-pu]').forEach(function (b) {
+      b.addEventListener('click', function () { $('cfPurpose').value = b.dataset.pu === cur ? '' : b.dataset.pu; drawPurpose(); });
+    });
+  }
+  $('cfPurpose').addEventListener('input', drawPurpose);
   function renderConfirmPerson() {
     $('cfPerson').innerHTML = MEMBERS.map(function (x) {
       return '<button class="chip' + (x.name === state.draft.person ? ' on' : '') + '" data-p="' + esc(x.name) + '">' + nm(x.name) + '</button>';
@@ -1099,6 +1117,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('cfSave').addEventListener('click', function () {
     var d = state.draft;
     d.store = $('cfStore').value.trim();
+    d.purpose = $('cfPurpose').value.trim();
     d.date = $('cfDate').value;
     d.total = Math.round(Number($('cfTotal').value) || 0);
     if (!d.total) d.total = itemsSum();
