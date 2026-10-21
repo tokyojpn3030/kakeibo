@@ -385,7 +385,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="field"><label for="pcAnnual">年間の合計(年税額など・分かれば)</label>
         <input class="input" id="pcAnnual" type="number" inputmode="numeric" placeholder="0"></div>
       <div class="section-title">💴 自分で払う分</div>
-      <div class="note" style="margin:-4px 0 8px">もう払った期には「支払い済み」にチェックを入れてください。チェックがない期は、これから払う支払いになり、期限前にお知らせします。</div>
+      <div class="note" style="margin:-4px 0 8px">ここでは全部「支払い」として保存します。もう払った期は、保存したあとで一覧の「払った」を押し、いつ・どこで払ったかを入れてください。</div>
       <div id="pcRows"></div>
       <button class="btn btn-text" id="pcAdd" style="padding:0 8px">+ 自分で払う分を追加</button>
       <div class="sum-line" style="margin-top:8px"><span>自分で払う分の合計</span><span id="pcSum">¥0</span></div>
@@ -492,7 +492,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 17:02 版18';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 17:05 版19';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -1191,7 +1191,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   function payRowHtml(p) {
     var late = p.status === 'これから' && daysTo(p.due) < 0;
-    var sub = p.status === '済み' ? '✅ ' + shortDate(p.paidDate || p.due) + ' に払いました'
+    var sub = p.status === '済み' ? '✅ ' + shortDate(p.paidDate || p.due) + (p.place ? ' ' + esc(p.place) + 'で' : ' に') + '払いました'
       : p.status === '天引き' ? '年金などから天引き ・ ' + shortDate(p.due)
       : '期限 ' + shortDate(p.due) + daysBadge(p);
     return '<div class="pay-row' + (late ? ' late' : '') + (p.status !== 'これから' ? ' done' : '') + '" data-pid="' + esc(p.id) + '" role="button" tabindex="0">' +
@@ -1204,7 +1204,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       r.addEventListener('click', function (e) { if (e.target.closest('[data-paid]')) return; openPayDetail(r.dataset.pid); });
     });
     root.querySelectorAll('[data-paid]').forEach(function (b) {
-      b.addEventListener('click', function () { markPaid(b.dataset.paid, today()); });
+      b.addEventListener('click', function () { openPaidForm(b.dataset.paid); });
     });
   }
   function findPay(id) { return pay.list.filter(function (p) { return p.id === id; })[0]; }
@@ -1215,11 +1215,54 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       renderPay(); if (msg) toast(msg);
     });
   }
-  function markPaid(id, date) {
+  function markPaid(id, date, place) {
+    var p = findPay(id); if (!p) return Promise.resolve();
+    var n = Object.assign({}, p, { status: '済み', paidDate: date || today(), place: place || '' });
+    return savePay(n, '「' + p.title + (p.label ? ' ' + p.label : '') + '」を支払い済みにしました').then(closeSheet);
+  }
+
+  /* 払ったときに「いつ・どこで」を入れる */
+  var PAY_PLACES = ['コンビニ', '銀行', '郵便局', '口座振替', 'スマホ決済', 'クレジットカード', '役所の窓口'];
+  function openPaidForm(id) {
     var p = findPay(id); if (!p) return;
-    var n = Object.assign({}, p, { status: '済み', paidDate: date || today() });
-    savePay(n, '「' + p.title + (p.label ? ' ' + p.label : '') + '」を支払い済みにしました').then(closeSheet)
-      .catch(function (e) { alert(e.message); });
+    var place = store.get('pay.lastPlace') || '';
+    // 期限がもう過ぎている期は、期限の日を最初の値にする(前に払ったものを入れることが多いので)
+    var d0 = p.due && p.due < today() ? p.due : today();
+    openSheet('<div class="grip"></div><h2>✅ 払った</h2>' +
+      '<div class="meta">' + payName(p) + ' ・ ' + yen(p.amount) + '</div>' +
+      '<div class="field"><label for="pfDate">いつ払いましたか</label>' +
+      '<input class="input" id="pfDate" type="date" value="' + d0 + '" max="' + today() + '"></div>' +
+      '<div style="display:flex;gap:8px;margin:-6px 0 14px">' +
+      '<button class="chip" id="pfToday">今日</button>' + (p.due < today() ? '<button class="chip" id="pfDue">期限の日</button>' : '') + '</div>' +
+      '<div class="field"><label>どこで払いましたか</label><div class="chips" id="pfPlaces" style="margin:0 0 8px"></div>' +
+      '<input class="input" id="pfPlace" placeholder="ほかの場所はここに書く(例:○○銀行)" value="' + esc(place) + '"></div>' +
+      '<div class="error hidden" id="pfErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<button class="btn btn-primary btn-block" id="pfSave">支払い済みにする</button>' +
+      '<button class="btn btn-text btn-block" id="pfBack">やめる</button></div>');
+    var drawPlaces = function () {
+      var cur = $('pfPlace').value.trim();
+      $('pfPlaces').innerHTML = PAY_PLACES.map(function (x) {
+        return '<button class="chip' + (x === cur ? ' on' : '') + '" data-pl="' + x + '">' + x + '</button>';
+      }).join('');
+      $('pfPlaces').querySelectorAll('[data-pl]').forEach(function (b) {
+        b.addEventListener('click', function () { $('pfPlace').value = b.dataset.pl; drawPlaces(); });
+      });
+    };
+    drawPlaces();
+    $('pfPlace').addEventListener('input', drawPlaces);
+    $('pfToday').addEventListener('click', function () { $('pfDate').value = today(); });
+    if ($('pfDue')) $('pfDue').addEventListener('click', function () { $('pfDate').value = p.due; });
+    $('pfBack').addEventListener('click', closeSheet);
+    $('pfSave').addEventListener('click', function () {
+      var d = $('pfDate').value, pl = $('pfPlace').value.trim();
+      if (!d) { $('pfErr').textContent = '払った日を選んでください'; show('pfErr', true); return; }
+      var b = this; b.disabled = true; b.textContent = '保存中…';
+      if (pl) store.set('pay.lastPlace', pl);
+      markPaid(id, d, pl).catch(function (e) {
+        b.disabled = false; b.textContent = '支払い済みにする'; $('pfErr').textContent = e.message; show('pfErr', true);
+      });
+    });
   }
 
   function setPayMonths(m) {
@@ -1235,18 +1278,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   /* 1件の詳しい画面 */
   function openPayDetail(id) {
     var p = findPay(id); if (!p) return;
-    var stateLine = p.status === '済み' ? '✅ ' + shortDate(p.paidDate || p.due) + ' に払いました'
+    var stateLine = p.status === '済み' ? '✅ ' + shortDate(p.paidDate || p.due) + (p.place ? ' ' + esc(p.place) + 'で' : ' に') + '払いました'
       : p.status === '天引き' ? '年金などから天引き(自分で払う必要はありません)' : 'まだ払っていません ' + daysBadge(p);
     openSheet('<div class="grip"></div><h2>' + payName(p) + '</h2>' +
       '<div class="meta">' + stateLine + '</div>' +
       '<div class="kv"><span>' + (p.status === '天引き' ? '天引きの月' : '期限') + '</span><b>' + shortDate(p.due) + '</b></div>' +
       '<div class="kv"><span>金額</span><b>' + yen(p.amount) + '</b></div>' +
+      (p.status === '済み' ? '<div class="kv"><span>払った日</span><b>' + shortDate(p.paidDate || p.due) + '</b></div>' +
+        '<div class="kv"><span>払った場所</span><b>' + esc(p.place || '(入れていません)') + '</b></div>' : '') +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
       (p.status === 'これから'
-        ? '<button class="btn btn-primary btn-block" id="pdPaid">✅ 今日払った</button>' +
-          '<div class="field" style="margin:0"><label for="pdDate">別の日に払ったとき</label>' +
-          '<div style="display:flex;gap:8px"><input class="input" id="pdDate" type="date" value="' + today() + '" style="flex:1">' +
-          '<button class="btn btn-tonal" id="pdPaidOn">この日に払った</button></div></div>' +
+        ? '<button class="btn btn-primary btn-block" id="pdPaid">✅ 払った(いつ・どこで)</button>' +
           '<button class="btn btn-tonal btn-block" id="pdGcal">📅 Google カレンダーに入れる</button>' +
           '<button class="btn btn-tonal btn-block" id="pdIcs">📅 スマホのカレンダーに入れる(iPhone など)</button>'
         : p.status === '済み' ? '<button class="btn btn-tonal btn-block" id="pdUnpaid">↩ まだ払っていないに戻す</button>' : '') +
@@ -1254,14 +1296,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-danger btn-block" id="pdDel">🗑 この支払いを削除</button>' +
       '<button class="btn btn-text btn-block" id="pdClose">閉じる</button></div>');
     $('pdClose').addEventListener('click', closeSheet);
-    if ($('pdPaid')) $('pdPaid').addEventListener('click', function () { this.disabled = true; markPaid(id, today()); });
-    if ($('pdPaidOn')) $('pdPaidOn').addEventListener('click', function () {
-      var d = $('pdDate').value; if (!d) return alert('払った日を選んでください');
-      this.disabled = true; markPaid(id, d);
-    });
+    if ($('pdPaid')) $('pdPaid').addEventListener('click', function () { openPaidForm(id); });
     if ($('pdUnpaid')) $('pdUnpaid').addEventListener('click', function () {
       this.disabled = true;
-      savePay(Object.assign({}, p, { status: 'これから', paidDate: '' }), 'まだ払っていないに戻しました').then(closeSheet)
+      savePay(Object.assign({}, p, { status: 'これから', paidDate: '', place: '' }), 'まだ払っていないに戻しました').then(closeSheet)
         .catch(function (e) { alert(e.message); });
     });
     if ($('pdGcal')) $('pdGcal').addEventListener('click', function () { window.open(gcalUrl(p), '_blank'); });
@@ -1284,6 +1322,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="field"><label for="peDue">' + (p.status === '天引き' ? '天引きの月' : '期限') + '</label><input class="input" id="peDue" type="date" value="' + esc(p.due) + '"></div>' +
       '<div class="field"><label for="peAmount">金額(円)</label><input class="input" id="peAmount" type="number" inputmode="numeric" value="' + p.amount + '"></div>' +
       '<div class="field"><label>状態</label><div class="chips" id="peStatus" style="margin:0"></div></div>' +
+      '<div id="pePaidBox"><div class="field"><label for="pePaid">払った日</label><input class="input" id="pePaid" type="date" value="' + esc(p.paidDate || today()) + '"></div>' +
+      '<div class="field"><label for="pePlace">払った場所</label><input class="input" id="pePlace" value="' + esc(p.place || '') + '" placeholder="コンビニ、銀行 など"></div></div>' +
       '<div class="error hidden" id="peError"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
       '<button class="btn btn-primary btn-block" id="peSave">保存する</button>' +
@@ -1294,6 +1334,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         return '<button class="chip' + (x === st ? ' on' : '') + '" data-st="' + x + '">' + statusLabel(x) + '</button>';
       }).join('');
       $('peStatus').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () { st = c.dataset.st; drawSt(); }); });
+      show('pePaidBox', st === '済み');
     };
     drawSt();
     $('peBack').addEventListener('click', function () { openPayDetail(p.id); });
@@ -1301,7 +1342,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var n = Object.assign({}, p, {
         title: $('peTitle').value.trim(), label: $('peLabel').value.trim(), due: $('peDue').value,
         amount: Math.round(Number($('peAmount').value) || 0), status: st,
-        paidDate: st === '済み' ? (p.paidDate || today()) : ''
+        paidDate: st === '済み' ? ($('pePaid').value || today()) : '',
+        place: st === '済み' ? $('pePlace').value.trim() : ''
       });
       if (!n.title || !n.due) { $('peError').textContent = '名前と日付を入れてください'; show('peError', true); return; }
       var b = this; b.disabled = true;
@@ -1372,7 +1414,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       title: r.title || '', annual: r.annual || 0,
       rows: (r.installments || []).map(function (x) {
         // 期限が過ぎた期は「もう払いましたか?」と聞く(はじめは「払った」にしておく)
-        return { label: x.label, due: x.due, amount: x.amount, status: x.due && x.due < t ? '済み' : 'これから', past: !!(x.due && x.due < t) };
+        return { label: x.label, due: x.due, amount: x.amount, status: 'これから', past: !!(x.due && x.due < t) };
       }).concat((r.withheld || []).map(function (x) {
         return { label: x.label, due: x.due, amount: x.amount, status: '天引き', past: false };
       }))
@@ -1389,10 +1431,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<div class="two"><div><label class="note">' + (w ? '何月分' : '期') + '</label><input class="input" data-i="' + i + '" data-k="label" value="' + esc(x.label) + '" placeholder="' + (w ? '10月分' : '第1期') + '"></div>' +
         '<div><label class="note">金額(円)</label><input class="input" data-i="' + i + '" data-k="amount" type="number" inputmode="numeric" value="' + (x.amount || '') + '"></div></div>' +
         '<div style="margin-top:6px"><label class="note">' + (w ? '天引きの月' : '期限') + '</label><input class="input" data-i="' + i + '" data-k="due" type="date" value="' + esc(x.due) + '"></div>' +
-        (w ? '' :
-          (x.past && x.status !== '済み' ? '<div class="ask">期限が過ぎています。もう払っていれば、下にチェックを入れてください。</div>' : '') +
-          '<label class="paidchk' + (x.status === '済み' ? ' on' : '') + '"><input type="checkbox" data-paidchk="' + i + '"' + (x.status === '済み' ? ' checked' : '') + '>' +
-          '<span>' + (x.status === '済み' ? '✅ 支払い済み' : '支払い済み') + '</span></label>') +
+        (!w && x.past ? '<div class="ask">期限が過ぎています。払っていれば、保存したあとで「払った」を押してください。</div>' : '') +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">' +
         '<button class="btn btn-text" data-move="' + i + '" style="min-height:40px;padding:0 6px;font-size:15px">' + (w ? '↑ 自分で払う分に移す' : '↓ 天引きの分に移す') + '</button>' +
         '<button class="icon-btn" data-del="' + i + '" aria-label="これを消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div>';
@@ -1415,7 +1454,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     root.querySelectorAll('[data-move]').forEach(function (b) {
       b.addEventListener('click', function () {
         var x = pay.draft.rows[+b.dataset.move];
-        x.status = x.status === '天引き' ? (x.due && x.due < today() ? '済み' : 'これから') : '天引き';
+        x.status = x.status === '天引き' ? 'これから' : '天引き';
         renderSlipRows();
       });
     });
@@ -1448,9 +1487,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     for (var i = 0; i < rows.length; i++) if (!rows[i].due) return err('「' + (rows[i].label || (i + 1) + '番目') + '」の日付を入れてください');
     var b = this; b.disabled = true; b.textContent = '保存中…';
     api('savePayments', { person: state.owner, title: d.title, annual: d.annual,
-      rows: rows.map(function (x) { return { label: x.label, due: x.due, amount: x.amount, status: x.status, paidDate: x.status === '済み' ? (x.due < t ? x.due : t) : '' }; }) })
+      rows: rows.map(function (x) { return { label: x.label, due: x.due, amount: x.amount, status: x.status === '天引き' ? '天引き' : 'これから', paidDate: '' }; }) })
       .then(function () {
-        toast('「' + d.title + '」を ' + rows.length + '件 保存しました');
+        toast('「' + d.title + '」を ' + rows.length + '件 保存しました。払った期は「払った」を押してください');
         payView('main'); return loadPayments(true);
       }).catch(function (e) { err(e.message); })
       .then(function () { b.disabled = false; b.textContent = '保存する'; });
