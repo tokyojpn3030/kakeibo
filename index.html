@@ -274,9 +274,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="chips hidden" id="capChips" style="margin-top:12px"></div>
       <button class="camera-btn" id="btnCamera">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h1a2 2 0 0 0 2-2 1 1 0 0 1 1-1h6a1 1 0 0 1 1 1 2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2"/><circle cx="12" cy="13" r="3.5"/></svg>
-        レシートを撮る
+        レシート・納付書を撮る
       </button>
-      <p class="note">明るい場所で、レシート全体が写るように撮ってください。長いレシートは少し離れて撮ると読み取りやすくなります。</p>
+      <p class="note">お店のレシートは「買い物」、税金・保険料の納付書や請求書は「支払い」に自動で分けます。明るい場所で、全体が写るように撮ってください。</p>
       <input type="file" accept="image/*" capture="environment" id="fileInput" class="hidden">
     </div>
 
@@ -284,7 +284,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <img class="preview" id="capPreview" alt="撮ったレシート">
       <div class="loading">
         <div class="spinner"></div>
-        <div style="font-size:20px;font-weight:700">レシートを読み取り中…</div>
+        <div style="font-size:20px;font-weight:700" id="capLoadingText">読み取り中…</div>
         <div class="note">10秒ほどかかることがあります</div>
       </div>
     </div>
@@ -292,6 +292,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <div id="capConfirm" class="hidden">
       <div class="section-title" style="margin-top:4px" id="cfTitle">読み取り結果を確認</div>
       <button class="btn btn-tonal btn-block hidden" id="cfRescan" style="margin-bottom:12px">📷 撮り直して中身を入れ替える</button>
+      <button class="btn btn-tonal btn-block hidden" id="cfToBill" style="margin-bottom:12px">📄 これは納付書・請求書です(支払いとして読み直す)</button>
       <div class="field">
         <label>買った人</label>
         <div class="chips" id="cfPerson" style="margin:0"></div>
@@ -357,7 +358,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="chips" id="payMonths"></div>
       <div id="payList"></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
-        <button class="btn btn-primary btn-block" id="payScan">📷 納付書を撮る</button>
+        <button class="btn btn-primary btn-block" id="payScan">📷 納付書・請求書を撮る</button>
         <button class="btn btn-tonal btn-block" id="payManual">✍ 手で入れる</button>
       </div>
       <div class="section-title">払ったお金</div>
@@ -380,8 +381,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <div id="payConfirm" class="hidden">
       <div class="section-title" style="margin-top:4px">読み取り結果を確認</div>
       <div class="note" style="margin-bottom:12px">名前・住所・番号などは読み取っていません。写真も保存しません。</div>
+      <button class="btn btn-tonal btn-block hidden" id="pcToReceipt" style="margin-bottom:12px">🧾 これはお店のレシートです(買い物として読み直す)</button>
       <div class="field"><label for="pcTitle">支払いの名前</label>
         <input class="input" id="pcTitle" placeholder="例:住民税、国民健康保険料"></div>
+      <div class="field"><label>分類</label><div class="chips" id="pcCat" style="margin:0"></div></div>
       <div class="field"><label for="pcAnnual">年間の合計(年税額など・分かれば)</label>
         <input class="input" id="pcAnnual" type="number" inputmode="numeric" placeholder="0"></div>
       <div class="section-title">💴 自分で払う分</div>
@@ -492,7 +495,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 17:05 版19';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 22:54 版20';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -739,9 +742,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           demoSave(list);
           return resolve({ ok: true, members: data.members });
         }
+        if (action === 'analyzeAny') return demoApi('analyze', data).then(function (r) { resolve({ ok: true, kind: 'receipt', receipt: r.receipt }); });
         if (action === 'analyzePayment') return resolve({ ok: true, slip: (function () {
           var y = new Date().getFullYear();
-          return { title: '住民税(見本)', annual: 80000,
+          return { title: '住民税(見本)', category: '住民税', annual: 80000,
             installments: [{ label: '第1期', due: y + '-06-30', amount: 20000 }, { label: '第2期', due: y + '-08-31', amount: 20000 },
                            { label: '第3期', due: y + '-10-31', amount: 20000 }, { label: '第4期', due: (y + 1) + '-01-31', amount: 20000 }],
             withheld: [] }; })() });
@@ -950,6 +954,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('btnCamera').addEventListener('click', function () { $('fileInput').value = ''; $('fileInput').click(); });
   $('capRetry').addEventListener('click', function () { resetCapture(); $('fileInput').value = ''; $('fileInput').click(); });
   $('capManual').addEventListener('click', function () {
+    lastShot = null;
     openConfirm({ store: '', date: today(), total: 0, items: [{ name: '', price: 0 }] });
   });
 
@@ -960,13 +965,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('capStart', false); show('capConfirm', false); show('capLoading', true);
     var url = URL.createObjectURL(file);
     $('capPreview').src = url;
+    var rescan = !!state.editingId;
+    $('capLoadingText').textContent = rescan ? 'レシートを読み取り中…' : '読み取り中…(レシートか納付書かも見分けています)';
     shrinkImage(url).then(function (b64) {
-      return api('analyze', { image: b64, mimeType: 'image/jpeg' });
+      lastShot = { b64: b64, url: url };
+      return api(rescan ? 'analyze' : 'analyzeAny', { image: b64, mimeType: 'image/jpeg' });
     }).then(function (res) {
-      var r = res.receipt || {};
-      if (!r.date) r.date = today();
-      if (!r.items || !r.items.length) r.items = [{ name: '', price: 0 }];
-      openConfirm(r);
+      if (res.kind === 'bill') { toast('納付書・請求書として読み取りました'); return showBill(res.slip); }
+      showReceipt(res.receipt);
     }).catch(function (err) {
       show('capLoading', false);
       if (state.editingId && state.draft) { show('capConfirm', true); $('cfError').textContent = err.message; show('cfError', true); return; }
@@ -974,6 +980,37 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       $('capErrorText').textContent = err.message;
     });
   });
+
+  // 最後に撮った写真(見分けを間違えたときに、もう一方として読み直すため。保存はしない)
+  var lastShot = null;
+  function showReceipt(r) {
+    r = r || {};
+    if (!r.date) r.date = today();
+    if (!r.items || !r.items.length) r.items = [{ name: '', price: 0 }];
+    if (!document.querySelector('#screen-capture.active')) { go('capture', true); state.person = state.owner; state.editingId = null; renderWho(); }
+    openConfirm(r);
+  }
+  function showBill(slip) {
+    if (!document.querySelector('#screen-pay.active')) go('pay', true);
+    openSlip(slip || {});
+  }
+  // 「これは○○です」で読み直す
+  function rereadAs(kind) {
+    if (!lastShot) return;
+    if (kind === 'bill') {
+      go('pay', true); $('payPreview').src = lastShot.url; payView('loading');
+      api('analyzePayment', { image: lastShot.b64, mimeType: 'image/jpeg' }).then(function (res) { openSlip(res.slip || {}); })
+        .catch(function (err) { $('payErrorText').textContent = err.message; payView('error'); });
+    } else {
+      go('capture', true); state.person = state.owner; state.editingId = null; renderWho();
+      $('capPreview').src = lastShot.url; $('capLoadingText').textContent = 'レシートを読み取り中…';
+      show('capStart', false); show('capConfirm', false); show('capError', false); show('capLoading', true);
+      api('analyze', { image: lastShot.b64, mimeType: 'image/jpeg' }).then(function (res) { showReceipt(res.receipt); })
+        .catch(function (err) { show('capLoading', false); show('capError', true); $('capErrorText').textContent = err.message; });
+    }
+  }
+  $('cfToBill').addEventListener('click', function () { rereadAs('bill'); });
+  $('pcToReceipt').addEventListener('click', function () { rereadAs('receipt'); });
 
   /* 送る前に写真を小さくする(通信を軽く、速くするため) */
   function shrinkImage(url) {
@@ -1000,6 +1037,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('cfError', false);
     $('cfTitle').textContent = state.editingId ? 'レシートを編集' : '読み取り結果を確認';
     show('cfRescan', !!state.editingId);
+    show('cfToBill', !state.editingId && !!lastShot);
     $('cfStore').value = state.draft.store;
     $('cfDate').value = state.draft.date;
     $('cfTotal').value = state.draft.total || '';
@@ -1169,7 +1207,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var groups = {}, order = [];
     pay.list.forEach(function (p) {
       var k = p.group || p.title;
-      if (!groups[k]) { groups[k] = { title: p.title, annual: 0, done: 0, left: 0, withheld: 0, n: 0 }; order.push(k); }
+      if (!groups[k]) { groups[k] = { title: p.title, cat: catOf(p), annual: 0, done: 0, left: 0, withheld: 0, n: 0 }; order.push(k); }
       var g = groups[k]; g.n++;
       if (p.annual) g.annual = p.annual;
       if (p.status === '済み') g.done += p.amount;
@@ -1178,7 +1216,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
     $('payKinds').innerHTML = order.length ? order.map(function (k) {
       var g = groups[k];
-      return '<div class="card" style="margin-bottom:10px"><div style="font-size:18px;font-weight:700;margin-bottom:4px">' + esc(g.title) + '</div>' +
+      return '<div class="card" style="margin-bottom:10px"><div style="font-size:18px;font-weight:700;margin-bottom:4px">' + esc(g.title) +
+        ' <span class="days" style="background:var(--surface-2);color:var(--text-2)">' + esc(g.cat) + '</span></div>' +
         '<div class="kv"><span>支払い済み</span><b>' + yen(g.done) + '</b></div>' +
         '<div class="kv"><span>残り(これから払う)</span><b>' + yen(g.left) + '</b></div>' +
         '<div class="kv"><span>自分で払う分の合計</span><b>' + yen(g.done + g.left) + '</b></div>' +
@@ -1321,6 +1360,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="field"><label for="peLabel">期(例:第3期)</label><input class="input" id="peLabel" value="' + esc(p.label) + '"></div>' +
       '<div class="field"><label for="peDue">' + (p.status === '天引き' ? '天引きの月' : '期限') + '</label><input class="input" id="peDue" type="date" value="' + esc(p.due) + '"></div>' +
       '<div class="field"><label for="peAmount">金額(円)</label><input class="input" id="peAmount" type="number" inputmode="numeric" value="' + p.amount + '"></div>' +
+      '<div class="field"><label>分類</label><div class="chips" id="peCat" style="margin:0"></div></div>' +
       '<div class="field"><label>状態</label><div class="chips" id="peStatus" style="margin:0"></div></div>' +
       '<div id="pePaidBox"><div class="field"><label for="pePaid">払った日</label><input class="input" id="pePaid" type="date" value="' + esc(p.paidDate || today()) + '"></div>' +
       '<div class="field"><label for="pePlace">払った場所</label><input class="input" id="pePlace" value="' + esc(p.place || '') + '" placeholder="コンビニ、銀行 など"></div></div>' +
@@ -1328,7 +1368,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
       '<button class="btn btn-primary btn-block" id="peSave">保存する</button>' +
       '<button class="btn btn-text btn-block" id="peBack">← 戻る</button></div>');
-    var st = p.status;
+    var st = p.status, cat = catOf(p);
+    var pickC = function (c) { cat = c; catChips('peCat', c, pickC); }; pickC(cat);
     var drawSt = function () {
       $('peStatus').innerHTML = ['これから', '済み', '天引き'].map(function (x) {
         return '<button class="chip' + (x === st ? ' on' : '') + '" data-st="' + x + '">' + statusLabel(x) + '</button>';
@@ -1343,7 +1384,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         title: $('peTitle').value.trim(), label: $('peLabel').value.trim(), due: $('peDue').value,
         amount: Math.round(Number($('peAmount').value) || 0), status: st,
         paidDate: st === '済み' ? ($('pePaid').value || today()) : '',
-        place: st === '済み' ? $('pePlace').value.trim() : ''
+        place: st === '済み' ? $('pePlace').value.trim() : '', category: cat
       });
       if (!n.title || !n.due) { $('peError').textContent = '名前と日付を入れてください'; show('peError', true); return; }
       var b = this; b.disabled = true;
@@ -1393,25 +1434,32 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('payRetry').addEventListener('click', function () { $('payFile').value = ''; $('payFile').click(); });
   $('payBack').addEventListener('click', function () { payView('main'); });
   $('payAll').addEventListener('click', openPayAll);
-  var manualSlip = function () { openSlip({ title: '', annual: 0, installments: [{ label: '', due: '', amount: 0 }], withheld: [] }); };
+  var manualSlip = function () { lastShot = null; openSlip({ title: '', annual: 0, installments: [{ label: '', due: '', amount: 0 }], withheld: [] }); };
   $('payManual').addEventListener('click', manualSlip);
   $('payManual2').addEventListener('click', manualSlip);
   $('payFile').addEventListener('change', function () {
     var file = this.files && this.files[0]; if (!file) return;
     var url = URL.createObjectURL(file);
     $('payPreview').src = url; payView('loading');
-    shrinkImage(url).then(function (b64) { return api('analyzePayment', { image: b64, mimeType: 'image/jpeg' }); })
+    shrinkImage(url).then(function (b64) { lastShot = { b64: b64, url: url }; return api('analyzeAny', { image: b64, mimeType: 'image/jpeg' }); })
       .then(function (res) {
-        var r = res.slip || {};
-        if (!(r.installments || []).length && !(r.withheld || []).length) r.installments = [{ label: '', due: '', amount: 0 }];
-        openSlip(r);
+        if (res.kind === 'receipt') { toast('お店のレシートとして読み取りました'); return showReceipt(res.receipt); }
+        openSlip(res.slip || {});
       }).catch(function (err) { $('payErrorText').textContent = err.message; payView('error'); });
   });
 
+  var PAY_CATS = ['住民税', '社会保険料', 'ほかの税金', '公共料金', '通信費', 'その他'];
+  function catOf(p) { return PAY_CATS.indexOf(p.category) >= 0 ? p.category : 'その他'; }
+  function catChips(id, cur, onPick) {
+    $(id).innerHTML = PAY_CATS.map(function (c) { return '<button class="chip' + (c === cur ? ' on' : '') + '" data-cat="' + c + '">' + c + '</button>'; }).join('');
+    $(id).querySelectorAll('[data-cat]').forEach(function (b) { b.addEventListener('click', function () { onPick(b.dataset.cat); }); });
+  }
   function openSlip(r) {
     var t = today();
+    if (!(r.installments || []).length && !(r.withheld || []).length) r.installments = [{ label: '', due: '', amount: 0 }];
+    show('pcToReceipt', !!lastShot);
     pay.draft = {
-      title: r.title || '', annual: r.annual || 0,
+      title: r.title || '', annual: r.annual || 0, category: PAY_CATS.indexOf(r.category) >= 0 ? r.category : 'その他',
       rows: (r.installments || []).map(function (x) {
         // 期限が過ぎた期は「もう払いましたか?」と聞く(はじめは「払った」にしておく)
         return { label: x.label, due: x.due, amount: x.amount, status: 'これから', past: !!(x.due && x.due < t) };
@@ -1421,6 +1469,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     };
     $('pcTitle').value = pay.draft.title;
     $('pcAnnual').value = pay.draft.annual || '';
+    var pickCat = function (c) { pay.draft.category = c; catChips('pcCat', c, pickCat); };
+    pickCat(pay.draft.category);
     show('pcError', false);
     renderSlipRows(); payView('confirm');
   }
@@ -1486,7 +1536,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!rows.length) return err('支払いを1つ以上入れてください');
     for (var i = 0; i < rows.length; i++) if (!rows[i].due) return err('「' + (rows[i].label || (i + 1) + '番目') + '」の日付を入れてください');
     var b = this; b.disabled = true; b.textContent = '保存中…';
-    api('savePayments', { person: state.owner, title: d.title, annual: d.annual,
+    api('savePayments', { person: state.owner, title: d.title, annual: d.annual, category: d.category,
       rows: rows.map(function (x) { return { label: x.label, due: x.due, amount: x.amount, status: x.status === '天引き' ? '天引き' : 'これから', paidDate: '' }; }) })
       .then(function () {
         toast('「' + d.title + '」を ' + rows.length + '件 保存しました。払った期は「払った」を押してください');
