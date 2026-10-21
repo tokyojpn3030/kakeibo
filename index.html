@@ -212,6 +212,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .days.late { background: var(--danger-soft); color: var(--danger); }
 .paid-btn { flex: none; min-height: 48px; padding: 0 14px; border-radius: 24px; border: none;
   background: var(--primary-soft); color: var(--on-primary-soft); font-size: 17px; font-weight: 700; }
+.receipt .chk { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--line);
+  display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: var(--on-primary); }
+.receipt.sel { border-color: var(--danger); background: var(--danger-soft); }
+.receipt.sel .chk { background: var(--danger); border-color: var(--danger); }
+.sel-bar { position: fixed; left: 0; right: 0; bottom: calc(76px + var(--safe-b)); z-index: 25; padding: 10px 16px;
+  background: var(--surface); border-top: 1px solid var(--line); display: flex; gap: 8px; max-width: 640px; margin: 0 auto; }
 .slip-card { display: block; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
 .slip-card:active { background: var(--surface-2); }
@@ -507,13 +513,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
 <div class="sheet-back hidden" id="sheetBack"><div class="sheet" id="sheet"></div></div>
 <div class="toast hidden" id="toast"></div>
+<div class="sel-bar hidden" id="selBar">
+  <button class="btn btn-danger" id="selDel" style="flex:1">選んだものを削除</button>
+  <button class="btn btn-tonal" id="selCancel">やめる</button>
+</div>
 
 <script>
 (function () {
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 23:38 版25';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 23:42 版26';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -612,6 +622,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     person: null,          // 今回記録する人
     month: thisMonth(),
     filter: '',            // 履歴の絞り込み('' は全員)
+    sel: null,             // 「選んで削除」のときに選んだレシート { id: true }
     receipts: [],
     loadedMonth: null,
     draft: null            // 確認中のレシート
@@ -705,6 +716,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         if (action === 'update') {
           list.forEach(function (r, i) { if (r.id === data.id) list[i] = Object.assign({ id: r.id }, data.receipt); });
           demoSave(list); return resolve({ ok: true, id: data.id });
+        }
+        if (action === 'deleteMany') {
+          var ids = data.ids || [];
+          var gone = list.filter(function (r) { return ids.indexOf(r.id) >= 0; });
+          demoSave(list.filter(function (r) { return ids.indexOf(r.id) < 0; }));
+          var tr0 = demoTrash(); tr0.unshift({ batch: String(Date.now()), deletedAt: new Date().toLocaleString('ja-JP'), list: gone });
+          store.set('demoTrash', JSON.stringify(tr0));
+          return resolve({ ok: true, result: { receipts: gone.length } });
         }
         if (action === 'delete' || action === 'bulkDelete') {
           var pick = list.filter(function (r) {
@@ -801,6 +820,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   /* ---------- 画面切り替え ---------- */
   function go(name, keep) {
+    if (name !== 'history' && state.sel) { state.sel = null; show('selBar', false); }
     document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('active', s.id === 'screen-' + name); });
     document.querySelectorAll('.nav-item').forEach(function (b) { b.classList.toggle('on', b.dataset.screen === name); });
     window.scrollTo(0, 0);
@@ -813,6 +833,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   });
   document.querySelectorAll('[data-month]').forEach(function (b) {
     b.addEventListener('click', function () {
+      state.sel = null; show('selBar', false);
       state.month = shiftMonth(state.month, +b.dataset.month); loadMonth(true);
     });
   });
@@ -854,22 +875,61 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       $('histList').innerHTML = '<div class="empty"><div class="big">まだ記録がありません</div>下の「撮影」からレシートを撮ってみましょう</div>';
       return;
     }
-    var html = '', lastDay = null;
+    var sel = state.sel;
+    var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px">' +
+      '<span class="note">' + list.length + '件 ・ 押すと明細が見られます</span>' +
+      (sel ? '' : '<button class="btn btn-text" id="histSelect" style="min-height:44px;padding:0 8px">☑ 選んで削除</button>') + '</div>';
+    if (sel) html += '<div class="warn" style="margin-top:0">消したいレシートを押して選んでください(もう一度押すと外れます)。</div>';
     list.forEach(function (r) {
-      if (r.date !== lastDay) { html += '<div class="day-label">' + esc(dayLabel(r.date)) + '</div>'; lastDay = r.date; }
       var items = (r.items || []).filter(function (it) { return it.price >= 0; });
       var sub = items.slice(0, 2).map(function (it) { return it.name; }).join('、');
       if (items.length > 2) sub += ' ほか' + (items.length - 2) + '点';
-      html += '<button class="receipt" data-id="' + esc(r.id) + '">' + avatarHtml(r.person) +
+      var on = sel && sel[r.id];
+      html += '<button class="receipt' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
+        (sel ? '<span class="chk">' + (on ? '✓' : '') + '</span>' : avatarHtml(r.person)) +
         '<div class="info"><div class="store">' + esc(r.store || 'お店の名前なし') + (r.purpose ? ' <span class="days" style="background:var(--surface-2);color:var(--text-2)">' + esc(r.purpose) + '</span>' : '') + '</div>' +
-        '<div class="sub">' + nm(r.person) + (sub ? ' ・ ' + esc(sub) : '') + '</div></div>' +
+        '<div class="sub">📅 ' + esc(dayLabel(r.date)) + ' ・ ' + nm(r.person) + '</div>' +
+        (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') + '</div>' +
         '<div class="yen">' + yen(r.total) + '</div></button>';
     });
+    if (sel) html += '<div style="height:84px"></div>';
     $('histList').innerHTML = html;
     $('histList').querySelectorAll('.receipt').forEach(function (b) {
-      b.addEventListener('click', function () { openDetail(b.dataset.id); });
+      b.addEventListener('click', function () {
+        if (!state.sel) return openDetail(b.dataset.id);
+        if (state.sel[b.dataset.id]) delete state.sel[b.dataset.id]; else state.sel[b.dataset.id] = true;
+        renderHistory();
+      });
     });
+    if ($('histSelect')) $('histSelect').addEventListener('click', function () { state.sel = {}; renderHistory(); });
+    updateSelBar();
   }
+
+  /* 選んで削除 */
+  function selIds() { return state.sel ? Object.keys(state.sel) : []; }
+  function updateSelBar() {
+    var onHist = !!document.querySelector('#screen-history.active');
+    show('selBar', !!state.sel && onHist);
+    if (!state.sel) return;
+    var ids = selIds();
+    var sum = state.receipts.filter(function (r) { return state.sel[r.id]; }).reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0);
+    $('selDel').textContent = ids.length ? '選んだ ' + ids.length + '件(' + yen(sum) + ')を削除' : 'レシートを選んでください';
+    $('selDel').disabled = !ids.length;
+  }
+  function endSelect() { state.sel = null; show('selBar', false); renderHistory(); }
+  $('selCancel').addEventListener('click', endSelect);
+  $('selDel').addEventListener('click', function () {
+    var ids = selIds(); if (!ids.length) return;
+    if (!confirm('選んだ ' + ids.length + '件のレシートを削除しますか?(30日間はゴミ箱から戻せます)')) return;
+    var b = this; b.disabled = true; b.textContent = '削除しています…';
+    api('deleteMany', { ids: ids }).catch(function (e) {
+      // 窓口が古い版のときは1件ずつ消す
+      if (!/不明な依頼/.test(e.message)) throw e;
+      return ids.reduce(function (pr, id) { return pr.then(function () { return api('delete', { id: id }); }); }, Promise.resolve());
+    }).then(function () {
+      toast(ids.length + '件をゴミ箱に移しました'); state.sel = null; show('selBar', false); loadMonth(true);
+    }).catch(function (e) { alert(e.message); b.disabled = false; updateSelBar(); });
+  });
 
   function renderSummary() {
     var rs = state.receipts;
