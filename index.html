@@ -713,6 +713,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function show(id, on) { $(id).classList.toggle('hidden', !on); }
 
   /* ---------- 窓口とのやりとり ---------- */
+  // 窓口(Apps Script)が古い版で「見分けて読む」がないときは、今までの読み方に切り替える
+  function analyzeAnyOr(fallback, b64) {
+    return api('analyzeAny', { image: b64, mimeType: 'image/jpeg' }).catch(function (e) {
+      if (!/不明な依頼/.test(e.message)) throw e;
+      return api(fallback, { image: b64, mimeType: 'image/jpeg' }).then(function (r) {
+        return fallback === 'analyze' ? { kind: 'receipt', receipt: r.receipt } : { kind: 'bill', slip: r.slip };
+      });
+    });
+  }
   function api(action, data, passOverride) {
     if (DEMO) return demoApi(action, data || {}).then(function (res) {
       if (!res.ok) throw new Error(res.error || 'エラーが起きました'); return res;
@@ -1086,7 +1095,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('capLoadingText').textContent = rescan ? 'レシートを読み取り中…' : '読み取り中…(レシートか納付書かも見分けています)';
     shrinkImage(url).then(function (b64) {
       lastShot = { b64: b64, url: url };
-      return api(rescan ? 'analyze' : 'analyzeAny', { image: b64, mimeType: 'image/jpeg' });
+      return rescan ? api('analyze', { image: b64, mimeType: 'image/jpeg' }) : analyzeAnyOr('analyze', b64);
     }).then(function (res) {
       if (res.kind === 'bill') { toast('納付書・請求書として読み取りました'); return showBill(res.slip); }
       showReceipt(res.receipt);
@@ -1670,7 +1679,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var file = this.files && this.files[0]; if (!file) return;
     var url = URL.createObjectURL(file);
     $('payPreview').src = url; payView('loading');
-    shrinkImage(url).then(function (b64) { lastShot = { b64: b64, url: url }; return api('analyzeAny', { image: b64, mimeType: 'image/jpeg' }); })
+    shrinkImage(url).then(function (b64) { lastShot = { b64: b64, url: url }; return analyzeAnyOr('analyzePayment', b64); })
       .then(function (res) {
         if (res.kind === 'receipt') { toast('お店のレシートとして読み取りました'); return showReceipt(res.receipt); }
         openSlip(res.slip || {});
