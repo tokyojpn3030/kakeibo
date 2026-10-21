@@ -212,6 +212,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .days.late { background: var(--danger-soft); color: var(--danger); }
 .paid-btn { flex: none; min-height: 48px; padding: 0 14px; border-radius: 24px; border: none;
   background: var(--primary-soft); color: var(--on-primary-soft); font-size: 17px; font-weight: 700; }
+.slip-card { display: block; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
+.slip-card:active { background: var(--surface-2); }
+.slip-card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.slip-card .big { font-size: 21px; font-weight: 700; }
+.slip-card .amt { font-size: 21px; font-weight: 700; white-space: nowrap; }
+.slip-card .sub { font-size: 15px; color: var(--text-2); }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 17px; }
 .kv:last-child { border-bottom: none; }
 .kv b { white-space: nowrap; }
@@ -360,16 +367,18 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <div class="amount" id="payTotal">¥0</div>
         <div style="font-size:15px" id="payTotalSub"></div>
       </div>
-      <div class="chips" id="payMonths"></div>
-      <div id="payList"></div>
+      <div class="section-title" style="margin-top:6px">登録した支払い</div>
+      <div class="note" style="margin:-4px 0 8px">押すと内訳(期ごとの明細)が見られます。</div>
+      <div id="payKinds"></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
         <button class="btn btn-primary btn-block" id="payScan">📷 納付書・請求書を撮る</button>
         <button class="btn btn-tonal btn-block" id="payManual">✍ 手で入れる</button>
       </div>
+      <div class="section-title" id="payAheadTitle">これからの支払い</div>
+      <div class="chips" id="payMonths"></div>
+      <div id="payList"></div>
       <div class="section-title">払ったお金</div>
       <div class="card" id="payPaid"></div>
-      <div class="section-title">種類ごと</div>
-      <div id="payKinds"></div>
       <button class="btn btn-text btn-block" id="payAll" style="margin-top:8px">すべての支払いを見る(済み・天引きも)</button>
       <input type="file" accept="image/*" capture="environment" id="payFile" class="hidden">
     </div>
@@ -504,7 +513,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 23:31 版24';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 23:38 版25';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -1231,47 +1240,91 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="kv"><span>今年(' + y + '年)払った合計</span><b>' + yen(sumOf(inYear)) + '</b></div>' +
       '<div class="kv"><span>これから払う合計(全部)</span><b>' + yen(allOpen) + '</b></div>';
 
-    // 種類ごと(納付書ごと)
+    $('payAheadTitle').textContent = 'これから' + months + 'か月の支払い';
+    // 登録した支払い(納付書・請求書ごと)。新しく取り込んだ順
+    var gs = payGroups();
+    $('payKinds').innerHTML = gs.length ? gs.map(function (g) {
+      var sub = [g.added ? shortDate(g.added) + ' 取り込み' : '', g.n + '件',
+        g.left ? '残り ' + yen(g.left) : (g.done ? '✅ 全部払いました' : '')].filter(Boolean).join(' ・ ');
+      return '<button class="slip-card" data-group="' + esc(g.key) + '">' +
+        '<div class="top"><span class="big">' + esc(g.cat) + '</span><span class="amt">' + yen(g.done + g.left) + '</span></div>' +
+        (g.title && g.title !== g.cat ? '<div style="font-size:16px">' + esc(g.title) + '</div>' : '') +
+        '<div class="sub">' + sub + '</div></button>';
+    }).join('') : '<div class="empty" style="padding:20px 16px"><div class="big">まだ支払いがありません</div>納付書・請求書を撮ると、ここに並びます</div>';
+    $('payKinds').querySelectorAll('[data-group]').forEach(function (b) {
+      b.addEventListener('click', function () { openGroup(b.dataset.group); });
+    });
+  }
+
+  function groupKey(p) { return p.group || ('t:' + p.title); }
+  function payGroups() {
     var groups = {}, order = [];
     pay.list.forEach(function (p) {
-      var k = p.group || p.title;
-      if (!groups[k]) { groups[k] = { title: p.title, cat: catOf(p), annual: 0, done: 0, left: 0, withheld: 0, n: 0 }; order.push(k); }
-      var g = groups[k]; g.n++;
+      var k = groupKey(p);
+      if (!groups[k]) { groups[k] = { key: k, title: p.title, cat: catOf(p), added: p.added || '', annual: 0, done: 0, left: 0, withheld: 0, n: 0, items: [] }; order.push(k); }
+      var g = groups[k]; g.n++; g.items.push(p);
       if (p.annual) g.annual = p.annual;
+      if (p.added && (!g.added || p.added < g.added)) g.added = p.added;
       if (p.status === '済み') g.done += p.amount;
       else if (p.status === '天引き') g.withheld += p.amount;
       else g.left += p.amount;
     });
-    $('payKinds').innerHTML = order.length ? order.map(function (k) {
-      var g = groups[k];
-      return '<div class="card" style="margin-bottom:10px"><div style="font-size:18px;font-weight:700;margin-bottom:4px">' + esc(g.title) +
-        ' <span class="days" style="background:var(--surface-2);color:var(--text-2)">' + esc(g.cat) + '</span></div>' +
-        '<div class="kv"><span>支払い済み</span><b>' + yen(g.done) + '</b></div>' +
-        '<div class="kv"><span>残り(これから払う)</span><b>' + yen(g.left) + '</b></div>' +
-        '<div class="kv"><span>自分で払う分の合計</span><b>' + yen(g.done + g.left) + '</b></div>' +
-        (g.withheld ? '<div class="kv"><span>年金などから天引き</span><b>' + yen(g.withheld) + '</b></div>' : '') +
-        (g.annual ? '<div class="kv"><span>年間の合計(年税額)</span><b>' + yen(g.annual) + '</b></div>' : '') +
-        (g.annual && g.annual !== g.done + g.left + g.withheld ? '<div class="note">※ 年税額と、期ごとの合計(' + yen(g.done + g.left + g.withheld) + ')が合いません。読み取りの間違いかもしれません。</div>' : '') +
-        '</div>';
-    }).join('') : '<div class="note">まだありません</div>';
+    return order.map(function (k) { return groups[k]; })
+      .sort(function (a, b) { return (b.added || '') < (a.added || '') ? -1 : (b.added || '') > (a.added || '') ? 1 : 0; });
   }
 
-  function payRowHtml(p) {
+  /* 1つの納付書・請求書の内訳 */
+  function openGroup(key) {
+    var g = payGroups().filter(function (x) { return x.key === key; })[0];
+    if (!g) { pay.returnGroup = null; closeSheet(); return; }
+    pay.returnGroup = key;
+    var items = g.items.slice().sort(function (a, b) {
+      var w = (a.status === '天引き') - (b.status === '天引き'); if (w) return w;
+      return a.due < b.due ? -1 : a.due > b.due ? 1 : 0;
+    });
+    var mine = items.filter(function (p) { return p.status !== '天引き'; }), wh = items.filter(function (p) { return p.status === '天引き'; });
+    openSheet('<div class="grip"></div><h2>' + esc(g.cat) + '</h2>' +
+      '<div class="meta">' + esc(g.title) + (g.added ? ' ・ ' + shortDate(g.added) + ' 取り込み' : '') + '</div>' +
+      '<div class="card" style="margin-bottom:12px">' +
+      '<div class="kv"><span>支払い済み</span><b>' + yen(g.done) + '</b></div>' +
+      '<div class="kv"><span>残り(これから払う)</span><b>' + yen(g.left) + '</b></div>' +
+      '<div class="kv"><span>自分で払う分の合計</span><b>' + yen(g.done + g.left) + '</b></div>' +
+      (g.withheld ? '<div class="kv"><span>年金などから天引き</span><b>' + yen(g.withheld) + '</b></div>' : '') +
+      (g.annual ? '<div class="kv"><span>年間の合計(年税額)</span><b>' + yen(g.annual) + '</b></div>' : '') +
+      (g.annual && g.annual !== g.done + g.left + g.withheld ? '<div class="note">※ 年税額と、内訳の合計(' + yen(g.done + g.left + g.withheld) + ')が合いません。</div>' : '') +
+      '</div>' +
+      '<div class="section-title" style="margin-top:0">💴 自分で払う分</div><div id="grMine">' + (mine.length ? mine.map(function (p) { return payRowHtml(p, true); }).join('') : '<div class="note">ありません</div>') + '</div>' +
+      (wh.length ? '<div class="section-title">🏦 年金などから天引き</div><div id="grWh">' + wh.map(function (p) { return payRowHtml(p, true); }).join('') + '</div>' : '') +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">' +
+      '<button class="btn btn-danger btn-block" id="grDel">🗑 この支払い(' + g.n + '件)をまとめて削除</button>' +
+      '<button class="btn btn-text btn-block" id="grClose">閉じる</button></div>');
+    bindPayRows($('sheet'));
+    $('grClose').addEventListener('click', function () { pay.returnGroup = null; closeSheet(); });
+    $('grDel').addEventListener('click', function () {
+      if (!confirm('「' + g.cat + '」の ' + g.n + '件をまとめて削除しますか?(30日間はゴミ箱から戻せます)')) return;
+      this.disabled = true; pay.returnGroup = null;
+      deletePays(g.items.map(function (x) { return x.id; }), g.n + '件をゴミ箱に移しました');
+    });
+  }
+  // 明細で変更したあと:内訳から来たときは内訳に戻る
+  function afterPayChange() { if (pay.returnGroup) openGroup(pay.returnGroup); else closeSheet(); }
+
+  function payRowHtml(p, inGroup) {
     var late = p.status === 'これから' && daysTo(p.due) < 0;
     var sub = p.status === '済み' ? '✅ ' + shortDate(p.paidDate || p.due) + (p.place ? ' ' + esc(p.place) + 'で' : ' に') + '払いました'
       : p.status === '天引き' ? '年金などから天引き ・ ' + shortDate(p.due)
       : '期限 ' + shortDate(p.due) + daysBadge(p);
     return '<div class="pay-row' + (late ? ' late' : '') + (p.status !== 'これから' ? ' done' : '') + '" data-pid="' + esc(p.id) + '" role="button" tabindex="0">' +
-      '<div class="info"><div class="ttl">' + payName(p) + '</div><div class="sub">' + sub + '</div></div>' +
+      '<div class="info"><div class="ttl">' + (inGroup && p.label ? esc(p.label) : payName(p)) + '</div><div class="sub">' + sub + '</div></div>' +
       '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><div class="yen">' + yen(p.amount) + '</div>' +
       (p.status === 'これから' ? '<button class="paid-btn" data-paid="' + esc(p.id) + '">払った</button>' : '') + '</div></div>';
   }
   function bindPayRows(root) {
     root.querySelectorAll('[data-pid]').forEach(function (r) {
-      r.addEventListener('click', function (e) { if (e.target.closest('[data-paid]')) return; openPayDetail(r.dataset.pid); });
+      r.addEventListener('click', function (e) { if (e.target.closest('[data-paid]')) return; if (root.id !== 'sheet' && root.id !== 'paAll') pay.returnGroup = null; openPayDetail(r.dataset.pid); });
     });
     root.querySelectorAll('[data-paid]').forEach(function (b) {
-      b.addEventListener('click', function () { openPaidForm(b.dataset.paid); });
+      b.addEventListener('click', function () { if (root.id !== 'sheet' && root.id !== 'paAll') pay.returnGroup = null; openPaidForm(b.dataset.paid); });
     });
   }
   function findPay(id) { return pay.list.filter(function (p) { return p.id === id; })[0]; }
@@ -1285,7 +1338,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function markPaid(id, date, place) {
     var p = findPay(id); if (!p) return Promise.resolve();
     var n = Object.assign({}, p, { status: '済み', paidDate: date || today(), place: place || '' });
-    return savePay(n, '「' + p.title + (p.label ? ' ' + p.label : '') + '」を支払い済みにしました').then(closeSheet);
+    return savePay(n, '「' + p.title + (p.label ? ' ' + p.label : '') + '」を支払い済みにしました').then(afterPayChange);
   }
 
   /* 払ったときに「いつ・どこで」を入れる */
@@ -1320,7 +1373,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('pfPlace').addEventListener('input', drawPlaces);
     $('pfToday').addEventListener('click', function () { $('pfDate').value = today(); });
     if ($('pfDue')) $('pfDue').addEventListener('click', function () { $('pfDate').value = p.due; });
-    $('pfBack').addEventListener('click', closeSheet);
+    $('pfBack').addEventListener('click', afterPayChange);
     $('pfSave').addEventListener('click', function () {
       var d = $('pfDate').value, pl = $('pfPlace').value.trim();
       if (!d) { $('pfErr').textContent = '払った日を選んでください'; show('pfErr', true); return; }
@@ -1362,12 +1415,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="pdEdit">✏ 直す</button>' +
       '<button class="btn btn-danger btn-block" id="pdDel">🗑 この支払いを削除</button>' +
       (sameGroup(p).length > 1 ? '<button class="btn btn-danger btn-block" id="pdDelAll">🗑 同じ納付書の ' + sameGroup(p).length + '件をまとめて削除</button>' : '') +
-      '<button class="btn btn-text btn-block" id="pdClose">閉じる</button></div>');
-    $('pdClose').addEventListener('click', closeSheet);
+      '<button class="btn btn-text btn-block" id="pdClose">' + (pay.returnGroup ? '← 内訳に戻る' : '閉じる') + '</button></div>');
+    $('pdClose').addEventListener('click', afterPayChange);
     if ($('pdPaid')) $('pdPaid').addEventListener('click', function () { openPaidForm(id); });
     if ($('pdUnpaid')) $('pdUnpaid').addEventListener('click', function () {
       this.disabled = true;
-      savePay(Object.assign({}, p, { status: 'これから', paidDate: '', place: '' }), 'まだ払っていないに戻しました').then(closeSheet)
+      savePay(Object.assign({}, p, { status: 'これから', paidDate: '', place: '' }), 'まだ払っていないに戻しました').then(afterPayChange)
         .catch(function (e) { alert(e.message); });
     });
     if ($('pdGcal')) $('pdGcal').addEventListener('click', function () { window.open(gcalUrl(p), '_blank'); });
@@ -1384,7 +1437,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       this.disabled = true;
       api('deletePayments', { ids: [id] }).then(function () {
         pay.list = pay.list.filter(function (x) { return x.id !== id; });
-        renderPay(); closeSheet(); toast('ゴミ箱に移しました');
+        renderPay(); afterPayChange(); toast('ゴミ箱に移しました');
       }).catch(function (e) { alert(e.message); });
     });
   }
@@ -1438,6 +1491,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function statusLabel(x) { return x === 'これから' ? 'まだ払っていない' : x === '済み' ? '払った' : '天引き'; }
 
   function openPayAll() {
+    pay.returnGroup = null;
     var list = pay.list.slice().sort(function (a, b) { return a.due < b.due ? 1 : -1; });
     openSheet('<div class="grip"></div><h2>すべての支払い</h2><div class="meta">新しい期限の順。押すと詳しく見られます。</div>' +
       '<div id="paAll">' + (list.length ? list.map(payRowHtml).join('') : '<div class="note">まだありません</div>') + '</div>' +
