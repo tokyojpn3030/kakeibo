@@ -504,7 +504,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-21 23:30 版23';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-21 23:31 版24';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
   var ICONS = ['🌸', '🌷', '🌻', '🍓', '🍒', '🍰', '🐰', '🐱', '🐶', '🐻', '🐼', '🦊', '🐥', '⭐', '🌙', '🎀', '💎', '🍀', '🌈', '🎵'];
@@ -1361,6 +1361,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         : p.status === '済み' ? '<button class="btn btn-tonal btn-block" id="pdUnpaid">↩ まだ払っていないに戻す</button>' : '') +
       '<button class="btn btn-tonal btn-block" id="pdEdit">✏ 直す</button>' +
       '<button class="btn btn-danger btn-block" id="pdDel">🗑 この支払いを削除</button>' +
+      (sameGroup(p).length > 1 ? '<button class="btn btn-danger btn-block" id="pdDelAll">🗑 同じ納付書の ' + sameGroup(p).length + '件をまとめて削除</button>' : '') +
       '<button class="btn btn-text btn-block" id="pdClose">閉じる</button></div>');
     $('pdClose').addEventListener('click', closeSheet);
     if ($('pdPaid')) $('pdPaid').addEventListener('click', function () { openPaidForm(id); });
@@ -1372,6 +1373,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if ($('pdGcal')) $('pdGcal').addEventListener('click', function () { window.open(gcalUrl(p), '_blank'); });
     if ($('pdIcs')) $('pdIcs').addEventListener('click', function () { downloadIcs(p); });
     $('pdEdit').addEventListener('click', function () { openPayEdit(p); });
+    if ($('pdDelAll')) $('pdDelAll').addEventListener('click', function () {
+      var g = sameGroup(p);
+      if (!confirm('「' + p.title + '」の ' + g.length + '件(天引きの分も含む)をまとめて削除しますか?(30日間はゴミ箱から戻せます)')) return;
+      this.disabled = true;
+      deletePays(g.map(function (x) { return x.id; }), g.length + '件をゴミ箱に移しました');
+    });
     $('pdDel').addEventListener('click', function () {
       if (!confirm('「' + p.title + (p.label ? ' ' + p.label : '') + '」を削除しますか?(30日間はゴミ箱から戻せます)')) return;
       this.disabled = true;
@@ -1382,6 +1389,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
   }
 
+  function sameGroup(p) { return p.group ? pay.list.filter(function (x) { return x.group === p.group; }) : [p]; }
+  function deletePays(ids, msg) {
+    return api('deletePayments', { ids: ids }).then(function () {
+      pay.list = pay.list.filter(function (x) { return ids.indexOf(x.id) < 0; });
+      renderPay(); closeSheet(); toast(msg);
+    }).catch(function (e) { alert(e.message); });
+  }
   function openPayEdit(p) {
     openSheet('<div class="grip"></div><h2>✏ 支払いを直す</h2>' +
       '<div class="field"><label for="peTitle">支払いの名前</label><input class="input" id="peTitle" value="' + esc(p.title) + '"></div>' +
