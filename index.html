@@ -501,12 +501,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <h2>はじめに</h2>
     <div class="total-card" style="margin:0 0 16px"><div class="label">つなぐ家</div><div style="font-size:22px;font-weight:700" id="setupHome"></div></div>
 
-    <!-- 1. 合言葉 -->
+    <!-- 1. パスワード -->
     <div id="stepPass">
-      <p>家族の合言葉を入れてください。次からは入力しなくて大丈夫です。</p>
+      <p>家族のパスワードを入れてください。次からは入力しなくて大丈夫です。</p>
       <div id="setupPassWrap">
-        <div class="section-title">家族の合言葉</div>
-        <input class="input" id="setupPass" type="password" inputmode="numeric" autocomplete="off" placeholder="合言葉を入力">
+        <div class="section-title">家族のパスワード</div>
+        <input class="input" id="setupPass" type="password" inputmode="numeric" autocomplete="off" placeholder="パスワードを入力">
       </div>
       <button class="btn btn-primary btn-block" id="passNext" style="margin-top:24px">次へ</button>
     </div>
@@ -519,17 +519,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <button class="btn btn-primary btn-block" id="hnNext" style="margin-top:20px">次へ</button>
     </div>
 
-    <!-- 1'. 初期化のあと:新しい合言葉を決める -->
+    <!-- 1'. 初期化のあと:新しいパスワードを決める -->
     <div id="stepNewPass" class="hidden">
-      <div class="section-title">この家の合言葉を決めてください</div>
-      <p>家族みんなで使う合言葉です。家族に伝えて、紙などに控えておいてください。</p>
-      <div class="field"><label for="npP1">新しい合言葉(4〜8桁の数字)</label>
+      <div class="section-title">この家のパスワードを決めてください</div>
+      <p>家族みんなで使うパスワードです。家族に伝えて、紙などに控えておいてください。</p>
+      <div class="field"><label for="npP1">新しいパスワード(4〜8桁の数字)</label>
         <input class="input" id="npP1" type="password" inputmode="numeric" autocomplete="new-password"></div>
       <div class="field"><label for="npP2">確認のため、もう一度</label>
         <input class="input" id="npP2" type="password" inputmode="numeric" autocomplete="new-password"></div>
       <div class="note">1234 や 1111 のような簡単な番号は使えません。</div>
       <div class="error hidden" id="npError"></div>
-      <button class="btn btn-primary btn-block" id="npNext" style="margin-top:16px">この合言葉にする</button>
+      <button class="btn btn-primary btn-block" id="npNext" style="margin-top:16px">このパスワードにする</button>
     </div>
 
     <!-- 2. 家族の名前(その家で初めて使うときだけ) -->
@@ -546,7 +546,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="section-title">このスマホを使うのは誰ですか?</div>
       <div class="member-grid" id="setupMembers"></div>
       <button class="btn btn-primary btn-block" id="setupDone" style="margin-top:8px">はじめる</button>
-      <button class="btn btn-text btn-block" id="pickBack">← 合言葉の入力に戻る</button>
+      <button class="btn btn-text btn-block" id="pickBack">← パスワードの入力に戻る</button>
     </div>
 
     <div class="error hidden" id="setupError"></div>
@@ -565,7 +565,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-22 23:31 版36';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-22 23:38 版37';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -580,7 +580,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   /* ---------- 家(つなぐ先)の管理 ----------
      1台のスマホに複数の家を登録して切り替えられる。
-     家ごとに「使う人・合言葉・メンバー」を別々に覚える。 */
+     家ごとに「使う人・パスワード・メンバー」を別々に覚える。 */
   function loadHomes() { try { return JSON.parse(G.get('homes') || '[]'); } catch (e) { return []; } }
   function saveHomes(list) { G.set('homes', JSON.stringify(list)); }
   var HOMES = loadHomes();
@@ -647,13 +647,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (STANDALONE) {
       try { history.replaceState(null, '', location.pathname); } catch (e) {}
       // アイコンには招待の情報がずっと付いているので、使うのは最初の1回だけ(あとで家を切り替えても戻されない)
-      var key = 'usedJoin.' + j.url;
+      var key = 'usedJoin.' + j.url + '.' + (j.h || '') + '.' + (j.p || '');
       if (G.get(key)) return false;
       G.set(key, '1');
     } else JOINED = true;
     var h = addHome(j);
-    // 「相手に決めてもらう」家の招待:仮の合言葉が付いているので、入力しなくてよい
-    if (j.p && !G.get(h.id + '.owner')) { G.set(h.id + '.pass', j.p); G.set(h.id + '.firstSetup', '1'); }
+    // 「相手に決めてもらう」家の招待:仮のパスワードが付いているので、入力しなくてよい
+    if (j.p) { G.set(h.id + '.pass', j.p); G.set(h.id + '.firstSetup', '1'); }
     if (h.id !== HOME.id) { G.set('home', h.id); location.reload(); return true; }
     return false;
   })();
@@ -922,7 +922,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       renderHistory(); renderSummary();
     }).catch(function (err) {
       $('histList').innerHTML = '<div class="error">' + esc(err.message) + '</div>';
-      if (err.message === '合言葉が違います') { toast('合言葉が変わったようです。新しい合言葉を入れてください'); openSetup(); }
+      if (/(合言葉|パスワード)が違います/.test(err.message)) { toast('パスワードが変わったようです。新しいパスワードを入れてください'); openSetup(); }
     });
   }
 
@@ -1054,19 +1054,19 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }).catch(function (err) { alert(err.message); });
     });
   }
-  // 合言葉の欄に「👁 見る」ボタンを付ける(押すたびに、見せる/隠すが切り替わる)
+  // パスワードの欄に「👁 見る」ボタンを付ける(押すたびに、見せる/隠すが切り替わる)
   function addEyes(root) {
     (root || document).querySelectorAll('input[type="password"]:not([data-eye])').forEach(function (inp) {
       inp.setAttribute('data-eye', '1');
       var w = document.createElement('span'); w.className = 'pwwrap';
       inp.parentNode.insertBefore(w, inp); w.appendChild(inp);
       var b = document.createElement('button'); b.type = 'button'; b.className = 'pweye';
-      b.textContent = '👁'; b.setAttribute('aria-label', '合言葉を見る');
+      b.textContent = '👁'; b.setAttribute('aria-label', 'パスワードを見る');
       b.addEventListener('click', function () {
         var hide = inp.type === 'password';
         inp.type = hide ? 'text' : 'password';
         b.textContent = hide ? '🙈' : '👁';
-        b.setAttribute('aria-label', hide ? '合言葉を隠す' : '合言葉を見る');
+        b.setAttribute('aria-label', hide ? 'パスワードを隠す' : 'パスワードを見る');
         inp.focus();
       });
       w.appendChild(b);
@@ -1331,7 +1331,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }).catch(function (err) {
       $('payList').innerHTML = '<div class="error">' + esc(err.message) + '</div>' +
         (/不明な依頼/.test(err.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください。</div>' : '');
-      if (/合言葉が違います/.test(err.message)) { toast('合言葉を入れ直してください'); openSetup(); }
+      if (/(合言葉|パスワード)が違います/.test(err.message)) { toast('パスワードを入れ直してください'); openSetup(); }
     });
   }
 
@@ -1907,7 +1907,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   applyPayShown();
 
   /* ---------- 初回設定 ----------
-     1. 合言葉 → 2. 家族の名前(その家でまだ決まっていないときだけ)→ 3. このスマホを使う人 */
+     1. パスワード → 2. 家族の名前(その家でまだ決まっていないときだけ)→ 3. このスマホを使う人 */
   var setupPick = null, setupPass = '', names = [];
   function setupError(msg) { $('setupError').textContent = msg; show('setupError', !!msg); }
   function setupStep(name) {
@@ -1920,13 +1920,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('setupPassWrap', !DEMO);
     $('setupPass').value = state.pass;
     show('setup', true);
-    if (store.get('needNewPass')) openHomeName(true, function () {   // 初期化のあと:家の名前 → 合言葉 → 家族の名前
+    if (store.get('needNewPass')) openHomeName(true, function () {   // 初期化のあと:家の名前 → パスワード → 家族の名前
       if (DEMO) { store.del('needNewPass'); setupPass = ''; openNames(); return; }
       $('npP1').value = ''; $('npP2').value = ''; setupStep('NewPass');
     });
     else {
       setupStep('Pass');
-      // 仮の合言葉つきの招待で開いたときは、合言葉の入力を飛ばす
+      // 仮のパスワードつきの招待で開いたときは、パスワードの入力を飛ばす
       if (store.get('firstSetup') && state.pass) { store.del('firstSetup'); setTimeout(function () { $('passNext').click(); }, 50); }
     }
   }
@@ -1953,29 +1953,38 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('npNext').addEventListener('click', function () {
     var np = readPass('np');
     if (np === false) return;
-    if (!np) { $('npError').textContent = '新しい合言葉を入れてください'; show('npError', true); return; }
+    if (!np) { $('npError').textContent = '新しいパスワードを入れてください'; show('npError', true); return; }
     var b = this; b.disabled = true; b.textContent = '保存中…';
     changePasscode(np).then(function () {
-      store.del('needNewPass'); setupPass = np; openNames();
+      store.del('needNewPass'); setupPass = np;
+      if (store.get('repassOnly')) { store.del('repassOnly'); goPick(); return; }
+      openNames();
     }).catch(function (e) {
-      if (e.message === '合言葉が違います') { store.del('needNewPass'); setupStep('Pass'); setupError('このスマホの合言葉が古くなっています。今の合言葉を入れてください'); return; }
+      if (/(合言葉|パスワード)が違います/.test(e.message)) { store.del('needNewPass'); setupStep('Pass'); setupError('このスマホのパスワードが古くなっています。今のパスワードを入れてください'); return; }
       $('npError').textContent = e.message; show('npError', true);
-    }).then(function () { b.disabled = false; b.textContent = 'この合言葉にする'; });
+    }).then(function () { b.disabled = false; b.textContent = 'このパスワードにする'; });
   });
   $('passNext').addEventListener('click', function () {
     var pass = $('setupPass').value.trim();
-    if (!DEMO && !pass) return setupError('合言葉を入れてください');
+    if (!DEMO && !pass) return setupError('パスワードを入れてください');
     var btn = this; btn.disabled = true; btn.textContent = '確認中…';
     var oldPass = state.pass; state.pass = pass;
     var serverName = '';
-    var pending = false;
+    var pending = false, repass = false;
     api('ping').then(function (res) {
-      serverName = res.name || ''; pending = !!res.pending;
+      serverName = res.name || ''; pending = !!res.pending; repass = !!res.repass;
       if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); $('setupHome').textContent = '🏠 ' + HOME.name; }
       return api('members');
     }).then(function (res) {
+      if (repass) {
+        // パスワードの作り直し:記録と名前はそのまま。新しいパスワードを決めて、自分を選ぶ
+        setupPass = pass; store.set('needNewPass', '1'); store.set('repassOnly', '1');
+        if (res.members && res.members.length) setMembers(res.members);
+        $('npP1').value = ''; $('npP2').value = ''; setupStep('NewPass');
+        return;
+      }
       if (pending) {
-        // 最初の人:家の名前 → 自分たちの合言葉 → 家族の名前 → 自分を選ぶ
+        // 最初の人:家の名前 → 自分たちのパスワード → 家族の名前 → 自分を選ぶ
         setupPass = pass; store.set('needNewPass', '1');
         openHomeName(true, function () { $('npP1').value = ''; $('npP2').value = ''; setupStep('NewPass'); });
         return;
@@ -2059,8 +2068,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stPay">💴 支払いの設定・お知らせ</button>' +
       '<button class="btn btn-tonal btn-block" id="stDelete">🗑 記録の削除とゴミ箱</button>' +
       '<button class="btn btn-tonal btn-block" id="stHomes">🔁 家の切り替え・追加</button>' +
-      '<button class="btn btn-tonal btn-block" id="stPass">🔑 家の合言葉を変える</button>' +
-      '<button class="btn btn-tonal btn-block" id="stOwner">使う人を変える・合言葉を入れ直す</button>' +
+      '<button class="btn btn-tonal btn-block" id="stPass">🔑 家のパスワードを変える</button>' +
+      '<button class="btn btn-tonal btn-block" id="stOwner">使う人を変える・パスワードを入れ直す</button>' +
+      '<button class="btn btn-tonal btn-block" id="stPhoneReset">📱 このスマホのアプリを初期化する</button>' +
       '<button class="btn btn-tonal btn-block" id="stUpdate">⬆ 新しい版に更新する</button>' +
       '<button class="btn btn-text btn-block" id="stHelp">❓ 読み取りの回数について</button>' +
       '<button class="btn btn-text btn-block" id="stAdmin">🛠 管理人(家を作る・引っ越し)</button>' +
@@ -2072,6 +2082,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stPay').addEventListener('click', openPaySettings);
     $('stHomes').addEventListener('click', openHomes);
     $('stOwner').addEventListener('click', function () { closeSheet(); openSetup(); });
+    $('stPhoneReset').addEventListener('click', openPhoneReset);
     $('stClose').addEventListener('click', closeSheet);
     $('stUpdate').addEventListener('click', updateApp);
     $('stAdmin').addEventListener('click', openAdmin);
@@ -2090,8 +2101,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   $('btnSettings').addEventListener('click', openSettings);
 
-  /* ---------- 家の合言葉を変える ---------- */
-  // 新しい合言葉の入力欄(2回入れて確かめる)
+  /* ---------- 家のパスワードを変える ---------- */
+  // 新しいパスワードの入力欄(2回入れて確かめる)
   function passFields(prefix, labelText) {
     return '<div class="field"><label for="' + prefix + 'P1">' + esc(labelText) + '</label>' +
       '<input class="input" id="' + prefix + 'P1" type="password" inputmode="numeric" autocomplete="new-password" placeholder="4〜8桁の数字"></div>' +
@@ -2104,8 +2115,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var err = function (m) { $(prefix + 'Error').textContent = m; show(prefix + 'Error', true); return false; };
     show(prefix + 'Error', false);
     if (!a && !b) return '';
-    if (!/^\d{4,8}$/.test(a)) return err('合言葉は4〜8桁の数字にしてください');
-    if (a !== b) return err('2回入れた合言葉が違います');
+    if (!/^\d{4,8}$/.test(a)) return err('パスワードは4〜8桁の数字にしてください');
+    if (a !== b) return err('2回入れたパスワードが違います');
     return a;
   }
   function changePasscode(np) {
@@ -2115,27 +2126,27 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   function openPasscode() {
     if (DEMO) {
-      openSheet('<div class="grip"></div><h2>🔑 家の合言葉を変える</h2><div class="note">デモの家には合言葉はありません。</div>' + backButton('psBack'));
+      openSheet('<div class="grip"></div><h2>🔑 家のパスワードを変える</h2><div class="note">デモの家にはパスワードはありません。</div>' + backButton('psBack'));
       $('psBack').addEventListener('click', openSettings); return;
     }
-    openSheet('<div class="grip"></div><h2>🔑 家の合言葉を変える</h2>' +
-      '<div class="meta">「' + esc(HOME.name) + '」の合言葉を変えます。家族のほかのスマホでは、次に開いたときに新しい合言葉を入れてもらいます。</div>' +
-      passFields('ps', '新しい合言葉') +
+    openSheet('<div class="grip"></div><h2>🔑 家のパスワードを変える</h2>' +
+      '<div class="meta">「' + esc(HOME.name) + '」のパスワードを変えます。家族のほかのスマホでは、次に開いたときに新しいパスワードを入れてもらいます。</div>' +
+      passFields('ps', '新しいパスワード') +
       '<div class="note" style="margin-bottom:8px">1234 や 1111 のような簡単な番号は使えません。</div>' +
       '<div class="error hidden" id="psError"></div>' +
-      '<button class="btn btn-primary btn-block" id="psGo">合言葉を変える</button>' + backButton('psBack'));
+      '<button class="btn btn-primary btn-block" id="psGo">パスワードを変える</button>' + backButton('psBack'));
     $('psBack').addEventListener('click', openSettings);
     $('psGo').addEventListener('click', function () {
       var np = readPass('ps');
       if (np === false) return;
-      if (!np) { $('psError').textContent = '新しい合言葉を入れてください'; show('psError', true); return; }
+      if (!np) { $('psError').textContent = '新しいパスワードを入れてください'; show('psError', true); return; }
       var b = this; b.disabled = true; b.textContent = '変えています…';
       changePasscode(np).then(function () {
-        openSheet('<div class="grip"></div><h2>✅ 合言葉を変えました</h2>' +
-          '<div class="meta">新しい合言葉を、家族に伝えてください。忘れないように紙などに控えておくと安心です。</div>' +
+        openSheet('<div class="grip"></div><h2>✅ パスワードを変えました</h2>' +
+          '<div class="meta">新しいパスワードを、家族に伝えてください。忘れないように紙などに控えておくと安心です。</div>' +
           '<button class="btn btn-primary btn-block" id="psOk">閉じる</button>');
         $('psOk').addEventListener('click', closeSheet);
-      }).catch(function (e) { b.disabled = false; b.textContent = '合言葉を変える'; $('psError').textContent = e.message; show('psError', true); });
+      }).catch(function (e) { b.disabled = false; b.textContent = 'パスワードを変える'; $('psError').textContent = e.message; show('psError', true); });
     });
   }
 
@@ -2178,9 +2189,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }
     var link = inviteLink(HOME);
     var text = '🏠 お家の家計簿への招待\n「' + HOME.name + '」の家計簿です。このリンクを押すと使えます。\n' + link +
-      '\n※合言葉は家族に聞いてください';
+      '\n※パスワードは家族に聞いてください';
     openSheet('<div class="grip"></div><h2>💌 家族を招待する</h2>' +
-      '<div class="meta">このリンクを家族に送ると、押すだけで「' + esc(HOME.name) + '」につながります。合言葉は別に伝えてください。</div>' +
+      '<div class="meta">このリンクを家族に送ると、押すだけで「' + esc(HOME.name) + '」につながります。パスワードは別に伝えてください。</div>' +
       '<div class="warn">家族だけのトークやグループに送ってください。</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
       '<a class="btn btn-primary btn-block" id="ivLine" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(text) + '">💬 LINE で送る</a>' +
@@ -2197,7 +2208,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
 
   /* ---------- 管理人(Chama さん用):家を作る・前からの家を引っ越す ----------
-     共通の窓口(CENTRAL)に、管理人の合言葉で頼む。家の中身(記録)は見ない。 */
+     共通の窓口(CENTRAL)に、管理人のパスワードで頼む。家の中身(記録)は見ない。 */
   function centralApi(action, data) {
     if (!CENTRAL) return Promise.reject(new Error('共通の窓口がまだ設定されていません'));
     var body = Object.assign({ action: action, admin: G.get('adminCode') || '' }, data || {});
@@ -2215,7 +2226,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!G.get('adminCode')) {
       openSheet('<div class="grip"></div><h2>🛠 管理人</h2>' +
         '<div class="meta">家を作ったり、前からの家を引っ越したりする画面です(Chama さん用)。</div>' +
-        '<div class="field"><label for="adCode">管理人の合言葉(窓口の setup の実行ログに出ます)</label>' +
+        '<div class="field"><label for="adCode">管理人のパスワード(窓口の setup の実行ログに出ます)</label>' +
         '<input class="input" id="adCode" type="password" inputmode="numeric" autocomplete="off"></div>' +
         '<div class="error hidden" id="adErr"></div>' +
         '<button class="btn btn-primary btn-block" id="adGo">次へ</button>' + backButton('adB1'));
@@ -2238,12 +2249,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           return '<div class="card" style="margin-bottom:8px;padding:12px 14px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center">' +
             '<span style="font-size:18px;font-weight:700">🏠 ' + esc(h.name || '(名前なし)') + '</span>' +
             '<button class="btn btn-tonal" data-key="' + i + '" style="min-height:44px;padding:0 12px;font-size:16px">🔑 鍵・回数</button></div>' +
+            '<button class="btn btn-text" data-re="' + i + '" style="min-height:44px;padding:0 4px;font-size:16px">🔁 招待をやり直す・パスワードを作り直す</button>' +
+            (h.waiting ? '<div class="note" style="color:var(--on-warn)">⏳ 招待した人が、まだパスワードを決めていません</div>' : '') +
             '<div class="note">' + (h.ownKey ? 'この家だけの鍵' : '共通の鍵') + ' ・ 今日の読み取り ' + (h.usage || 0) + '回 / 目安 ' + (h.limit || '') + '回 ・ ' + esc(h.created) + ' 作成</div></div>';
         }).join('') : '<div class="note">まだありません</div>') +
         '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
         '<button class="btn btn-primary btn-block" id="adNew">🏗 新しい家を作る</button>' +
         (olds.length ? '<button class="btn btn-tonal btn-block" id="adMove">🚚 前からの家を引っ越す(' + olds.length + '軒)</button>' : '') +
-        '<button class="btn btn-text btn-block" id="adForget">このスマホから管理人の合言葉を消す</button>' +
+        '<button class="btn btn-text btn-block" id="adForget">このスマホから管理人のパスワードを消す</button>' +
         backButton('adB2') + '</div>');
       $('adB2').addEventListener('click', openSettings);
       $('adNew').addEventListener('click', openCreateHome);
@@ -2252,8 +2265,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       $('sheet').querySelectorAll('[data-key]').forEach(function (b) {
         b.addEventListener('click', function () { openHomeKey(r.homes[+b.dataset.key]); });
       });
+      $('sheet').querySelectorAll('[data-re]').forEach(function (b) {
+        b.addEventListener('click', function () { openReissue(r.homes[+b.dataset.re]); });
+      });
     }).catch(function (e) {
-      if (/管理人の合言葉/.test(e.message)) G.del('adminCode');
+      if (/管理人の(合言葉|パスワード)/.test(e.message)) G.del('adminCode');
       openSheet('<div class="grip"></div><h2>🛠 管理人</h2><div class="error">' + esc(e.message) + '</div>' + backButton('adB3'));
       $('adB3').addEventListener('click', openSettings);
     });
@@ -2292,8 +2308,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function openCreateHome() {
     openSheet('<div class="grip"></div><h2>🏗 新しい家を作る</h2>' +
       '<div class="meta">その家のスプレッドシートを作って、使えるようにします。</div>' +
-      '<label class="check"><input type="checkbox" id="cnPending" checked> 家の名前・合言葉・家族の名前は、招待した相手に決めてもらう</label>' +
-      '<div class="note" style="margin:0 0 10px 34px">招待リンクを送るだけで、最初に開いた人が決めます。合言葉を伝える必要はありません。</div>' +
+      '<label class="check"><input type="checkbox" id="cnPending" checked> 家の名前・パスワード・家族の名前は、招待した相手に決めてもらう</label>' +
+      '<div class="note" style="margin:0 0 10px 34px">招待リンクを送るだけで、最初に開いた人が決めます。パスワードを伝える必要はありません。</div>' +
       '<div class="field hidden" id="cnNameBox"><label for="cnName">家の名前</label><input class="input" id="cnName" placeholder="例:○○家"></div>' +
       '<label class="check"><input type="checkbox" id="cnDetail"> お知らせメールに、支払いの名前と金額まで書く(自分だけで使う家)</label>' +
       '<div class="error hidden" id="cnErr"></div>' +
@@ -2310,8 +2326,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         var h = addHome({ url: CENTRAL, h: r.home, name: r.name });
         G.set(h.id + '.pass', r.pass);
         openSheet('<div class="grip"></div><h2>✅ 「' + esc(r.name) + '」ができました</h2>' +
-          '<div class="meta">この家の合言葉は</div><div style="font-size:40px;font-weight:700;letter-spacing:4px;margin:4px 0 12px">' + esc(r.pass) + '</div>' +
-          '<div class="note" style="margin-bottom:12px">家族に招待リンクを送るときは、この合言葉も伝えてください(あとで ⚙ から変えられます)。</div>' +
+          '<div class="meta">この家のパスワードは</div><div style="font-size:40px;font-weight:700;letter-spacing:4px;margin:4px 0 12px">' + esc(r.pass) + '</div>' +
+          '<div class="note" style="margin-bottom:12px">家族に招待リンクを送るときは、このパスワードも伝えてください(あとで ⚙ から変えられます)。</div>' +
           '<label class="check"><input type="checkbox" id="cnSwitch" checked> このスマホでも、この家に切り替える</label>' +
           '<button class="btn btn-primary btn-block" id="cnOk" style="margin-top:12px">OK</button>');
         $('cnOk').addEventListener('click', function () {
@@ -2320,13 +2336,33 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }).catch(function (e) { b.disabled = false; b.textContent = '作る'; $('cnErr').textContent = e.message; show('cnErr', true); });
     });
   }
-  // 「相手に決めてもらう」家:仮の合言葉つきの招待リンクを送る
-  function showPendingInvite(r) {
-    var link = inviteLink({ url: CENTRAL, h: r.home, name: '' }, r.pass);
-    var text = '🏠 お家の家計簿への招待\nこのリンクを押して、ホーム画面に追加してから開いてください。家の名前と合言葉は、あなたが決めます。\n' + link;
-    openSheet('<div class="grip"></div><h2>✅ 新しい家ができました</h2>' +
-      '<div class="meta">この招待リンクを、最初に使う人に送ってください。開いた人が、家の名前・合言葉・家族の名前を決めます。</div>' +
-      '<div class="warn">このリンクは、最初の1人が合言葉を決めるまで誰でも使えます。その人とだけのトークに送ってください。ほかの家族は、その人から招待してもらいます。</div>' +
+  // 招待のやり直し・パスワードの作り直し
+  function openReissue(h) {
+    var started = !!h.name;
+    openSheet('<div class="grip"></div><h2>🔁 ' + esc(h.name || '(まだ始まっていない家)') + '</h2>' +
+      '<div class="meta">' + (started
+        ? '家族がパスワードを忘れたときに使います。記録と家族の名前はそのまま残ります。新しい招待リンクを開いた人が、新しいパスワードを決めます。'
+        : '最初の招待リンクをなくした・違う人に送った・途中でやめたときに使います。新しい招待リンクを作り直します。') + '</div>' +
+      '<div class="warn">今までのパスワード(と、前に送った招待リンク)は使えなくなります。' + (started ? 'ほかの家族のスマホは、次に開いたときに新しいパスワードを聞かれます。' : '') + '</div>' +
+      '<div class="error hidden" id="riErr"></div>' +
+      '<button class="btn btn-primary btn-block" id="riGo" style="margin-top:12px">作り直す</button>' + adminBack('riB'));
+    $('riB').addEventListener('click', openAdmin);
+    $('riGo').addEventListener('click', function () {
+      var b = this; b.disabled = true; b.textContent = '作り直しています…';
+      centralApi('reissue', { home: h.id }).then(function (r) { showPendingInvite(r, true); })
+        .catch(function (e) { b.disabled = false; b.textContent = '作り直す'; $('riErr').textContent = e.message; show('riErr', true); });
+    });
+  }
+  // 「相手に決めてもらう」家:仮のパスワードつきの招待リンクを送る
+  function showPendingInvite(r, again) {
+    var link = inviteLink({ url: CENTRAL, h: r.home, name: r.name || '' }, r.pass);
+    var repass = !!r.name && !r.pending;
+    var text = '🏠 お家の家計簿への招待\nこのリンクを押して、ホーム画面に追加してから開いてください。' +
+      (repass ? '新しいパスワードは、あなたが決めます(記録はそのまま残っています)。' : '家の名前とパスワードは、あなたが決めます。') + '\n' + link;
+    openSheet('<div class="grip"></div><h2>✅ ' + (again ? '招待リンクを作り直しました' : '新しい家ができました') + '</h2>' +
+      '<div class="meta">' + (repass ? 'この招待リンクを、パスワードを決め直す人に送ってください。開いた人が新しいパスワードを決めて、自分の名前を選びます。'
+        : 'この招待リンクを、最初に使う人に送ってください。開いた人が、家の名前・パスワード・家族の名前を決めます。') + '</div>' +
+      '<div class="warn">このリンクは、最初の1人がパスワードを決めるまで誰でも使えます。その人とだけのトークに送ってください。ほかの家族は、その人から招待してもらいます。</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
       '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(text) + '">💬 LINE で送る</a>' +
       '<a class="btn btn-tonal btn-block" href="mailto:?subject=' + encodeURIComponent('【お家の家計簿】招待') + '&body=' + encodeURIComponent(text) + '">📧 メールで送る</a>' +
@@ -2348,7 +2384,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         return '<option value="' + esc(x.id) + '">' + esc(x.name) + '(' + esc(x.updated) + ' 更新' + (x.used ? '・引っ越し済み' : '') + ')</option>';
       }).join('');
       openSheet('<div class="grip"></div><h2>🚚 前からの家を引っ越す</h2>' +
-        '<div class="meta">家ごとに、その家の記録が入っているスプレッドシートを選んでください。記録・合言葉・メンバーはそのまま使えます。</div>' +
+        '<div class="meta">家ごとに、その家の記録が入っているスプレッドシートを選んでください。記録・パスワード・メンバーはそのまま使えます。</div>' +
         olds.map(function (h, i) {
           return '<div class="card" style="margin-bottom:10px"><div style="font-size:19px;font-weight:700">🏠 ' + esc(h.name) + '</div>' +
             '<div class="field" style="margin:8px 0"><label for="mvS' + i + '">スプレッドシート</label>' +
@@ -2364,7 +2400,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           var i = +b.dataset.mv, h = olds[i], sid = $('mvS' + i).value, msg = $('mvM' + i);
           if (!sid) { msg.textContent = 'スプレッドシートを選んでください'; show('mvM' + i, true); return; }
           var pass = G.get(h.id + '.pass');
-          if (!pass) { msg.textContent = 'このスマホに、この家の合言葉が入っていません。先にこの家に切り替えて、合言葉を入れてください'; show('mvM' + i, true); return; }
+          if (!pass) { msg.textContent = 'このスマホに、この家のパスワードが入っていません。先にこの家に切り替えて、パスワードを入れてください'; show('mvM' + i, true); return; }
           b.disabled = true; b.textContent = '引っ越しています…';
           var oldUrl = h.url;
           // 前の窓口と、選んだスプレッドシートが同じ家か、メンバーで確かめる
@@ -2403,6 +2439,32 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           if (r && r.ok && r.home) { h.url = CENTRAL; h.h = r.home; if (h.id === HOME.id) changedCurrent = true; }
         }).catch(function () {});
     })).then(function () { saveHomes(HOMES); return changedCurrent; });
+  }
+
+  /* ---------- このスマホのアプリを初期化(入れ直したのと同じ状態にする) ----------
+     消すのはこのスマホの設定だけ。家の記録(スプレッドシート)は消えない。 */
+  function openPhoneReset() {
+    openSheet('<div class="grip"></div><h2>📱 このスマホのアプリを初期化</h2>' +
+      '<div class="meta">このスマホに覚えている設定(登録した家・使う人・パスワード)を消して、アプリを入れたばかりの状態に戻します。</div>' +
+      '<div class="kv"><span>消えるもの</span><b style="font-weight:400">このスマホの設定だけ</b></div>' +
+      '<div class="kv"><span>消えないもの</span><b style="font-weight:400">家の記録(レシート・支払い)、ほかの家族のスマホ</b></div>' +
+      '<div class="warn">初期化したあとは、家族からの招待リンクを開くと、また使えます(パスワードも入れ直します)。パスワードが分からないときは、家族か管理人に聞いてください。</div>' +
+      '<label class="check"><input type="checkbox" id="prOk"> 分かりました。このスマホの設定を消します</label>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
+      '<button class="btn btn-danger btn-block" id="prGo" disabled>初期化する</button>' + backButton('prB') + '</div>');
+    $('prB').addEventListener('click', openSettings);
+    $('prOk').addEventListener('change', function () { $('prGo').disabled = !this.checked; });
+    $('prGo').addEventListener('click', function () {
+      this.disabled = true; this.textContent = '初期化しています…';
+      try {
+        var ks = []; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('kakeibo.') === 0) ks.push(k); }
+        ks.forEach(function (k) { localStorage.removeItem(k); });
+      } catch (e) {}
+      var clear = [];
+      if ('caches' in window) clear.push(caches.keys().then(function (k) { return Promise.all(k.map(function (x) { return caches.delete(x); })); }));
+      if (navigator.serviceWorker) clear.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+      Promise.all(clear).catch(function () {}).then(function () { location.replace(location.pathname + '?v=' + Date.now()); });
+    });
   }
 
   /* ---------- 家の切り替え・追加 ---------- */
@@ -2464,7 +2526,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       return '<button class="chip' + (del[key] === val ? ' on' : '') + '" data-k="' + key + '" data-v="' + val + '">' + text + '</button>';
     };
     openSheet('<div class="grip"></div><h2>🗑 記録の削除</h2>' +
-      '<div class="meta">消すのは記録だけです。家・メンバー・名前・合言葉は残ります。</div>' +
+      '<div class="meta">消すのは記録だけです。家・メンバー・名前・パスワードは残ります。</div>' +
       '<div class="field"><label>消すもの</label>' +
       '<label class="check" style="margin:4px 0"><input type="checkbox" checked disabled> 🧾 買い物(レシート)</label>' +
       '<div class="note">支払い・収入は、その機能ができたらここに追加されます</div></div>' +
@@ -2527,8 +2589,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function openReset() {
     openSheet('<div class="grip"></div><h2>🔄 家を初期化する</h2>' +
       '<div class="meta">「' + esc(HOME.name) + '」を、最初に使い始めたときの状態に戻します。テストのあと、家族に渡す前に使ってください。</div>' +
-      '<div class="error" style="margin:0 0 12px">次のものが<b>すべて消えます。元に戻せません。</b><br>・買い物の記録(全員分・全期間)<br>・ゴミ箱の中身<br>・家族のメンバー(名前・絵文字・色)<br>・家の名前と合言葉(このあと決め直します)</div>' +
-      '<div class="note" style="margin-bottom:12px">初期化のあと、家の名前・合言葉・家族の名前・このスマホを使う人を、はじめから決め直します。</div>' +
+      '<div class="error" style="margin:0 0 12px">次のものが<b>すべて消えます。元に戻せません。</b><br>・買い物の記録(全員分・全期間)<br>・ゴミ箱の中身<br>・家族のメンバー(名前・絵文字・色)<br>・家の名前とパスワード(このあと決め直します)</div>' +
+      '<div class="note" style="margin-bottom:12px">初期化のあと、家の名前・パスワード・家族の名前・このスマホを使う人を、はじめから決め直します。</div>' +
       '<label class="check" style="margin:4px 0 12px"><input type="checkbox" id="rsOk"> 消えることを分かったうえで初期化します</label>' +
       '<div class="error hidden" id="rsError"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
@@ -2544,8 +2606,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         store.del('owner'); store.del('members'); state.owner = null;
         MEMBERS = CFG.MEMBERS.slice(); state.receipts = []; state.loadedMonth = null;
         openSheet('<div class="grip"></div><h2>✅ 初期化が完了しました</h2>' +
-          '<div class="meta">「' + esc(HOME.name) + '」の記録・ゴミ箱・メンバーをすべて消しました。家の名前と合言葉も新しく決め直します。</div>' +
-          '<div class="note" style="margin-bottom:16px">次の画面から、家の名前・合言葉・家族の名前・このスマホを使う人を、はじめから決めます。</div>' +
+          '<div class="meta">「' + esc(HOME.name) + '」の記録・ゴミ箱・メンバーをすべて消しました。家の名前とパスワードも新しく決め直します。</div>' +
+          '<div class="note" style="margin-bottom:16px">次の画面から、家の名前・パスワード・家族の名前・このスマホを使う人を、はじめから決めます。</div>' +
           '<button class="btn btn-primary btn-block" id="rsDone">はじめから設定する</button>');
         store.set('needNewPass', '1');
         $('rsDone').addEventListener('click', function () { closeSheet(); openSetup(); });
@@ -2724,9 +2786,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>📲 まずホーム画面に追加しましょう</h2>' +
       '<div class="meta">「' + esc(HOME.name) + '」の家計簿に招待されました。ホーム画面に追加すると、アプリのように使えます。</div>' +
       (ios
-        ? '<ol style="padding-left:22px;margin:8px 0 16px"><li>下の <b>共有ボタン(□に↑)</b> を押す</li><li><b>「ホーム画面に追加」</b> を押す</li><li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>' + (store.get('firstSetup') ? '家の名前・合言葉・家族の名前を決める' : '合言葉を入れて、自分の名前を選ぶ') + '</li></ol>' +
+        ? '<ol style="padding-left:22px;margin:8px 0 16px"><li>下の <b>共有ボタン(□に↑)</b> を押す</li><li><b>「ホーム画面に追加」</b> を押す</li><li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>' + (store.get('firstSetup') ? '家の名前・パスワード・家族の名前を決める' : 'パスワードを入れて、自分の名前を選ぶ') + '</li></ol>' +
           '<div class="note" style="margin-bottom:12px">LINE の中で開いているときは、先に右下のメニューから「Safari で開く」を選んでください。</div>'
-        : '<ol style="padding-left:22px;margin:8px 0 16px"><li>右上の <b>︙</b> を押す</li><li><b>「ホーム画面に追加」</b>(または「アプリをインストール」)を押す</li><li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>' + (store.get('firstSetup') ? '家の名前・合言葉・家族の名前を決める' : '合言葉を入れて、自分の名前を選ぶ') + '</li></ol>' +
+        : '<ol style="padding-left:22px;margin:8px 0 16px"><li>右上の <b>︙</b> を押す</li><li><b>「ホーム画面に追加」</b>(または「アプリをインストール」)を押す</li><li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>' + (store.get('firstSetup') ? '家の名前・パスワード・家族の名前を決める' : 'パスワードを入れて、自分の名前を選ぶ') + '</li></ol>' +
           '<div class="note" style="margin-bottom:12px">LINE の中で開いているときは、先に右上のメニューから「ブラウザで開く」を選んでください。</div>') +
       '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>');
     $('agLater').addEventListener('click', function () { closeSheet(); if (after) after(); });
@@ -2740,7 +2802,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   show('demoBanner', DEMO);
   $('homeLabel').textContent = '🏠 ' + HOME.name;
   function ownerMissing() { return !MEMBERS.some(function (m) { return m.name === state.owner; }); }
-  if (!state.owner || (!DEMO && !state.pass) || ownerMissing()) openSetup();
+  if (!state.owner || (!DEMO && !state.pass) || ownerMissing() || store.get('firstSetup')) openSetup();
   else {
     refreshMembers().then(function () { if (ownerMissing()) openSetup(); });
     // 家の名前(Apps Script の HOME_NAME)が変わっていたら表示を合わせる
