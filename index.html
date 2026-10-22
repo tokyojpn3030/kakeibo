@@ -580,7 +580,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:35 版50';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:36 版51';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2218,7 +2218,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       $('ivBack').addEventListener('click', openSettings); return;
     }
     var link = inviteLink(HOME);
-    var text = '🏠 お家の家計簿への招待\n「' + HOME.name + '」の家計簿です。このリンクを押して、画面の手順に沿ってホーム画面に追加してください(LINE は閉じないで、開いたままで操作してください)。\n' + link +
+    var text = '🏠 お家の家計簿への招待\n「' + HOME.name + '」の家計簿です。このリンクを押して、画面の手順に沿ってホーム画面に追加してください(LINE は閉じないで、開いたままで操作してください。閉じてしまったら、もう一度この招待リンクをタップして始めてください)。\n' + link +
       '\n※パスワードは家族に聞いてください';
     openSheet('<div class="grip"></div><h2>💌 家族を招待する</h2>' +
       '<div class="meta">このリンクを家族に送ると、押すだけで「' + esc(HOME.name) + '」につながります。パスワードは別に伝えてください。</div>' +
@@ -2438,7 +2438,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function showPendingInvite(r, again) {
     var link = inviteLink({ url: CENTRAL, h: r.home, name: r.name || '' }, r.pass);
     var repass = !!r.name && !r.pending;
-    var text = '🏠 お家の家計簿への招待\nこのリンクを押して、ホーム画面に追加してから開いてください(LINE は閉じないで、開いたままで画面の手順に沿って操作してください)。' +
+    var text = '🏠 お家の家計簿への招待\nこのリンクを押して、ホーム画面に追加してから開いてください(LINE は閉じないで、開いたままで画面の手順に沿って操作してください。閉じてしまったら、もう一度この招待リンクをタップして始めてください)。' +
       (repass ? '新しいパスワードは、あなたが決めます(記録はそのまま残っています)。' : '家の名前とパスワードは、あなたが決めます。') + '\n' + link;
     openSheet('<div class="grip"></div><h2>✅ ' + (again ? '招待リンクを作り直しました' : '新しい家計簿ができました') + '</h2>' +
       '<div class="meta">' + (repass ? 'この招待リンクを、パスワードを決め直す人に送ってください。開いた人が新しいパスワードを決めて、自分の名前を選びます。'
@@ -2893,7 +2893,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var body;
     if (inLine) {
       body = '<div class="warn" style="font-size:17px">今は <b>LINE の中</b> で開いています。LINE の中では、ホーム画面に追加できません。</div>' +
-        '<div class="note" style="font-size:17px;font-weight:700;color:var(--text);margin:6px 0">LINE は閉じないで、開いたままで手順に沿って操作してください。</div>' +
+        '<div class="note" style="font-size:17px;font-weight:700;color:var(--text);margin:6px 0">LINE は閉じないで、開いたままで手順に沿って操作してください。<br>閉じてしまったら、もう一度 LINE の招待リンクをタップして始めてください。</div>' +
         '<ol style="padding-left:22px;margin:8px 0 16px">' +
         (ios ? '<li>画面の右下(または右上)の <b>共有のマーク</b> か <b>「…」</b> を押す</li><li><b>「Safari で開く」</b> を押す</li>'
              : '<li>画面のいちばん上の右はしにある <b>︙</b>(LINE のメニュー)を押す</li><li><b>「ブラウザで開く」</b>(または「他のアプリで開く」→ Chrome)を押す</li>') +
@@ -2912,6 +2912,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>📲 まずホーム画面に追加しましょう</h2>' +
       '<div class="meta">' + (store.get('firstSetup') && (!HOME.name || HOME.name === 'お家' || HOME.name === '新しい家計簿') ? '新しい家計簿に招待されました。' : '「' + esc(HOME.name) + '」の家計簿に招待されました。') +
         'ホーム画面に追加すると、アプリのように使えます。</div>' + body +
+      (inLine ? '' : '<div class="note" style="margin-bottom:12px">途中で閉じてしまったら、もう一度 LINE の招待リンクをタップして始めてください。</div>') +
       '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>' +
       (ios && !inLine ? '<div style="height:70px"></div>' : ''));
     // iPhone の Safari:共有ボタンの場所を矢印で示す(案内を閉じたら消す)
