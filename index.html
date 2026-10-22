@@ -590,7 +590,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:59 版54';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 01:18 版55';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2248,11 +2248,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="meta">このリンクを家族に送ると、押すだけで「' + esc(HOME.name) + '」につながります。パスワードは別に伝えてください。</div>' +
       '<div class="warn">家族だけのトークやグループに送ってください。</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
-      '<a class="btn btn-primary btn-block" id="ivLine" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(text) + '">💬 LINE で送る</a>' +
+      '<a class="btn btn-primary btn-block" id="ivLine" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(link) + '">💬 LINE で送る</a>' +
       '<a class="btn btn-tonal btn-block" id="ivMail" href="mailto:?subject=' + encodeURIComponent('【お家の家計簿】' + HOME.name + 'への招待') + '&body=' + encodeURIComponent(text) + '">📧 メールで送る</a>' +
       '<button class="btn btn-tonal btn-block" id="ivCopy">📋 リンクをコピー</button>' +
       '<div class="card" style="font-size:16px;line-height:1.7">' +
-        '<div>💬 <b>LINE で送る</b>:押すと LINE が開き、招待の文とリンクが入った状態になります。送る相手(トーク)を選んで送るだけです。</div>' +
+        '<div>💬 <b>LINE で送る</b>:押すと LINE が開き、招待のリンクが入った状態になります。送る相手(トーク)を選んで送るだけです。リンクだけのメッセージなので、受け取った人が長押しでコピーしても、リンクだけがコピーされます。</div>' +
         '<div>📧 <b>メールで送る</b>:押すとメールのアプリが開き、件名・本文・リンクが入った状態になります。宛先を入れて送るだけです。</div>' +
         '<div>📋 <b>リンクをコピー</b>:LINE やメール以外(ショートメッセージなど)で送りたいときに使います。コピーしてから、送りたいアプリに貼り付けます。</div>' +
         '<div style="margin-top:4px">ふだんは <b>「💬 LINE で送る」を押すだけ</b> で大丈夫です(コピーはいりません)。</div></div>' +
@@ -2469,11 +2469,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         : 'この招待リンクを、最初に使う人に送ってください。開いた人が、家の名前・パスワード・家族の名前を決めます。') + '</div>' +
       '<div class="warn">このリンクは、最初の1人がパスワードを決めるまで誰でも使えます。その人とだけのトークに送ってください。ほかの家族は、その人から招待してもらいます。</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
-      '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(text) + '">💬 LINE で送る</a>' +
+      '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(link) + '">💬 LINE で送る</a>' +
       '<a class="btn btn-tonal btn-block" href="mailto:?subject=' + encodeURIComponent('【お家の家計簿】招待') + '&body=' + encodeURIComponent(text) + '">📧 メールで送る</a>' +
       '<button class="btn btn-tonal btn-block" id="piCopy">📋 リンクをコピー</button>' +
       '<div class="card" style="font-size:16px;line-height:1.7">' +
-        '<div>💬 <b>LINE で送る</b>:押すと LINE が開き、招待の文とリンクが入った状態になります。送る相手(トーク)を選んで送るだけです。</div>' +
+        '<div>💬 <b>LINE で送る</b>:押すと LINE が開き、招待のリンクが入った状態になります。送る相手(トーク)を選んで送るだけです。リンクだけのメッセージなので、受け取った人が長押しでコピーしても、リンクだけがコピーされます。</div>' +
         '<div>📧 <b>メールで送る</b>:押すとメールのアプリが開き、件名・本文・リンクが入った状態になります。宛先を入れて送るだけです。</div>' +
         '<div>📋 <b>リンクをコピー</b>:LINE やメール以外(ショートメッセージなど)で送りたいときに使います。コピーしてから、送りたいアプリに貼り付けます。</div>' +
         '<div style="margin-top:4px">ふだんは <b>「💬 LINE で送る」を押すだけ</b> で大丈夫です(コピーはいりません)。</div></div>' +
