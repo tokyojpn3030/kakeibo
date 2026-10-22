@@ -56,7 +56,15 @@ input { font: inherit; color: var(--text); }
 .hidden { display: none !important; }
 
 /* 上のバー */
-.topbar { position: sticky; top: 0; z-index: 10; background: var(--bg);
+/* いちばん上の日付と時刻 */
+.clockbar { position: sticky; top: 0; z-index: 11; background: var(--bg); height: 30px; text-align: center; font-size: 16px; font-weight: 700; color: var(--text-2); padding: 6px 12px 0; letter-spacing: .5px; }
+/* ときどき歩く動物・スイーツ */
+.topbar { overflow: hidden; }
+.walker { position: absolute; top: 14px; left: 0; font-size: 30px; line-height: 1; pointer-events: none; z-index: 1; will-change: transform; }
+.walker span { display: inline-block; animation: hop .45s ease-in-out infinite alternate; }
+@keyframes hop { from { transform: translateY(0) rotate(-4deg); } to { transform: translateY(-6px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) { .walker { display: none; } }
+.topbar { position: sticky; top: 30px; z-index: 10; background: var(--bg);
   display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 8px; }
 .topbar h1 { font-size: 24px; font-weight: 700; margin: 0; }
 .icon-btn { background: none; border: none; width: 48px; height: 48px; border-radius: 24px;
@@ -284,6 +292,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 </head>
 <body>
 
+<div class="clockbar" id="clockBar"></div>
 <header class="topbar">
   <div><h1>お家の家計簿</h1><div class="note" id="homeLabel" style="margin-top:-2px"></div>
     <div class="note" id="verLabel" style="font-size:13px;margin-top:-2px"></div></div>
@@ -566,7 +575,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:13 版44';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:19 版45';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2082,6 +2091,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stOwner">使う人を変える・パスワードを入れ直す</button>' +
       '<button class="btn btn-tonal btn-block" id="stPhoneReset">📱 このスマホの設定を消す</button>' +
       '<button class="btn btn-tonal btn-block" id="stUpdate">⬆ 新しい版に更新する</button>' +
+      '<label class="check" style="margin:4px 0"><input type="checkbox" id="stWalk"' + (G.get('walkOff') ? '' : ' checked') + '> 🐾 ときどき動物やスイーツを歩かせる</label>' +
       '<button class="btn btn-text btn-block" id="stHelp">❓ 読み取りの回数について</button>' +
       '<button class="btn btn-text btn-block" id="stAdmin">🛠 管理人(新しい家計簿を作る・引っ越し)</button>' +
       '<button class="btn btn-text btn-block" id="stClose">閉じる</button></div>' +
@@ -2093,6 +2103,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stHomes').addEventListener('click', openHomes);
     $('stOwner').addEventListener('click', function () { closeSheet(); openSetup(); });
     $('stPhoneReset').addEventListener('click', openPhoneReset);
+    $('stWalk').addEventListener('change', function () {
+      if (this.checked) { G.del('walkOff'); toast('ときどき歩きます'); scheduleWalk(3000); } else { G.set('walkOff', '1'); toast('歩くのをやめました'); }
+    });
     $('stClose').addEventListener('click', closeSheet);
     $('stUpdate').addEventListener('click', updateApp);
     $('stAdmin').addEventListener('click', openAdmin);
@@ -2869,6 +2882,48 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>');
     $('agLater').addEventListener('click', function () { closeSheet(); if (after) after(); });
   }
+
+  /* ---------- いちばん上の日付と時刻(1分ごとに進める) ---------- */
+  function tickClock() {
+    var d = new Date();
+    $('clockBar').textContent = d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日(' + '日月火水木金土'.charAt(d.getDay()) + ') ' +
+      d.getHours() + ':' + pad(d.getMinutes());
+    setTimeout(tickClock, (60 - d.getSeconds()) * 1000 + 50);
+  }
+  tickClock();
+
+  /* ---------- ときどき、動物やスイーツがタイトルの横を歩いて通り過ぎる ---------- */
+  var WALKERS = ['🐕', '🐈', '🐇', '🐥', '🐢', '🦔', '🐼', '🐧', '🐿️', '🦊', '🐨', '🐹', '🐑', '🦆',
+                 '🍰', '🍩', '🧁', '🍮', '🍓', '🍡', '🍪', '🍦', '🍙', '🍎'];
+  var walkTimer = null;
+  function walkOnce() {
+    if (G.get('walkOff') || document.visibilityState !== 'visible') return scheduleWalk();
+    var bar = document.querySelector('.topbar'); if (!bar) return;
+    var w = document.createElement('div'); w.className = 'walker';
+    w.innerHTML = '<span>' + WALKERS[Math.floor(Math.random() * WALKERS.length)] + '</span>';
+    bar.appendChild(w);
+    // タイトルの文字と右のボタンのあいだの空いているところを、右から左へ歩く(文字には重ならない)
+    var br = bar.getBoundingClientRect(), h1 = bar.querySelector('h1'), btns = $('btnRefresh');
+    var rg = document.createRange(); rg.selectNodeContents(h1);
+    var textRight = rg.getBoundingClientRect().right - br.left, btnLeft = btns.getBoundingClientRect().left - br.left;
+    var start = btnLeft - 40, end = textRight + 6;
+    if (start - end < 40) { w.remove(); return scheduleWalk(); }   // 空きがせまいときは歩かない
+    w.style.top = (h1.getBoundingClientRect().top - br.top) + 'px';
+    var dur = (start - end) * 45 + 1500, t0 = null;
+    function step(ts) {
+      if (t0 == null) t0 = ts;
+      var k = Math.min(1, (ts - t0) / dur);
+      w.style.transform = 'translateX(' + (start + (end - start) * k) + 'px)';
+      w.style.opacity = k > 0.85 ? String((1 - k) / 0.15) : '1';
+      if (k < 1) requestAnimationFrame(step); else { w.remove(); scheduleWalk(); }
+    }
+    requestAnimationFrame(step);
+  }
+  function scheduleWalk(ms) {
+    clearTimeout(walkTimer);
+    walkTimer = setTimeout(walkOnce, ms != null ? ms : 30000 + Math.random() * 60000);
+  }
+  scheduleWalk(4000);
 
   /* ---------- 起動 ---------- */
   $('verLabel').textContent = 'アプリの版:' + APP_VERSION;
