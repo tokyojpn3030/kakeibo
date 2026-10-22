@@ -586,7 +586,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:43 版52';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:52 版53';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -778,7 +778,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }, function () { throw new Error('インターネットにつながっていないようです'); })
       .then(function (res) {
         if (res && res.usage) showUsage(res.usage);
-        if (!res.ok) throw new Error(res.error || 'エラーが起きました');
+        // 前の版の窓口が「合言葉」と返しても、画面には「パスワード」と出す
+        if (!res.ok) throw new Error(String(res.error || 'エラーが起きました').replace(/合言葉/g, 'パスワード'));
         return res;
       });
   }
@@ -953,7 +954,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       renderHistory(); renderSummary();
     }).catch(function (err) {
       $('histList').innerHTML = '<div class="error">' + esc(err.message) + '</div>';
-      if (/(合言葉|パスワード)が違います/.test(err.message)) { toast('パスワードが変わったようです。新しいパスワードを入れてください'); openSetup(); }
+      if (/パスワードが違います/.test(err.message)) { toast('パスワードが変わったようです。新しいパスワードを入れてください'); openSetup(); }
       if (/この家が見つかりません/.test(err.message)) toast('この家計簿は消されたようです。⚙ →「🔁 家の切り替え・追加」か「📱 このスマホの設定を消す」を使ってください');
     });
   }
@@ -1374,7 +1375,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }).catch(function (err) {
       $('payList').innerHTML = '<div class="error">' + esc(err.message) + '</div>' +
         (/不明な依頼/.test(err.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください。</div>' : '');
-      if (/(合言葉|パスワード)が違います/.test(err.message)) { toast('パスワードを入れ直してください'); openSetup(); }
+      if (/パスワードが違います/.test(err.message)) { toast('パスワードを入れ直してください'); openSetup(); }
     });
   }
 
@@ -2005,7 +2006,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (store.get('repassOnly')) { store.del('repassOnly'); goPick(); return; }
       openNames();
     }).catch(function (e) {
-      if (/(合言葉|パスワード)が違います/.test(e.message)) { store.del('needNewPass'); setupStep('Pass'); setupError('このスマホのパスワードが古くなっています。今のパスワードを入れてください'); return; }
+      if (/パスワードが違います/.test(e.message)) { store.del('needNewPass'); setupStep('Pass'); setupError('このスマホのパスワードが古くなっています。今のパスワードを入れてください'); return; }
       $('npError').textContent = e.message; show('npError', true);
     }).then(function () { b.disabled = false; b.textContent = 'このパスワードにする'; });
   });
@@ -2269,7 +2270,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     return fetch(CENTRAL, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
       .then(function (r) { if (!r.ok) throw new Error('通信エラー(' + r.status + ')'); return r.json(); },
             function () { throw new Error('インターネットにつながっていないようです'); })
-      .then(function (res) { if (!res.ok) throw new Error(res.error || 'エラーが起きました'); return res; });
+      .then(function (res) { if (!res.ok) throw new Error(String(res.error || 'エラーが起きました').replace(/合言葉/g, 'パスワード')); return res; });
   }
   function adminBack(id) { return '<button class="btn btn-text btn-block" id="' + id + '">← 管理人の画面に戻る</button>'; }
   function openAdmin() {
@@ -2340,7 +2341,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         b.addEventListener('click', function () { openReissue(r.homes[+b.dataset.re]); });
       });
     }).catch(function (e) {
-      if (/管理人の(合言葉|パスワード)/.test(e.message)) G.del('adminCode');
+      if (/管理人のパスワード/.test(e.message)) G.del('adminCode');
       openSheet('<div class="grip"></div><h2>🛠 管理人</h2><div class="error">' + esc(e.message) + '</div>' + backButton('adB3'));
       $('adB3').addEventListener('click', openSettings);
     });
