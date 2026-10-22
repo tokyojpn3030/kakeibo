@@ -566,7 +566,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:10 版43';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:13 版44';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -932,7 +932,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }).catch(function (err) {
       $('histList').innerHTML = '<div class="error">' + esc(err.message) + '</div>';
       if (/(合言葉|パスワード)が違います/.test(err.message)) { toast('パスワードが変わったようです。新しいパスワードを入れてください'); openSetup(); }
-      if (/この家が見つかりません/.test(err.message)) toast('この家計簿は消されたようです。⚙ →「🔁 家の切り替え・追加」か「📱 このスマホのアプリを完全削除する」を使ってください');
+      if (/この家が見つかりません/.test(err.message)) toast('この家計簿は消されたようです。⚙ →「🔁 家の切り替え・追加」か「📱 このスマホの設定を消す」を使ってください');
     });
   }
 
@@ -2080,7 +2080,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stHomes">🔁 家の切り替え・追加</button>' +
       '<button class="btn btn-tonal btn-block" id="stPass">🔑 家のパスワードを変える</button>' +
       '<button class="btn btn-tonal btn-block" id="stOwner">使う人を変える・パスワードを入れ直す</button>' +
-      '<button class="btn btn-tonal btn-block" id="stPhoneReset">📱 このスマホのアプリを完全削除する</button>' +
+      '<button class="btn btn-tonal btn-block" id="stPhoneReset">📱 このスマホの設定を消す</button>' +
       '<button class="btn btn-tonal btn-block" id="stUpdate">⬆ 新しい版に更新する</button>' +
       '<button class="btn btn-text btn-block" id="stHelp">❓ 読み取りの回数について</button>' +
       '<button class="btn btn-text btn-block" id="stAdmin">🛠 管理人(新しい家計簿を作る・引っ越し)</button>' +
@@ -2519,14 +2519,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   /* ---------- このスマホのアプリを初期化(入れ直したのと同じ状態にする) ----------
      消すのはこのスマホの設定だけ。家の記録(スプレッドシート)は消えない。 */
   function openPhoneReset() {
-    openSheet('<div class="grip"></div><h2>📱 このスマホのアプリを完全削除</h2>' +
+    openSheet('<div class="grip"></div><h2>📱 このスマホの設定を消す</h2>' +
       '<div class="meta">このスマホに覚えている設定(登録した家・使う人・パスワード)を全部消して、アプリを入れたばかりの状態に戻します。ホーム画面のアイコンも要らなければ、このあと長押しして削除してください。</div>' +
       '<div class="kv"><span>消えるもの</span><b style="font-weight:400">このスマホの設定だけ</b></div>' +
       '<div class="kv"><span>消えないもの</span><b style="font-weight:400">家の記録(レシート・支払い)、ほかの家族のスマホ</b></div>' +
+      '<div class="note" style="margin:8px 0">データ(家計簿の記録)は管理人が消します。</div>' +
       '<div class="warn">削除したあとは、家族からの招待リンクを開くと、また使えます(パスワードも入れ直します)。パスワードが分からないときは、家族か管理人に聞いてください。</div>' +
       '<label class="check"><input type="checkbox" id="prOk"> 分かりました。このスマホの設定を消します</label>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
-      '<button class="btn btn-danger btn-block" id="prGo" disabled>完全削除する</button>' + backButton('prB') + '</div>');
+      '<button class="btn btn-danger btn-block" id="prGo" disabled>設定を消す</button>' + backButton('prB') + '</div>');
     $('prB').addEventListener('click', openSettings);
     $('prOk').addEventListener('change', function () { $('prGo').disabled = !this.checked; });
     $('prGo').addEventListener('click', function () {
