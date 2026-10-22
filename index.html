@@ -590,7 +590,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 01:22 版56';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 01:25 版57';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2248,17 +2248,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="meta">このリンクを家族に送ると、押すだけで「' + esc(HOME.name) + '」につながります。パスワードは別に伝えてください。</div>' +
       '<div class="warn">家族だけのトークやグループに送ってください。</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
-      '<div class="note" style="margin:0">LINE では、説明とリンクを2つに分けて送ります。①を送ったら、アプリに戻って②を送ってください。</div>' +
-      '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(text.replace(link, '👇 このあとに送る招待リンクを押してください')) + '">💬 ① 説明の文を LINE で送る</a>' +
-      '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(link) + '">💬 ② 招待リンクを LINE で送る</a>' +
+      '<button class="btn btn-primary btn-block" id="lineGo">💬 LINE で送る(説明とリンクを順番に送ります)</button>' +
       '<a class="btn btn-tonal btn-block" id="ivMail" href="mailto:?subject=' + encodeURIComponent('【お家の家計簿】' + HOME.name + 'への招待') + '&body=' + encodeURIComponent(text) + '">📧 メールで送る</a>' +
       '<button class="btn btn-tonal btn-block" id="ivCopy">📋 リンクをコピー</button>' +
       '<div class="card" style="font-size:16px;line-height:1.7">' +
-        '<div>💬 <b>① 説明の文を LINE で送る</b>:押すと LINE が開き、説明の文が入った状態になります。送る相手(トーク)を選んで送ります。</div>' +
-        '<div>💬 <b>② 招待リンクを LINE で送る</b>:アプリに戻って押すと、招待のリンクだけが入った状態で LINE が開きます。同じ相手に送ります。リンクだけのメッセージなので、受け取った人が長押しでコピーしても、リンクだけがコピーされます。</div>' +
+        '<div>💬 <b>LINE で送る</b>:①説明の文 → ②招待リンク の順に、画面の案内に沿って送ります。リンクだけのメッセージになるので、受け取った人が長押しでコピーしても、リンクだけがコピーされます。</div>' +
         '<div>📧 <b>メールで送る</b>:押すとメールのアプリが開き、件名・本文・リンクが入った状態になります。宛先を入れて送るだけです。</div>' +
         '<div>📋 <b>リンクをコピー</b>:LINE やメール以外(ショートメッセージなど)で送りたいときに使います。コピーしてから、送りたいアプリに貼り付けます。</div>' +
-        '<div style="margin-top:4px">ふだんは <b>「💬 ①」→「💬 ②」の順に押して送るだけ</b> で大丈夫です(コピーはいりません)。</div></div>' +
+        '<div style="margin-top:4px">ふだんは <b>「💬 LINE で送る」を押して、案内のとおりに送るだけ</b> で大丈夫です(コピーはいりません)。</div></div>' +
             backButton('ivBack') + '</div>');
     $('ivCopy').addEventListener('click', function () {
       var done = function () { toast('コピーしました'); };
@@ -2266,6 +2263,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       else prompt('このリンクをコピーしてください', link);
     });
     $('ivBack').addEventListener('click', openSettings);
+    $('lineGo').addEventListener('click', function () { openLineSteps(text, link, function () { openInvite(true); }, 1); });
   }
 
 
@@ -2444,6 +2442,49 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       });
     });
   }
+  // LINE で「①説明の文 → ②招待リンク」の順に送る案内。LINE から戻ると次のステップを出す
+  var lineStepWait = null;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && lineStepWait) { var f = lineStepWait; lineStepWait = null; setTimeout(f, 300); }
+  });
+  function openLineSteps(text, link, back, step) {
+    var desc = text.replace(link, '👇 このあとに送る招待リンクを押してください');
+    var url = function (t) { return 'https://line.me/R/share?text=' + encodeURIComponent(t); };
+    var head = function (n) {
+      return '<div style="display:flex;gap:8px;margin:6px 0 12px">' + [1, 2].map(function (i) {
+        return '<div style="flex:1;text-align:center;padding:6px;border-radius:12px;font-weight:700;' +
+          (i === n ? 'background:var(--primary);color:var(--on-primary)' : i < n ? 'background:var(--teal-bg);color:var(--teal-fg)' : 'background:var(--surface-2);color:var(--text-2)') + '">' +
+          (i < n ? '✅ ' : '') + (i === 1 ? '① 説明の文' : '② 招待リンク') + '</div>';
+      }).join('') + '</div>';
+    };
+    var backBtn = '<button class="btn btn-text btn-block" id="lsBack">← 招待の画面に戻る</button>';
+    if (step === 1) {
+      openSheet('<div class="grip"></div><h2>💬 LINE で送る</h2>' + head(1) +
+        '<div class="meta">まず、説明の文を送ります。下のボタンを押すと LINE が開くので、送る相手(トーク)を選んで送ってください。送ったら、このアプリに戻ってきてください。</div>' +
+        '<a class="btn btn-primary btn-block" id="ls1" target="_blank" rel="noopener" href="' + url(desc) + '">💬 ① 説明の文を LINE で送る</a>' +
+        '<button class="btn btn-tonal btn-block" id="lsSkip" style="margin-top:10px">送り終わった → 次へ</button>' + backBtn);
+      $('ls1').addEventListener('click', function () { lineStepWait = function () { openLineSteps(text, link, back, 2); }; });
+      $('lsSkip').addEventListener('click', function () { lineStepWait = null; openLineSteps(text, link, back, 2); });
+    } else if (step === 2) {
+      openSheet('<div class="grip"></div><h2>💬 LINE で送る</h2>' + head(2) +
+        '<div class="meta">次に、招待リンクを送りましょう。さっきと <b>同じ相手</b> を選んで送ってください。</div>' +
+        '<a class="btn btn-primary btn-block" id="ls2" target="_blank" rel="noopener" href="' + url(link) + '">💬 ② 招待リンクを LINE で送る</a>' +
+        '<button class="btn btn-tonal btn-block" id="lsSkip" style="margin-top:10px">送り終わった → 次へ</button>' +
+        '<button class="btn btn-text btn-block" id="lsPrev">← ひとつ前に戻る(① をもう一度送る)</button>' + backBtn);
+      $('ls2').addEventListener('click', function () { lineStepWait = function () { openLineSteps(text, link, back, 3); }; });
+      $('lsSkip').addEventListener('click', function () { lineStepWait = null; openLineSteps(text, link, back, 3); });
+      $('lsPrev').addEventListener('click', function () { lineStepWait = null; openLineSteps(text, link, back, 1); });
+    } else {
+      openSheet('<div class="grip"></div><h2>✅ 2つとも送りました</h2>' + head(3) +
+        '<div class="meta">相手の LINE に「説明の文」と「招待リンク」が届いています。相手には、リンクを押して画面の案内に沿って進めてもらってください。</div>' +
+        '<button class="btn btn-primary btn-block" id="lsDone">閉じる</button>' +
+        '<button class="btn btn-text btn-block" id="lsPrev">← ひとつ前に戻る(② をもう一度送る)</button>' + backBtn);
+      $('lsDone').addEventListener('click', function () { lineStepWait = null; closeSheet(); });
+      $('lsPrev').addEventListener('click', function () { lineStepWait = null; openLineSteps(text, link, back, 2); });
+    }
+    $('lsBack').addEventListener('click', function () { lineStepWait = null; back(); });
+  }
+
   // 招待のやり直し・パスワードの作り直し
   function openReissue(h) {
     var started = !!h.name;
@@ -2472,22 +2513,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         : 'この招待リンクを、最初に使う人に送ってください。開いた人が、家の名前・パスワード・家族の名前を決めます。') + '</div>' +
       '<div class="warn">このリンクは、最初の1人がパスワードを決めるまで誰でも使えます。その人とだけのトークに送ってください。ほかの家族は、その人から招待してもらいます。</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
-      '<div class="note" style="margin:0">LINE では、説明とリンクを2つに分けて送ります。①を送ったら、アプリに戻って②を送ってください。</div>' +
-      '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(text.replace(link, '👇 このあとに送る招待リンクを押してください')) + '">💬 ① 説明の文を LINE で送る</a>' +
-      '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(link) + '">💬 ② 招待リンクを LINE で送る</a>' +
+      '<button class="btn btn-primary btn-block" id="lineGo">💬 LINE で送る(説明とリンクを順番に送ります)</button>' +
       '<a class="btn btn-tonal btn-block" href="mailto:?subject=' + encodeURIComponent('【お家の家計簿】招待') + '&body=' + encodeURIComponent(text) + '">📧 メールで送る</a>' +
       '<button class="btn btn-tonal btn-block" id="piCopy">📋 リンクをコピー</button>' +
       '<div class="card" style="font-size:16px;line-height:1.7">' +
-        '<div>💬 <b>① 説明の文を LINE で送る</b>:押すと LINE が開き、説明の文が入った状態になります。送る相手(トーク)を選んで送ります。</div>' +
-        '<div>💬 <b>② 招待リンクを LINE で送る</b>:アプリに戻って押すと、招待のリンクだけが入った状態で LINE が開きます。同じ相手に送ります。リンクだけのメッセージなので、受け取った人が長押しでコピーしても、リンクだけがコピーされます。</div>' +
+        '<div>💬 <b>LINE で送る</b>:①説明の文 → ②招待リンク の順に、画面の案内に沿って送ります。リンクだけのメッセージになるので、受け取った人が長押しでコピーしても、リンクだけがコピーされます。</div>' +
         '<div>📧 <b>メールで送る</b>:押すとメールのアプリが開き、件名・本文・リンクが入った状態になります。宛先を入れて送るだけです。</div>' +
         '<div>📋 <b>リンクをコピー</b>:LINE やメール以外(ショートメッセージなど)で送りたいときに使います。コピーしてから、送りたいアプリに貼り付けます。</div>' +
-        '<div style="margin-top:4px">ふだんは <b>「💬 ①」→「💬 ②」の順に押して送るだけ</b> で大丈夫です(コピーはいりません)。</div></div>' +
+        '<div style="margin-top:4px">ふだんは <b>「💬 LINE で送る」を押して、案内のとおりに送るだけ</b> で大丈夫です(コピーはいりません)。</div></div>' +
             '<button class="btn btn-text btn-block" id="piB">← 戻る(招待はあとで送る)</button>' +
       ((r.pending || !r.name) ? '<button class="btn btn-danger btn-block" id="piCancel">🗑 ' + (again ? 'この家計簿を作るのをやめる(消す)' : '作るのをやめる(この家計簿を消す)') + '</button>' : '') +
       '</div>' +
       '<div class="note" style="margin-top:8px">戻ったあとでも、管理人の画面の「🔁 招待をやり直す」から送れます。</div>');
     $('piB').addEventListener('click', openAdmin);
+    $('lineGo').addEventListener('click', function () { openLineSteps(text, link, function () { showPendingInvite(r, again); }, 1); });
     if ($('piCancel')) $('piCancel').addEventListener('click', function () {
       if (!confirm('今作った家計簿を消して、管理人の画面に戻りますか?(まだ誰も使っていない家計簿です)')) return;
       var b = this; b.disabled = true; b.textContent = '消しています…';
