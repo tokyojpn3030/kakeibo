@@ -566,7 +566,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-22 23:59 版41';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:03 版42';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -932,6 +932,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }).catch(function (err) {
       $('histList').innerHTML = '<div class="error">' + esc(err.message) + '</div>';
       if (/(合言葉|パスワード)が違います/.test(err.message)) { toast('パスワードが変わったようです。新しいパスワードを入れてください'); openSetup(); }
+      if (/この家が見つかりません/.test(err.message)) toast('この家計簿は消されたようです。⚙ →「🔁 家の切り替え・追加」か「📱 このスマホのアプリを初期化する」を使ってください');
     });
   }
 
@@ -2265,7 +2266,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
             '<button class="btn btn-tonal" data-key="' + i + '" style="min-height:44px;padding:0 12px;font-size:16px">🔑 鍵・回数</button></div>' +
             '<button class="btn btn-text" data-re="' + i + '" style="min-height:44px;padding:0 4px;font-size:16px">🔁 招待をやり直す・パスワードを作り直す</button>' +
             (h.waiting ? '<div class="note" style="color:var(--on-warn)">⏳ 招待した人が、まだパスワードを決めていません</div>' : '') +
-            (h.waiting && !h.name ? '<button class="btn btn-text" data-delh="' + i + '" style="min-height:44px;padding:0 4px;font-size:16px;color:var(--danger)">🗑 この家計簿を消す(まだ誰も使っていません)</button>' : '') +
+            (h.waiting && !h.name ? '<button class="btn btn-text" data-delh="' + i + '" style="min-height:44px;padding:0 4px;font-size:16px;color:var(--danger)">🗑 この家計簿を消す(まだ誰も使っていません)</button>'
+              : '<button class="btn btn-text" data-delf="' + i + '" style="min-height:44px;padding:0 4px;font-size:16px;color:var(--danger)">🗑 この家計簿を消す(記録も全部消えます)</button>') +
             '<div class="note">' + (h.ownKey ? 'この家だけの鍵' : '共通の鍵') + ' ・ 今日の読み取り ' + (h.usage || 0) + '回 / 目安 ' + (h.limit || '') + '回 ・ ' + esc(h.created) + ' 作成</div></div>';
         }).join('') : '<div class="note">まだありません</div>') +
         '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
@@ -2291,6 +2293,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
               alert(/不明な依頼/.test(e.message) ? '窓口(お家の家計簿 窓口)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください' : e.message);
             });
         });
+      });
+      $('sheet').querySelectorAll('[data-delf]').forEach(function (b) {
+        b.addEventListener('click', function () { openDeleteHome(r.homes[+b.dataset.delf]); });
       });
       $('sheet').querySelectorAll('[data-re]').forEach(function (b) {
         b.addEventListener('click', function () { openReissue(r.homes[+b.dataset.re]); });
@@ -2361,6 +2366,35 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           if ($('cnSwitch').checked) switchHome(h.id); else openAdmin();
         });
       }).catch(function (e) { b.disabled = false; b.textContent = '作る'; $('cnErr').textContent = e.message; show('cnErr', true); });
+    });
+  }
+  // 使い始めた家計簿を消す(テスト用の家計簿の後片付けなど)
+  function openDeleteHome(h) {
+    var mine = HOMES.filter(function (x) { return x.url === CENTRAL && x.h === h.id; })[0];
+    openSheet('<div class="grip"></div><h2>🗑 「' + esc(h.name || '(名前なし)') + '」を消す</h2>' +
+      '<div class="meta">この家計簿の記録(レシート・支払い)・家族の名前・パスワードが全部消えます。家族のスマホでも使えなくなります。</div>' +
+      '<div class="warn">スプレッドシートは Google ドライブのゴミ箱に入ります(30日ほどはゴミ箱から戻せますが、アプリからは戻せません)。テスト用の家計簿や、使わなくなった家計簿だけを消してください。</div>' +
+      '<label class="check"><input type="checkbox" id="dhOk"> 「' + esc(h.name || '(名前なし)') + '」の記録が全部消えることを分かったうえで消します</label>' +
+      '<div class="error hidden" id="dhErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
+      '<button class="btn btn-danger btn-block" id="dhGo" disabled>この家計簿を消す</button>' + adminBack('dhB') + '</div>');
+    $('dhB').addEventListener('click', openAdmin);
+    $('dhOk').addEventListener('change', function () { $('dhGo').disabled = !this.checked; });
+    $('dhGo').addEventListener('click', function () {
+      var b = this; b.disabled = true; b.textContent = '消しています…';
+      centralApi('deleteHome', { home: h.id, force: true }).then(function () {
+        // このスマホにもその家計簿が入っていたら外す
+        if (mine) {
+          HOMES = HOMES.filter(function (x) { return x !== mine; }); saveHomes(HOMES);
+          ['owner', 'pass', 'members', 'needNewPass', 'firstSetup', 'repassOnly'].forEach(function (k) { G.del(mine.id + '.' + k); });
+          if (mine.id === HOME.id) { G.del('home'); toast('消しました'); return location.reload(); }
+        }
+        toast('消しました'); openAdmin();
+      }).catch(function (e) {
+        b.disabled = false; b.textContent = 'この家計簿を消す';
+        $('dhErr').textContent = /不明な依頼|使い始められている/.test(e.message) ? '窓口(お家の家計簿 窓口)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください' : e.message;
+        show('dhErr', true);
+      });
     });
   }
   // 招待のやり直し・パスワードの作り直し
