@@ -594,7 +594,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 01:35 版60';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 01:38 版61';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2126,7 +2126,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stOwner">使う人を変える・パスワードを入れ直す</button>' +
       '<button class="btn btn-tonal btn-block" id="stPhoneReset">📱 このスマホの設定を消す</button>' +
       '<button class="btn btn-tonal btn-block" id="stUpdate">⬆ 新しい版に更新する</button>' +
-      '<label class="check" style="margin:4px 0"><input type="checkbox" id="stWalk"' + (G.get('walkOff') ? '' : ' checked') + '> 🐾 ときどき動物やスイーツを歩かせる</label>' +
+      '<label class="check" style="margin:4px 0"><input type="checkbox" id="stWalk"' + (G.get('walkOff') ? '' : ' checked') + '> 🐾 ときどき(1日に数回)動物やスイーツを歩かせる</label>' +
       '<button class="btn btn-text btn-block" id="stHelp">❓ 読み取りの回数について</button>' +
       '<button class="btn btn-text btn-block" id="stAdmin">🛠 管理人(新しい家計簿を作る・引っ越し)</button>' +
       '<button class="btn btn-text btn-block" id="stClose">閉じる</button></div>' +
@@ -2139,7 +2139,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stOwner').addEventListener('click', function () { closeSheet(); openSetup(); });
     $('stPhoneReset').addEventListener('click', openPhoneReset);
     $('stWalk').addEventListener('change', function () {
-      if (this.checked) { G.del('walkOff'); toast('ときどき歩きます'); scheduleWalk(3000); } else { G.set('walkOff', '1'); toast('歩くのをやめました'); }
+      if (this.checked) { G.del('walkOff'); G.del('walkLog'); toast('1日に数回、歩きます'); scheduleWalk(3000); } else { G.set('walkOff', '1'); toast('歩くのをやめました'); }
     });
     $('stClose').addEventListener('click', closeSheet);
     $('stUpdate').addEventListener('click', updateApp);
@@ -3044,8 +3044,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   var WALKERS = ['🐕', '🐈', '🐇', '🐥', '🐢', '🦔', '🐼', '🐧', '🐿️', '🦊', '🐨', '🐹', '🐑', '🦆',
                  '🍰', '🍩', '🧁', '🍮', '🍓', '🍡', '🍪', '🍦', '🍙', '🍎'];
   var walkTimer = null;
+  // 1日に数回だけ(4回まで、前の回から2時間以上あけて)
+  var WALK_PER_DAY = 4, WALK_GAP = 2 * 3600e3;
+  function walkAllowed() {
+    var log = {}; try { log = JSON.parse(G.get('walkLog') || '{}'); } catch (e) {}
+    return log.day !== today() || ((log.n || 0) < WALK_PER_DAY && Date.now() - (log.last || 0) >= WALK_GAP);
+  }
+  function walkCount() {
+    var log = {}; try { log = JSON.parse(G.get('walkLog') || '{}'); } catch (e) {}
+    if (log.day !== today()) log = { day: today(), n: 0 };
+    log.n++; log.last = Date.now(); G.set('walkLog', JSON.stringify(log));
+  }
   function walkOnce() {
-    if (G.get('walkOff') || document.visibilityState !== 'visible') return scheduleWalk();
+    if (G.get('walkOff') || document.visibilityState !== 'visible' || !walkAllowed()) return scheduleWalk();
+    walkCount();
     var bar = document.querySelector('.topbar'); if (!bar) return;
     var w = document.createElement('div'); w.className = 'walker';
     w.innerHTML = '<span>' + WALKERS[Math.floor(Math.random() * WALKERS.length)] + '</span>';
@@ -3069,9 +3081,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   function scheduleWalk(ms) {
     clearTimeout(walkTimer);
-    walkTimer = setTimeout(walkOnce, ms != null ? ms : 30000 + Math.random() * 60000);
+    // 次に歩いてよいか、30分ごとに確かめる(アプリを開いたままのとき)
+    walkTimer = setTimeout(walkOnce, ms != null ? ms : 30 * 60e3);
   }
-  scheduleWalk(4000);
+  scheduleWalk(5000 + Math.random() * 20000);   // 開いてから少しして(その日の回数が残っていれば)
 
   /* ---------- 起動 ---------- */
   show('lineBanner', /\bLine\//i.test(navigator.userAgent) && !STANDALONE);
