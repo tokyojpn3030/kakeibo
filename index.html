@@ -305,7 +305,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     </button>
   </div>
 </header>
-<div class="demo-banner hidden" id="demoBanner">デモモードで動いています。データはこのスマホの中だけに仮保存されます。</div>
+<div class="demo-banner hidden" id="demoBanner">デモモードで動いています(まだどの家計簿にもつながっていません)。データはこのスマホの中だけに仮保存されます。招待リンクをもらったら、⚙ →「🔁 家の切り替え・追加」に貼り付けるとつながります。</div>
 
 <main>
   <!-- 履歴 -->
@@ -575,7 +575,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:19 版45';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:22 版46';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2603,6 +2603,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (CENTRAL && info.url === CENTRAL && !info.h) { $('hmError').textContent = 'この窓口は全部の家で共通です。家族からもらった招待リンクを貼ってください'; show('hmError', true); return; }
       var n = $('hmName').value.trim(); if (n) info.name = n;
       var h = addHome(info);
+      // 「相手に決めてもらう」招待リンクを貼ったときは、仮のパスワードも受け取る
+      if (info.p) { G.set(h.id + '.pass', info.p); G.set(h.id + '.firstSetup', '1'); }
       switchHome(h.id);
     });
     $('hmBack').addEventListener('click', openSettings);
