@@ -532,7 +532,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
     <!-- 1. パスワード -->
     <div id="stepPass">
-      <p>家族のパスワードを入れてください。次からは入力しなくて大丈夫です。</p>
+      <p id="passIntro">家族のパスワードを入れてください。次からは入力しなくて大丈夫です。</p>
+      <div class="warn hidden" id="passTempNote" style="font-size:17px">招待リンクの <b>仮のパスワード</b> が、下の欄に入っています(●で見えませんが、👁 を押すと見えます)。<br>内容を読んだら、そのまま <b>「次へ」</b> を押してください。次の画面で、自分たちのパスワードを決めます。</div>
       <div id="setupPassWrap">
         <div class="section-title">家族のパスワード</div>
         <input class="input" id="setupPass" type="password" inputmode="numeric" autocomplete="off" placeholder="パスワードを入力">
@@ -594,7 +595,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 01:38 版61';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 01:50 版62';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1981,7 +1982,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     else {
       setupStep('Pass');
       // 仮のパスワードつきの招待で開いたときは、パスワードの入力を飛ばす
-      if (store.get('firstSetup') && state.pass) { store.del('firstSetup'); setTimeout(function () { $('passNext').click(); }, 50); }
+      // 仮のパスワードつきの招待で開いたときは、入っていることを知らせて「次へ」を待つ(勝手に進まない)
+      var temp = !!(store.get('firstSetup') && state.pass);
+      show('passTempNote', temp); show('passIntro', !temp);
+      if (temp) store.del('firstSetup');
     }
   }
 
