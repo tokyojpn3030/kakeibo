@@ -310,6 +310,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="label" id="histTotalLabel">合計</div>
       <div class="amount" id="histTotal">¥0</div>
     </div>
+    <button class="btn btn-tonal btn-block" id="histReload" style="min-height:48px;margin:0 0 10px">🔄 最新にする</button>
     <div class="chips" id="histChips"></div>
     <div id="histList"></div>
   </section>
@@ -565,7 +566,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-22 23:47 版38';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-22 23:54 版39';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -908,6 +909,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
   });
   $('btnRefresh').addEventListener('click', function () { refreshMembers(); loadMonth(true); });
+  $('histReload').addEventListener('click', function () { state.loadedMonth = null; refreshMembers(); loadMonth(true); toast('最新の記録を読み込みました'); });
+  // アプリを開き直したとき・ほかのアプリから戻ってきたときは、最新の記録を読み込む
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || !state.owner || $('setup').classList.contains('hidden') === false) return;
+    state.loadedMonth = null;
+    if (document.querySelector('#screen-history.active') || document.querySelector('#screen-summary.active')) loadMonth(true);
+    if (document.querySelector('#screen-pay.active')) loadPayments(true);
+  });
 
   /* ---------- 履歴・集計 ---------- */
   function loadMonth(force) {
@@ -2247,7 +2256,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<div class="section-title" style="margin-top:4px">窓口に登録されている家</div>' +
         (r.homes.length ? r.homes.map(function (h, i) {
           return '<div class="card" style="margin-bottom:8px;padding:12px 14px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center">' +
-            '<span style="font-size:18px;font-weight:700">🏠 ' + esc(h.name || '(名前なし)') + '</span>' +
+            '<span style="font-size:18px;font-weight:700">🏠 ' + esc(h.name || '(名前はまだ決まっていません)') + '</span>' +
             '<button class="btn btn-tonal" data-key="' + i + '" style="min-height:44px;padding:0 12px;font-size:16px">🔑 鍵・回数</button></div>' +
             '<button class="btn btn-text" data-re="' + i + '" style="min-height:44px;padding:0 4px;font-size:16px">🔁 招待をやり直す・パスワードを作り直す</button>' +
             (h.waiting ? '<div class="note" style="color:var(--on-warn)">⏳ 招待した人が、まだパスワードを決めていません</div>' : '') +
@@ -2367,8 +2376,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<a class="btn btn-primary btn-block" target="_blank" rel="noopener" href="https://line.me/R/share?text=' + encodeURIComponent(text) + '">💬 LINE で送る</a>' +
       '<a class="btn btn-tonal btn-block" href="mailto:?subject=' + encodeURIComponent('【お家の家計簿】招待') + '&body=' + encodeURIComponent(text) + '">📧 メールで送る</a>' +
       '<button class="btn btn-tonal btn-block" id="piCopy">📋 リンクをコピー</button>' +
-      adminBack('piB') + '</div>');
+      '<button class="btn btn-text btn-block" id="piB">← 戻る(招待はあとで送る)</button>' +
+      ((r.pending || !r.name) ? '<button class="btn btn-danger btn-block" id="piCancel">🗑 ' + (again ? 'この家計簿を作るのをやめる(消す)' : '作るのをやめる(この家計簿を消す)') + '</button>' : '') +
+      '</div>' +
+      '<div class="note" style="margin-top:8px">戻ったあとでも、管理人の画面の「🔁 招待をやり直す」から送れます。</div>');
     $('piB').addEventListener('click', openAdmin);
+    if ($('piCancel')) $('piCancel').addEventListener('click', function () {
+      if (!confirm('今作った家計簿を消して、管理人の画面に戻りますか?(まだ誰も使っていない家計簿です)')) return;
+      var b = this; b.disabled = true; b.textContent = '消しています…';
+      centralApi('deleteHome', { home: r.home }).then(function () { toast('作るのをやめました'); openAdmin(); })
+        .catch(function (e) { b.disabled = false; alert(e.message); });
+    });
     $('piCopy').addEventListener('click', function () {
       if (navigator.clipboard) navigator.clipboard.writeText(link).then(function () { toast('コピーしました'); }, function () { prompt('このリンクをコピーしてください', link); });
       else prompt('このリンクをコピーしてください', link);
@@ -2810,6 +2828,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); $('homeLabel').textContent = '🏠 ' + HOME.name; }
     }).catch(function () {});
     loadMonth(true);
+    // 新しい版になった直後などに読み込みがうまくいかないことがあるので、少しあとにもう一度確かめる
+    setTimeout(function () { if (!state.receipts.length) { state.loadedMonth = null; loadMonth(true); } }, 2500);
   }
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
