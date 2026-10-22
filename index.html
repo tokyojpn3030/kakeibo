@@ -565,7 +565,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-22 01:12 版34';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-22 18:15 版35';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1849,9 +1849,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<div class="section-title">📧 お知らせメール</div>' +
         '<div class="field"><label for="psMail">送り先のメールアドレス(空にすると送りません)</label>' +
         '<input class="input" id="psMail" type="email" inputmode="email" autocomplete="email" value="' + esc(n.email || '') + '" placeholder="例:name@gmail.com"></div>' +
-        '<div class="note">知らせる日(期限の何日前か・朝8時ごろ):</div>' +
-        [7, 3, 1].map(function (d) {
-          return '<label class="check" style="margin:6px 0"><input type="checkbox" class="psDay" value="' + d + '"' + (days.indexOf(d) >= 0 ? ' checked' : '') + '> ' + (d === 1 ? '前日' : d + '日前') + '</label>';
+        '<div class="note">知らせる日(期限のどれくらい前か・朝8時ごろ):</div>' +
+        [60, 30, 7, 3, 1].map(function (d) {
+          var lb = d === 60 ? '2か月前' : d === 30 ? '1か月前' : d === 1 ? '前日' : d + '日前';
+          return '<label class="check" style="margin:6px 0"><input type="checkbox" class="psDay" value="' + d + '"' + (days.indexOf(d) >= 0 ? ' checked' : '') + '> ' + lb + '</label>';
         }).join('') +
         '<div class="note" style="margin:8px 0 12px">' + (n.detail
           ? 'この家では、メールに支払いの名前・金額・期限まで書きます。'
