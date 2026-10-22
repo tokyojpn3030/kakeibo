@@ -60,6 +60,11 @@ input { font: inherit; color: var(--text); }
 .clockbar { position: sticky; top: 0; z-index: 11; background: var(--bg); height: 30px; text-align: center; font-size: 16px; font-weight: 700; color: var(--text-2); padding: 6px 12px 0; letter-spacing: .5px; }
 /* ときどき歩く動物・スイーツ */
 .topbar { overflow: hidden; }
+/* iPhone:Safari の共有ボタンを指す矢印 */
+.share-hint { position: fixed; left: 50%; bottom: calc(6px + var(--safe-b)); transform: translateX(-50%); z-index: 60;
+  background: var(--primary); color: var(--on-primary); font-size: 18px; font-weight: 700; padding: 8px 16px; border-radius: 20px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25); pointer-events: none; animation: nudge 0.9s ease-in-out infinite; white-space: nowrap; }
+@keyframes nudge { 0%,100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 8px); } }
 .walker { position: absolute; top: 14px; left: 0; font-size: 30px; line-height: 1; pointer-events: none; z-index: 1; will-change: transform; }
 .walker span { display: inline-block; animation: hop .45s ease-in-out infinite alternate; }
 @keyframes hop { from { transform: translateY(0) rotate(-4deg); } to { transform: translateY(-6px) rotate(4deg); } }
@@ -575,7 +580,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:29 版48';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:30 版49';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2893,8 +2898,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
              : '<li>画面のいちばん上の右はしにある <b>︙</b>(LINE のメニュー)を押す</li><li><b>「ブラウザで開く」</b>(または「他のアプリで開く」→ Chrome)を押す</li>') +
         '<li>開いた画面で、もう一度この案内にそって <b>ホーム画面に追加</b> する</li>' + last + '</ol>';
     } else if (ios) {
-      body = '<ol style="padding-left:22px;margin:8px 0 16px"><li>画面のいちばん下の <b>共有ボタン(□に↑)</b> を押す(この案内の外、Safari のボタンです)</li>' +
-        '<li>下へ動かして <b>「ホーム画面に追加」</b> → 右上の <b>「追加」</b></li>' + last + '</ol>';
+      body = '<div class="note" style="font-size:16px;margin:6px 0">iPhone では、ボタン1つでの追加はできません(Apple の決まりです)。下の青い矢印の先にある、Safari の共有ボタンから追加します。</div>' +
+        '<ol style="padding-left:22px;margin:8px 0 16px"><li>画面のいちばん下の <b>共有ボタン(□に↑)</b> を押す(青い矢印の先、この案内の外にある Safari のボタンです)</li>' +
+        '<li>共有ボタンが見当たらないときは、いちばん下の <b>「…」</b> を押すと <b>「共有」</b> があります</li>' +
+        '<li>出てきたメニューを <b>上へ少し動かす</b> と <b>「ホーム画面に追加」</b> があるので押す</li><li>右上の <b>「追加」</b> を押す</li>' + last + '</ol>';
     } else {
       body = '<button class="btn btn-primary btn-block' + (installPrompt ? '' : ' hidden') + '" id="agInstall" style="margin:8px 0">📲 ホーム画面に追加する</button>' +
         '<div class="note" style="margin-bottom:4px">ボタンが出ないときは、次のようにします。</div>' +
@@ -2904,7 +2911,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>📲 まずホーム画面に追加しましょう</h2>' +
       '<div class="meta">' + (store.get('firstSetup') && (!HOME.name || HOME.name === 'お家' || HOME.name === '新しい家計簿') ? '新しい家計簿に招待されました。' : '「' + esc(HOME.name) + '」の家計簿に招待されました。') +
         'ホーム画面に追加すると、アプリのように使えます。</div>' + body +
-      '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>');
+      '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>' +
+      (ios && !inLine ? '<div style="height:70px"></div>' : ''));
+    // iPhone の Safari:共有ボタンの場所を矢印で示す(案内を閉じたら消す)
+    if (ios && !inLine) {
+      var hint = document.createElement('div'); hint.className = 'share-hint'; hint.id = 'shareHint';
+      hint.textContent = '⬇ ここの共有ボタン(□に↑)を押す';
+      document.body.appendChild(hint);
+      // 案内を閉じたら矢印も消す
+      var obs = new MutationObserver(function () { if ($('sheetBack').classList.contains('hidden')) { hint.remove(); obs.disconnect(); } });
+      obs.observe($('sheetBack'), { attributes: true, attributeFilter: ['class'] });
+    }
     $('agLater').addEventListener('click', function () { closeSheet(); if (after) after(); });
     if ($('agInstall')) $('agInstall').addEventListener('click', function () {
       if (!installPrompt) return;
