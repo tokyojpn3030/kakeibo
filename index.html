@@ -575,7 +575,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:24 版47';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:29 版48';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -641,7 +641,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (info.name && info.name !== same.name) { same.name = info.name; saveHomes(HOMES); }
       return same;
     }
-    var h = { id: 'h' + Date.now().toString(36), name: info.name || 'お家', url: info.url };
+    var h = { id: 'h' + Date.now().toString(36), name: info.name || (info.p ? '新しい家計簿' : 'お家'), url: info.url };
     if (info.h) h.h = info.h;
     HOMES = HOMES.filter(function (x) { return x.url; });  // 本物の家ができたら仮の家は外す
     HOMES.push(h); saveHomes(HOMES);
@@ -2874,17 +2874,46 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
 
   /* ---------- 招待リンクをブラウザで開いたときの案内 ---------- */
+  // Android の Chrome では、ボタン1つでホーム画面に追加できる(そのための合図を受け取っておく)
+  var installPrompt = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); installPrompt = e;
+    if ($('agInstall')) show('agInstall', true);
+  });
   function openAddHomeGuide(after) {
-    var ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    var ua = navigator.userAgent;
+    var ios = /iPhone|iPad|iPod/.test(ua), inLine = /\bLine\//i.test(ua);
+    var last = '<li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>' +
+      (store.get('firstSetup') ? '家の名前・パスワード・家族の名前を決める' : 'パスワードを入れて、自分の名前を選ぶ') + '</li>';
+    var body;
+    if (inLine) {
+      body = '<div class="warn" style="font-size:17px">今は <b>LINE の中</b> で開いています。LINE の中では、ホーム画面に追加できません。</div>' +
+        '<ol style="padding-left:22px;margin:8px 0 16px">' +
+        (ios ? '<li>画面の右下(または右上)の <b>共有のマーク</b> か <b>「…」</b> を押す</li><li><b>「Safari で開く」</b> を押す</li>'
+             : '<li>画面のいちばん上の右はしにある <b>︙</b>(LINE のメニュー)を押す</li><li><b>「ブラウザで開く」</b>(または「他のアプリで開く」→ Chrome)を押す</li>') +
+        '<li>開いた画面で、もう一度この案内にそって <b>ホーム画面に追加</b> する</li>' + last + '</ol>';
+    } else if (ios) {
+      body = '<ol style="padding-left:22px;margin:8px 0 16px"><li>画面のいちばん下の <b>共有ボタン(□に↑)</b> を押す(この案内の外、Safari のボタンです)</li>' +
+        '<li>下へ動かして <b>「ホーム画面に追加」</b> → 右上の <b>「追加」</b></li>' + last + '</ol>';
+    } else {
+      body = '<button class="btn btn-primary btn-block' + (installPrompt ? '' : ' hidden') + '" id="agInstall" style="margin:8px 0">📲 ホーム画面に追加する</button>' +
+        '<div class="note" style="margin-bottom:4px">ボタンが出ないときは、次のようにします。</div>' +
+        '<ol style="padding-left:22px;margin:4px 0 16px"><li>画面のいちばん上、アドレス(https://…)の右はしにある <b>︙</b> を押す(この案内の外、Chrome のメニューです)</li>' +
+        '<li><b>「ホーム画面に追加」</b>(または「アプリをインストール」)→「追加」(「インストール」)</li>' + last + '</ol>';
+    }
     openSheet('<div class="grip"></div><h2>📲 まずホーム画面に追加しましょう</h2>' +
-      '<div class="meta">「' + esc(HOME.name) + '」の家計簿に招待されました。ホーム画面に追加すると、アプリのように使えます。</div>' +
-      (ios
-        ? '<ol style="padding-left:22px;margin:8px 0 16px"><li>下の <b>共有ボタン(□に↑)</b> を押す</li><li><b>「ホーム画面に追加」</b> を押す</li><li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>' + (store.get('firstSetup') ? '家の名前・パスワード・家族の名前を決める' : 'パスワードを入れて、自分の名前を選ぶ') + '</li></ol>' +
-          '<div class="note" style="margin-bottom:12px">LINE の中で開いているときは、先に右下のメニューから「Safari で開く」を選んでください。</div>'
-        : '<ol style="padding-left:22px;margin:8px 0 16px"><li>右上の <b>︙</b> を押す</li><li><b>「ホーム画面に追加」</b>(または「アプリをインストール」)を押す</li><li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>' + (store.get('firstSetup') ? '家の名前・パスワード・家族の名前を決める' : 'パスワードを入れて、自分の名前を選ぶ') + '</li></ol>' +
-          '<div class="note" style="margin-bottom:12px">LINE の中で開いているときは、先に右上のメニューから「ブラウザで開く」を選んでください。</div>') +
+      '<div class="meta">' + (store.get('firstSetup') && (!HOME.name || HOME.name === 'お家' || HOME.name === '新しい家計簿') ? '新しい家計簿に招待されました。' : '「' + esc(HOME.name) + '」の家計簿に招待されました。') +
+        'ホーム画面に追加すると、アプリのように使えます。</div>' + body +
       '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>');
     $('agLater').addEventListener('click', function () { closeSheet(); if (after) after(); });
+    if ($('agInstall')) $('agInstall').addEventListener('click', function () {
+      if (!installPrompt) return;
+      installPrompt.prompt();
+      installPrompt.userChoice.then(function (c) {
+        installPrompt = null; show('agInstall', false);
+        if (c && c.outcome === 'accepted') toast('ホーム画面に追加しました。家計簿のアイコンから開いてください');
+      }).catch(function () {});
+    });
   }
 
   /* ---------- いちばん上の日付と時刻(1分ごとに進める) ---------- */
