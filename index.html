@@ -65,6 +65,8 @@ input { font: inherit; color: var(--text); }
   background: var(--primary); color: var(--on-primary); font-size: 18px; font-weight: 700; padding: 8px 16px; border-radius: 20px;
   box-shadow: 0 4px 14px rgba(0,0,0,.25); pointer-events: none; animation: nudge 0.9s ease-in-out infinite; white-space: nowrap; }
 @keyframes nudge { 0%,100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 8px); } }
+/* 見えないけれど押せる(カメラ・写真の部品。display:none だと反応しないブラウザがある) */
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; left: -9999px; }
 .walker { position: absolute; top: 14px; left: 0; font-size: 30px; line-height: 1; pointer-events: none; z-index: 1; will-change: transform; }
 .walker span { display: inline-block; animation: hop .45s ease-in-out infinite alternate; }
 @keyframes hop { from { transform: translateY(0) rotate(-4deg); } to { transform: translateY(-6px) rotate(4deg); } }
@@ -345,9 +347,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h1a2 2 0 0 0 2-2 1 1 0 0 1 1-1h6a1 1 0 0 1 1 1 2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2"/><circle cx="12" cy="13" r="3.5"/></svg>
         レシート・納付書を撮る
       </button>
+      <button class="btn btn-tonal btn-block" id="btnAlbum" style="margin:-4px 0 12px">🖼 アルバムの写真から選ぶ</button>
+      <input type="file" accept="image/*" id="fileAlbum" class="vh">
       <div class="note hidden usage-line" id="capUsage" style="font-size:16px;margin-bottom:6px"></div>
-      <p class="note">お店のレシートは「買い物」、税金・保険料の納付書や請求書は「支払い」に自動で分けます。明るい場所で、全体が写るように撮ってください。</p>
-      <input type="file" accept="image/*" capture="environment" id="fileInput" class="hidden">
+      <p class="note">お店のレシートは「買い物」、税金・保険料の納付書や請求書は「支払い」に自動で分けます。明るい場所で、全体が写るように撮ってください。カメラが起動しないときは、先にスマホのカメラで撮ってから「🖼 アルバムの写真から選ぶ」を使ってください。</p>
+      <input type="file" accept="image/*" capture="environment" id="fileInput" class="vh">
     </div>
 
     <div id="capLoading" class="hidden">
@@ -435,6 +439,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div id="payKinds"></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
         <button class="btn btn-primary btn-block" id="payScan">📷 納付書・請求書を撮る</button>
+        <button class="btn btn-tonal btn-block" id="payAlbum">🖼 アルバムの写真から選ぶ</button>
+        <input type="file" accept="image/*" id="payFileAlbum" class="vh">
         <div class="note hidden usage-line" id="payUsage" style="font-size:16px;text-align:center"></div>
         <button class="btn btn-tonal btn-block" id="payManual">✍ 手で入れる</button>
       </div>
@@ -444,7 +450,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="section-title">払ったお金</div>
       <div class="card" id="payPaid"></div>
       <button class="btn btn-text btn-block" id="payAll" style="margin-top:8px">すべての支払いを見る(済み・天引きも)</button>
-      <input type="file" accept="image/*" capture="environment" id="payFile" class="hidden">
+      <input type="file" accept="image/*" capture="environment" id="payFile" class="vh">
     </div>
 
     <div id="payLoading" class="hidden">
@@ -472,7 +478,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <button class="btn btn-text" id="pcAdd" style="padding:0 8px">+ 自分で払う分を追加</button>
       <button class="btn btn-tonal btn-block" id="pcMore" style="margin:6px 0">📷 別のページ・用紙を撮って足す</button>
       <div class="note hidden" id="pcMoreMsg"></div>
-      <input type="file" accept="image/*" capture="environment" id="payFileMore" class="hidden">
+      <input type="file" accept="image/*" capture="environment" id="payFileMore" class="vh">
       <div class="sum-line" style="margin-top:8px"><span>期ごとの合計</span><span id="pcSum" style="text-align:right">¥0</span></div>
       <div class="note" style="margin:6px 2px 0">年金などから天引きされる分は、自分で払うものではないので記録しません。</div>
       <div id="pcWithheld" class="hidden"></div>
@@ -580,7 +586,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 00:36 版51';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 00:43 版52';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1126,6 +1132,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   $('capChange').addEventListener('click', function () { $('capChips').classList.toggle('hidden'); });
   $('btnCamera').addEventListener('click', function () { $('fileInput').value = ''; $('fileInput').click(); });
+  // アルバムから選んだ写真は、撮った写真と同じように読み取る(カメラが起動しないスマホのため)
+  function relayFile(fromId, toId) {
+    $(fromId).addEventListener('change', function () {
+      var f = this.files && this.files[0]; if (!f) return;
+      try { var dt = new DataTransfer(); dt.items.add(f); $(toId).files = dt.files; }
+      catch (e) { alert('このスマホでは、アルバムから選ぶことができませんでした'); return; }
+      $(toId).dispatchEvent(new Event('change'));
+    });
+  }
+  $('btnAlbum').addEventListener('click', function () { $('fileAlbum').value = ''; $('fileAlbum').click(); });
+  relayFile('fileAlbum', 'fileInput');
   $('capRetry').addEventListener('click', function () { resetCapture(); $('fileInput').value = ''; $('fileInput').click(); });
   $('capManual').addEventListener('click', function () {
     lastShot = null;
@@ -1718,6 +1735,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   /* 納付書を撮る → 確認 → 保存 */
   $('payScan').addEventListener('click', function () { $('payFile').value = ''; $('payFile').click(); });
+  $('payAlbum').addEventListener('click', function () { $('payFileAlbum').value = ''; $('payFileAlbum').click(); });
+  relayFile('payFileAlbum', 'payFile');
   $('payRetry').addEventListener('click', function () { $('payFile').value = ''; $('payFile').click(); });
   $('payBack').addEventListener('click', function () { payView('main'); });
   $('payAll').addEventListener('click', openPayAll);
