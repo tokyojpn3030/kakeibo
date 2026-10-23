@@ -179,6 +179,23 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .rk-chart { width: 100%; height: auto; display: block; }
 .rk-chart text { fill: var(--text-2); font-size: 12px; }
 .in-card { margin-bottom: 12px; }
+.nt-card { margin-bottom: 12px; }
+.nt-item { font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+.nt-rate { font-size: 16px; font-weight: 700; margin: 2px 0; }
+.nt-emoji { font-size: 40px; line-height: 1; }
+.nt-photo { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; flex: none; }
+.nt-comment { font-size: 17px; margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nt-tag { display: inline-block; font-size: 14px; background: var(--warn-soft); color: var(--on-warn); border-radius: 8px; padding: 2px 8px; margin: 0 6px 4px 0; }
+.nt-badge { display: inline-block; font-size: 15px; font-weight: 700; background: var(--primary-soft); color: var(--on-primary-soft); border-radius: 8px; padding: 3px 10px; margin-top: 8px; }
+.nt-link { display: block; font-size: 17px; padding: 6px 0; color: var(--primary); text-decoration: none; overflow-wrap: anywhere; }
+.nt-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.rv-rate { justify-content: flex-start; background: var(--surface); border: 2px solid var(--line); color: var(--text); font-size: 18px; min-height: 52px; text-align: left; }
+.rv-rate.on { border-color: var(--rc); background: var(--primary-soft); font-weight: 700; }
+.sp-row { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 19px; }
+.sp-row:last-child { border-bottom: none; }
+.sp-row input { width: 28px; height: 28px; flex: none; }
+.sp-row.done .sp-item { text-decoration: line-through; color: var(--text-2); }
+.it-rate { background: none; border: 1px solid var(--line); border-radius: 10px; min-width: 44px; min-height: 40px; font-size: 20px; margin-right: 8px; flex: none; }
 .in-title { font-size: 19px; font-weight: 700; margin-bottom: 10px; }
 .in-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
 .in-line:last-child { border-bottom: none; }
@@ -193,7 +210,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   border-top: 1px solid var(--line); padding: 6px 0 calc(8px + var(--safe-b)); }
 .nav-item { flex: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center;
   gap: 2px; font-size: 14px; color: var(--text-2); padding: 4px 0; }
-.nav-item .pill { width: 64px; height: 34px; border-radius: 17px; display: flex; align-items: center; justify-content: center; }
+.nav-item .pill { width: 56px; height: 34px; border-radius: 17px; display: flex; align-items: center; justify-content: center; }
 .nav-item svg { width: 26px; height: 26px; }
 .nav-item.on { color: var(--text); font-weight: 700; }
 .nav-item.on .pill { background: var(--primary-soft); color: var(--on-primary-soft); }
@@ -397,6 +414,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <div id="capConfirm" class="hidden">
       <div class="section-title" style="margin-top:4px" id="cfTitle">読み取り結果を確認</div>
       <div class="note hidden" id="cfReadBy" style="font-size:16px;margin:-2px 0 8px"></div>
+      <div class="warn hidden" id="cfRated" style="font-size:18px;line-height:1.6"></div>
       <div class="error hidden" id="cfSame" style="font-size:18px;border:3px solid var(--danger);line-height:1.6"></div>
       <button class="btn btn-tonal btn-block hidden" id="cfRescan" style="margin-bottom:12px">📷 撮り直して中身を入れ替える</button>
       <button class="btn btn-tonal btn-block hidden" id="cfToBill" style="margin-bottom:12px">📄 これは納付書・請求書です(支払いとして読み直す)</button>
@@ -557,6 +575,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       </div>
     </div>
   </section>
+  <!-- 評価(味の記録) -->
+  <section class="screen" id="screen-notes">
+    <div class="section-title" style="margin-top:4px">😋 評価・買い物メモ・お店</div>
+    <div class="chips" id="ntTabs" style="margin-bottom:12px"></div>
+    <div id="ntBody"></div>
+  </section>
 </main>
 
 <nav class="bottom-nav">
@@ -571,6 +595,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   </button>
   <button class="nav-item" data-screen="pay" id="navPay">
     <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>支払い
+  </button>
+  <button class="nav-item" data-screen="notes">
+    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></span>評価
   </button>
 </nav>
 
@@ -645,7 +672,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 23:25 版72';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 23:40 版73';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -862,6 +889,19 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           var r = Object.assign({ id: String(Date.now()) }, data.receipt);
           list.push(r); demoSave(list); return resolve({ ok: true, id: r.id });
         }
+        if (/^(notes|saveReview|deleteReview|saveStore|addShop|shopDone|clearShop)$/.test(action)) {
+          var N; try { N = JSON.parse(store.get('demoNotes') || ''); } catch (e) { N = null; }
+          N = N || { reviews: [], stores: [], shop: [] };
+          var nid = String(Date.now()), now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+          var saveN = function (x) { store.set('demoNotes', JSON.stringify(N)); resolve(Object.assign({ ok: true }, x)); };
+          if (action === 'notes') return resolve({ ok: true, reviews: N.reviews, stores: N.stores, shop: N.shop });
+          if (action === 'saveReview') { var rv = data.review; if (rv.id) N.reviews = N.reviews.map(function (x) { return x.id === rv.id ? Object.assign(x, rv) : x; }); else N.reviews.push(Object.assign({}, rv, { id: nid, added: now })); return saveN({ id: rv.id || nid }); }
+          if (action === 'deleteReview') { N.reviews = N.reviews.filter(function (x) { return x.id !== data.id; }); return saveN({}); }
+          if (action === 'saveStore') { N.stores = N.stores.filter(function (x) { return x.name !== data.store.name; }); N.stores.push(data.store); return saveN({}); }
+          if (action === 'addShop') { N.shop.push(Object.assign({}, data.item, { id: nid, added: now, done: false })); return saveN({ id: nid }); }
+          if (action === 'shopDone') { N.shop.forEach(function (x) { if (x.id === data.id) x.done = !!data.done; }); return saveN({}); }
+          if (action === 'clearShop') { N.shop = N.shop.filter(function (x) { return !x.done; }); return saveN({}); }
+        }
         if (action === 'listRange') return resolve({ ok: true, receipts: list.filter(function (r) { var m = (r.date || '').slice(0, 7); return m >= data.from && m <= data.to; }) });
         if (action === 'list') {
           if (!list.length && !store.get('demoSeeded')) { list = demoSamples(); demoSave(list); store.set('demoSeeded', '1'); }
@@ -982,6 +1022,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (name === 'history' || name === 'summary') loadMonth(false);
     if (name === 'capture' && !keep) resetCapture();
     if (name === 'pay' && !keep) { payView('main'); loadPayments(false); }
+    if (name === 'notes') openNotes();
   }
   document.querySelectorAll('.nav-item').forEach(function (b) {
     b.addEventListener('click', function () { go(b.dataset.screen); });
@@ -1414,24 +1455,333 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<text x="80" y="76" text-anchor="middle" style="font-size:12px;fill:var(--text-2)">合計</text><text x="80" y="94" text-anchor="middle" style="font-size:15px;font-weight:700;fill:var(--text)">' + yen(total) + '</text></svg></div>' + legend;
   }
 
+  /* ---------- 評価(味の記録)・家族のおすすめ・買い物メモ・お店の情報帳 ---------- */
+  var RATE = {
+    again: { e: '😋', t: 'また買いたい', c: 'var(--c3)' },
+    good:  { e: '🙂', t: 'おいしいけど、リピートほどではない', c: 'var(--c1)' },
+    ok:    { e: '😐', t: 'ふつう', c: 'var(--c7)' },
+    bad:   { e: '😞', t: 'おいしくなかった', c: 'var(--danger)' }
+  };
+  var RATE_KEYS = ['again', 'good', 'ok', 'bad'];
+  var NOTE_TAGS = ['誕生日', 'お祝い', '記念日', '贈り物', '旅行', 'おもてなし'];
+  var NT = { data: null, loading: null, tab: 'list', q: '', rate: '', who: '', tag: false, rankRate: 'again' };
+  function loadNotes(force) {
+    if (NT.data && !force) return Promise.resolve(NT.data);
+    if (NT.loading && !force) return NT.loading;
+    NT.loading = api('notes').then(function (res) {
+      NT.data = { reviews: res.reviews || [], stores: res.stores || [], shop: res.shop || [] }; NT.loading = null; return NT.data;
+    }).catch(function (e) { NT.loading = null; throw e; });
+    return NT.loading;
+  }
+  function storeInfo(name) {
+    var k = normStore(name); if (!k || !NT.data) return null;
+    return NT.data.stores.filter(function (s) { return normStore(s.name) === k; })[0] || null;
+  }
+  function telLink(p) { var d = String(p || '').replace(/[^0-9+]/g, ''); return d ? '<a class="nt-link" href="tel:' + esc(d) + '">📞 ' + esc(p) + '</a>' : ''; }
+  function mapLink(a) { return a ? '<a class="nt-link" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(a) + '">📍 ' + esc(a) + '</a>' : ''; }
+  function sameItem(a, b) { return itemKey(a).replace(/\s/g, '') === itemKey(b).replace(/\s/g, ''); }
+
+  function openNotes() {
+    $('ntBody').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+    loadNotes(true).then(renderNotes).catch(function (e) {
+      $('ntBody').innerHTML = '<div class="error">' + esc(e.message) + '</div>' +
+        (/不明な依頼/.test(e.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください。</div>' : '');
+    });
+  }
+  function renderNotes() {
+    var tabs = [['list', '📒 記録'], ['rank', '🏆 ランキング'], ['shop', '🛒 買い物メモ'], ['stores', '🏪 お店の情報']];
+    $('ntTabs').innerHTML = tabs.map(function (t) {
+      var badge = t[0] === 'shop' && NT.data ? NT.data.shop.filter(function (x) { return !x.done; }).length : 0;
+      return '<button class="chip' + (NT.tab === t[0] ? ' on' : '') + '" data-t="' + t[0] + '">' + t[1] + (badge ? ' (' + badge + ')' : '') + '</button>';
+    }).join('');
+    $('ntTabs').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () { NT.tab = c.dataset.t; renderNotes(); }); });
+    if (!NT.data) return;
+    ({ list: ntList, rank: ntRank, shop: ntShop, stores: ntStores })[NT.tab]();
+  }
+  function reviewCard(r) {
+    var R = RATE[r.rating] || RATE.ok, si = storeInfo(r.store);
+    var other = r.person !== state.owner && r.rating === 'again';
+    return '<div class="card nt-card" style="border-left:6px solid ' + R.c + '">' +
+      '<div style="display:flex;gap:12px;align-items:flex-start">' +
+      (r.photo ? '<img src="' + esc(r.photo) + '" alt="" class="nt-photo">' : '<div class="nt-emoji">' + R.e + '</div>') +
+      '<div style="flex:1;min-width:0"><div class="nt-item">' + esc(r.item) + '</div>' +
+      '<div class="nt-rate" style="color:' + R.c + '">' + R.e + ' ' + R.t + '</div>' +
+      '<div class="in-sub">' + esc(r.store || 'お店の名前なし') + (r.date ? ' ・ ' + esc(md(r.date)) : '') + ' ・ ' + nm(r.person) + '</div></div></div>' +
+      (other ? '<div class="nt-badge">👭 ' + nm(r.person) + 'さんのおすすめ</div>' : '') +
+      (r.tags.length ? '<div style="margin-top:6px">' + r.tags.map(function (t) { return '<span class="nt-tag">🎂 ' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+      (r.comment ? '<div class="nt-comment">' + esc(r.comment) + '</div>' : '') +
+      (si && (si.phone || si.address) ? '<div style="margin-top:6px">' + telLink(si.phone) + mapLink(si.address) + '</div>' : '') +
+      '<div class="nt-btns">' + (r.rating !== 'bad' ? '<button class="btn btn-tonal" data-shop="' + esc(r.id) + '">🛒 買い物メモに入れる</button>' : '') +
+      '<button class="btn btn-text" data-edit="' + esc(r.id) + '">✏ 直す</button></div></div>';
+  }
+  function bindCards(root) {
+    root.querySelectorAll('[data-edit]').forEach(function (b) { b.addEventListener('click', function () {
+      var r = NT.data.reviews.filter(function (x) { return x.id === b.dataset.edit; })[0]; if (r) openReview(r);
+    }); });
+    root.querySelectorAll('[data-shop]').forEach(function (b) { b.addEventListener('click', function () {
+      var r = NT.data.reviews.filter(function (x) { return x.id === b.dataset.shop; })[0]; if (!r) return;
+      b.disabled = true;
+      api('addShop', { item: { item: r.item, store: r.store, person: state.owner, reviewId: r.id } }).then(function () {
+        toast('「' + r.item + '」を買い物メモに入れました'); return loadNotes(true);
+      }).then(renderNotes).catch(function (e) { b.disabled = false; alert(e.message); });
+    }); });
+  }
+  function ntList() {
+    var who = [['', '全員']].concat(MEMBERS.map(function (m) { return [m.name, (m.icon ? m.icon + ' ' : '') + m.name]; }));
+    var html = '<button class="btn btn-primary btn-block" id="ntNew" style="margin-bottom:12px">✍ 評価を記録する</button>' +
+      '<input class="input" id="ntQ" placeholder="🔍 言葉で探す(例:ケーキ)" value="' + esc(NT.q) + '" style="margin-bottom:10px">' +
+      '<div class="chips" id="ntRate">' + [['', '全部']].concat(RATE_KEYS.map(function (k) { return [k, RATE[k].e + ' ' + RATE[k].t.replace(/、.*/, '')]; })).map(function (x) {
+        return '<button class="chip' + (NT.rate === x[0] ? ' on' : '') + '" data-v="' + x[0] + '">' + esc(x[1]) + '</button>'; }).join('') + '</div>' +
+      '<div class="chips" id="ntWho" style="margin-top:8px">' + who.map(function (x) {
+        return '<button class="chip' + (NT.who === x[0] ? ' on' : '') + '" data-v="' + esc(x[0]) + '">' + esc(x[1]) + '</button>'; }).join('') +
+        '<button class="chip' + (NT.tag ? ' on' : '') + '" id="ntTag">🎂 思い出だけ</button></div>';
+    var rs = NT.data.reviews.slice().sort(function (a, b) { return (b.date || b.added) > (a.date || a.added) ? 1 : -1; });
+    // 家族のおすすめ(ほかの人の「また買いたい」)
+    var rec = rs.filter(function (r) { return r.rating === 'again' && r.person !== state.owner; }).slice(0, 5);
+    if (rec.length && !NT.q && !NT.rate && !NT.who && !NT.tag) html += '<div class="section-title">👭 家族のおすすめ</div>' +
+      '<div class="card">' + rec.map(function (r) { return '<div class="in-line"><span>😋 ' + esc(r.item) + '<br><span class="in-sub">' + esc(r.store || '') + ' ・ ' + nm(r.person) + 'さん</span></span></div>'; }).join('') + '</div>';
+    var q = kana(NT.q);
+    var list = rs.filter(function (r) {
+      if (NT.rate && r.rating !== NT.rate) return false;
+      if (NT.who && r.person !== NT.who) return false;
+      if (NT.tag && !r.tags.length) return false;
+      if (q) { var si = storeInfo(r.store) || {}; if (kana([r.item, r.store, r.comment, r.tags.join(' '), si.address].join(' ')).indexOf(q) < 0) return false; }
+      return true;
+    });
+    html += '<div class="section-title">記録(' + list.length + '件)</div>' + (list.map(reviewCard).join('') ||
+      '<div class="note" style="font-size:17px">' + (rs.length ? '当てはまる記録はありません。' : 'まだ記録がありません。<br>履歴のレシートを開いて、品物の横の「😋」を押すと記録できます。') + '</div>');
+    $('ntBody').innerHTML = html;
+    $('ntNew').addEventListener('click', function () { openReview({}); });
+    var t; $('ntQ').addEventListener('input', function () { var v = this.value; clearTimeout(t); t = setTimeout(function () { NT.q = v; ntList(); $('ntQ').focus(); var e = $('ntQ'); e.setSelectionRange(v.length, v.length); }, 400); });
+    $('ntRate').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () { NT.rate = c.dataset.v; ntList(); }); });
+    $('ntWho').querySelectorAll('.chip[data-v]').forEach(function (c) { c.addEventListener('click', function () { NT.who = c.dataset.v; ntList(); }); });
+    $('ntTag').addEventListener('click', function () { NT.tag = !NT.tag; ntList(); });
+    bindCards($('ntBody'));
+  }
+  function ntRank() {
+    var html = '<div class="chips" id="ntRR">' + RATE_KEYS.map(function (k) {
+      return '<button class="chip' + (NT.rankRate === k ? ' on' : '') + '" data-v="' + k + '">' + RATE[k].e + ' ' + esc(RATE[k].t) + '</button>'; }).join('') + '</div>';
+    var rs = NT.data.reviews.filter(function (r) { return r.rating === NT.rankRate; });
+    var count = function (key) {
+      var by = {}; rs.forEach(function (r) { var k = key(r); if (!k) return; by[k] = by[k] || { n: 0, who: {} }; by[k].n++; by[k].who[r.person] = 1; });
+      return Object.keys(by).sort(function (a, b) { return by[b].n - by[a].n; }).slice(0, 15).map(function (k, i) {
+        return '<div class="rk-row"><div class="rk-no' + (i < 3 ? ' top' : '') + '">' + (i + 1) + '</div><div class="rk-body"><div class="bar-head"><span>' + esc(k) + '</span><b>' + by[k].n + '回</b></div>' +
+          '<div class="bar-sub">' + Object.keys(by[k].who).map(nm).join('・') + '</div></div></div>';
+      }).join('') || '<div class="note">まだありません</div>';
+    };
+    html += '<div class="section-title">品物</div><div class="card">' + count(function (r) { return itemKey(r.item); }) + '</div>' +
+      '<div class="section-title">お店</div><div class="card">' + count(function (r) { return r.store; }) + '</div>';
+    $('ntBody').innerHTML = html;
+    $('ntRR').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () { NT.rankRate = c.dataset.v; ntRank(); }); });
+  }
+  function ntShop() {
+    var list = NT.data.shop.slice().sort(function (a, b) { return (a.done - b.done) || (a.added < b.added ? 1 : -1); });
+    var html = '<div style="display:flex;gap:8px;margin-bottom:12px"><input class="input" id="spNew" placeholder="買う物を書く(例:牛乳)" style="flex:1">' +
+      '<button class="btn btn-primary" id="spAdd" style="min-width:76px">足す</button></div>' +
+      '<div class="note" style="font-size:15px;margin-bottom:8px">買った物は押して ✅ にします。レシートを保存すると、同じ名前の物には自動で ✅ がつきます。</div>' +
+      '<div class="card">' + (list.map(function (x) {
+        return '<label class="sp-row' + (x.done ? ' done' : '') + '"><input type="checkbox" data-id="' + esc(x.id) + '"' + (x.done ? ' checked' : '') + '>' +
+          '<span><span class="sp-item">' + esc(x.item) + '</span>' + (x.store ? '<br><span class="in-sub">' + esc(x.store) + '</span>' : '') + '</span></label>';
+      }).join('') || '<div class="note">買い物メモは空です。評価の「🛒 買い物メモに入れる」や、上の欄から足せます。</div>') + '</div>' +
+      (list.some(function (x) { return x.done; }) ? '<button class="btn btn-tonal btn-block" id="spClear" style="margin-top:12px">✅ 買った物をメモから消す</button>' : '');
+    $('ntBody').innerHTML = html;
+    var add = function () {
+      var v = $('spNew').value.trim(); if (!v) return;
+      $('spAdd').disabled = true;
+      api('addShop', { item: { item: v, person: state.owner } }).then(function () { return loadNotes(true); }).then(renderNotes)
+        .catch(function (e) { $('spAdd').disabled = false; alert(e.message); });
+    };
+    $('spAdd').addEventListener('click', add);
+    $('spNew').addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
+    $('ntBody').querySelectorAll('input[type=checkbox]').forEach(function (c) { c.addEventListener('change', function () {
+      var x = NT.data.shop.filter(function (s) { return s.id === c.dataset.id; })[0]; if (x) x.done = c.checked;
+      c.closest('.sp-row').classList.toggle('done', c.checked);
+      api('shopDone', { id: c.dataset.id, done: c.checked }).catch(function (e) { alert(e.message); });
+    }); });
+    if ($('spClear')) $('spClear').addEventListener('click', function () {
+      this.disabled = true;
+      api('clearShop', {}).then(function () { toast('買った物を消しました'); return loadNotes(true); }).then(renderNotes).catch(function (e) { alert(e.message); });
+    });
+  }
+  function ntStores() {
+    var names = {};
+    NT.data.stores.forEach(function (s) { names[s.name] = s; });
+    NT.data.reviews.forEach(function (r) { if (r.store && !storeInfo(r.store)) names[r.store] = names[r.store] || { name: r.store }; });
+    var keys = Object.keys(names).sort(function (a, b) { return a.localeCompare(b, 'ja'); });
+    var html = '<button class="btn btn-primary btn-block" id="stNew" style="margin-bottom:12px">🏪 お店を足す</button>' +
+      '<div class="note" style="font-size:15px;margin-bottom:8px">レシートに電話番号・住所が書いてあれば、読み取ったときに自動で入ります。</div>' +
+      (keys.map(function (k) {
+        var s = names[k], n = NT.data.reviews.filter(function (r) { return normStore(r.store) === normStore(k); });
+        var again = n.filter(function (r) { return r.rating === 'again'; }).length;
+        return '<div class="card nt-card"><div class="nt-item">' + esc(k) + '</div>' +
+          (n.length ? '<div class="in-sub">評価 ' + n.length + '件' + (again ? '(😋 また買いたい ' + again + '件)' : '') + '</div>' : '') +
+          '<div style="margin-top:6px">' + telLink(s.phone) + mapLink(s.address) + '</div>' +
+          (s.holiday ? '<div class="in-sub" style="margin-top:4px">定休日:' + esc(s.holiday) + '</div>' : '') +
+          (s.memo ? '<div class="nt-comment">' + esc(s.memo) + '</div>' : '') +
+          '<div class="nt-btns"><button class="btn btn-text" data-st="' + esc(k) + '">✏ 直す</button></div></div>';
+      }).join('') || '<div class="note">まだお店の情報がありません。</div>');
+    $('ntBody').innerHTML = html;
+    $('stNew').addEventListener('click', function () { openStore({}); });
+    $('ntBody').querySelectorAll('[data-st]').forEach(function (b) { b.addEventListener('click', function () { openStore(names[b.dataset.st]); }); });
+  }
+  function openStore(s) {
+    s = s || {};
+    openSheet('<div class="grip"></div><h2>🏪 ' + (s.name ? esc(s.name) : 'お店を足す') + '</h2>' +
+      '<div class="field"><label for="stName">お店の名前</label><input class="input" id="stName" value="' + esc(s.name || '') + '"' + (s.name ? ' readonly' : '') + '></div>' +
+      '<div class="field"><label for="stPhone">電話番号</label><input class="input" id="stPhone" type="tel" value="' + esc(s.phone || '') + '"></div>' +
+      '<div class="field"><label for="stAddr">住所</label><input class="input" id="stAddr" value="' + esc(s.address || '') + '"></div>' +
+      '<div class="field"><label for="stHol">定休日</label><input class="input" id="stHol" placeholder="例:水曜日" value="' + esc(s.holiday || '') + '"></div>' +
+      '<div class="field"><label for="stMemo">メモ</label><textarea class="input" id="stMemo" rows="3" placeholder="例:駐車場あり。予約がいる">' + esc(s.memo || '') + '</textarea></div>' +
+      '<div class="error hidden" id="stErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-primary btn-block" id="stSave">保存する</button>' +
+      '<button class="btn btn-tonal btn-block" id="stBack">やめる</button></div>');
+    $('stBack').addEventListener('click', closeSheet);
+    $('stSave').addEventListener('click', function () {
+      var b = this; b.disabled = true;
+      api('saveStore', { store: { name: $('stName').value.trim(), phone: $('stPhone').value.trim(), address: $('stAddr').value.trim(), holiday: $('stHol').value.trim(), memo: $('stMemo').value.trim() } })
+        .then(function () { closeSheet(); toast('お店の情報を保存しました'); return loadNotes(true); }).then(renderNotes)
+        .catch(function (e) { b.disabled = false; $('stErr').textContent = e.message; show('stErr', true); });
+    });
+  }
+  // 写真は小さくして、記録の中に入れる(1枚だけ)
+  function thumbPhoto(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var tries = [[360, 0.7], [300, 0.6], [240, 0.5], [200, 0.45]];
+        for (var i = 0; i < tries.length; i++) {
+          var s = Math.min(1, tries[i][0] / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+          c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          var d = c.toDataURL('image/jpeg', tries[i][1]); if (d.length <= 45000) return resolve(d);
+        }
+        reject(new Error('写真が大きすぎました'));
+      };
+      img.onerror = function () { reject(new Error('写真を開けませんでした')); };
+      img.src = url;
+    });
+  }
+  // 評価を記録する・直す。v: { id?, item, store, date, receiptId, rating, comment, tags, photo }
+  function openReview(v) {
+    v = Object.assign({ item: '', store: '', date: today(), rating: '', comment: '', tags: [], photo: '' }, v || {});
+    loadNotes().catch(function () {}).then(function () {
+      var si = storeInfo(v.store) || {}, photo = v.photo;
+      openSheet('<div class="grip"></div><h2>😋 ' + (v.id ? '評価を直す' : '評価を記録する') + '</h2>' +
+        '<div class="field"><label for="rvItem">品物</label><input class="input" id="rvItem" placeholder="例:いちごのショートケーキ" value="' + esc(v.item) + '"></div>' +
+        '<div class="rk-label">評価</div><div id="rvRate" style="display:flex;flex-direction:column;gap:8px">' + RATE_KEYS.map(function (k) {
+          return '<button type="button" class="btn rv-rate' + (v.rating === k ? ' on' : '') + '" data-v="' + k + '" style="--rc:' + RATE[k].c + '">' + RATE[k].e + ' ' + esc(RATE[k].t) + '</button>'; }).join('') + '</div>' +
+        '<div class="field" style="margin-top:12px"><label for="rvComment">コメント</label><textarea class="input" id="rvComment" rows="3" placeholder="例:誕生日に食べた。クリームが軽い">' + esc(v.comment) + '</textarea></div>' +
+        '<div class="rk-label">🎂 思い出の印(あれば)</div><div class="chips" id="rvTags">' + NOTE_TAGS.map(function (t) {
+          return '<button type="button" class="chip' + (v.tags.indexOf(t) >= 0 ? ' on' : '') + '" data-v="' + t + '">' + t + '</button>'; }).join('') + '</div>' +
+        '<div class="field" style="margin-top:12px"><label for="rvStore">お店</label><input class="input" id="rvStore" value="' + esc(v.store) + '"></div>' +
+        '<div class="field"><label for="rvDate">買った日・食べた日</label><input class="input" id="rvDate" type="date" value="' + esc(v.date || '') + '"></div>' +
+        '<div class="field"><label for="rvPhone">お店の電話番号</label><input class="input" id="rvPhone" type="tel" value="' + esc(si.phone || '') + '"></div>' +
+        '<div class="field"><label for="rvAddr">お店の住所</label><input class="input" id="rvAddr" value="' + esc(si.address || '') + '"></div>' +
+        '<div class="rk-label">📷 写真(1枚・なくてもよい)</div><div id="rvPhotoBox"></div>' +
+        '<input type="file" accept="image/*" id="rvPhotoIn" class="vh">' +
+        '<div class="error hidden" id="rvErr"></div>' +
+        '<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px"><button class="btn btn-primary btn-block" id="rvSave">保存する</button>' +
+        '<button class="btn btn-tonal btn-block" id="rvBack">やめる</button>' +
+        (v.id ? '<button class="btn btn-danger btn-block" id="rvDel">この記録を消す</button>' : '') + '</div>');
+      var tags = v.tags.slice(), rating = v.rating;
+      var drawPhoto = function () {
+        $('rvPhotoBox').innerHTML = (photo ? '<img src="' + esc(photo) + '" alt="" class="nt-photo" style="width:120px;height:120px"><br>' : '') +
+          '<button type="button" class="btn btn-tonal" id="rvPhotoBtn" style="margin-top:6px">' + (photo ? '写真を変える' : '写真を入れる') + '</button>' +
+          (photo ? ' <button type="button" class="btn btn-text" id="rvPhotoDel">写真を外す</button>' : '');
+        $('rvPhotoBtn').addEventListener('click', function () { $('rvPhotoIn').value = ''; $('rvPhotoIn').click(); });
+        if ($('rvPhotoDel')) $('rvPhotoDel').addEventListener('click', function () { photo = ''; drawPhoto(); });
+      };
+      drawPhoto();
+      $('rvPhotoIn').addEventListener('change', function () {
+        var f = this.files && this.files[0]; if (!f) return;
+        thumbPhoto(f).then(function (d) { photo = d; drawPhoto(); }).catch(function (e) { alert(e.message); });
+      });
+      $('rvRate').querySelectorAll('.rv-rate').forEach(function (b) { b.addEventListener('click', function () {
+        rating = b.dataset.v; $('rvRate').querySelectorAll('.rv-rate').forEach(function (x) { x.classList.toggle('on', x === b); });
+      }); });
+      $('rvTags').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
+        var i = tags.indexOf(c.dataset.v); if (i >= 0) tags.splice(i, 1); else tags.push(c.dataset.v); c.classList.toggle('on', i < 0);
+      }); });
+      $('rvBack').addEventListener('click', closeSheet);
+      if ($('rvDel')) $('rvDel').addEventListener('click', function () {
+        if (!confirm('この記録を消しますか?')) return;
+        api('deleteReview', { id: v.id }).then(function () { closeSheet(); toast('消しました'); return loadNotes(true); }).then(function () { if ($('screen-notes').classList.contains('active')) renderNotes(); })
+          .catch(function (e) { alert(e.message); });
+      });
+      $('rvSave').addEventListener('click', function () {
+        var err = function (m) { $('rvErr').textContent = m; show('rvErr', true); };
+        var item = $('rvItem').value.trim(), storeName = $('rvStore').value.trim();
+        if (!item) return err('品物の名前を入れてください');
+        if (!rating) return err('評価を選んでください');
+        var b = this; b.disabled = true; b.textContent = '保存中…';
+        var phone = $('rvPhone').value.trim(), addr = $('rvAddr').value.trim();
+        api('saveReview', { review: { id: v.id || '', person: v.id ? v.person : state.owner, item: item, store: storeName, date: $('rvDate').value,
+          rating: rating, comment: $('rvComment').value.trim(), tags: tags, receiptId: v.receiptId || '', photo: photo } })
+          .then(function () {
+            if (storeName && (phone !== (si.phone || '') || addr !== (si.address || ''))) {
+              return api('saveStore', { store: { name: (storeInfo(storeName) || {}).name || storeName, phone: phone, address: addr, holiday: si.holiday || '', memo: si.memo || '' } });
+            }
+          })
+          .then(function () { closeSheet(); toast('評価を保存しました'); return loadNotes(true); })
+          .then(function () { if ($('screen-notes').classList.contains('active')) renderNotes(); })
+          .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
+      });
+    });
+  }
+  // 読み取ったレシートに「おいしくなかった」物・「また買いたい」物があれば知らせる
+  function checkRated(r) {
+    loadNotes().then(function (d) {
+      if (!state.draft || state.editingId) return;
+      var bad = [], again = [];
+      (r.items || []).forEach(function (it) {
+        d.reviews.forEach(function (rv) {
+          if (!it.name || !sameItem(it.name, rv.item)) return;
+          if (rv.rating === 'bad' && bad.indexOf(rv.item) < 0) bad.push(rv.item);
+          if (rv.rating === 'again' && again.indexOf(rv.item) < 0) again.push(rv.item);
+        });
+      });
+      if (!bad.length && !again.length) return;
+      $('cfRated').innerHTML = (bad.length ? '😞 <b>前に「おいしくなかった」にした物</b>:' + bad.map(esc).join('、') + '<br>' : '') +
+        (again.length ? '😋 「また買いたい」にした物:' + again.map(esc).join('、') : '');
+      show('cfRated', true);
+    }).catch(function () {});
+  }
+  // レシートを保存したら、買い物メモの同じ物に ✅ をつける
+  function tickShop(d) {
+    loadNotes().then(function (n) {
+      var hit = n.shop.filter(function (x) { return !x.done && (d.items || []).some(function (it) { return sameItem(it.name, x.item); }); });
+      if (!hit.length) return;
+      return Promise.all(hit.map(function (x) { x.done = true; return api('shopDone', { id: x.id, done: true }); })).then(function () {
+        toast('買い物メモの「' + hit.map(function (x) { return x.item; }).join('、') + '」に ✅ をつけました');
+      });
+    }).catch(function () {});
+  }
+
   /* ---------- 詳細シート ---------- */
   function openDetail(id) {
     var r = state.receipts.filter(function (x) { return x.id === id; })[0];
     if (!r) return;
-    var items = (r.items || []).map(function (it) {
-      return '<div class="line-item"><span>' + esc(it.name) + '</span><span class="' + (it.price < 0 ? 'minus' : '') + '">' + yen(it.price) + '</span></div>';
+    var items = (r.items || []).map(function (it, i) {
+      var can = it.name && it.price > 0 && !NOT_ITEM.test(itemKey(it.name));
+      return '<div class="line-item" style="align-items:center"><span style="display:flex;align-items:center">' + (can ? '<button class="it-rate" data-i="' + i + '" aria-label="評価する">😋</button>' : '') +
+        esc(it.name) + '</span><span class="' + (it.price < 0 ? 'minus' : '') + '">' + yen(it.price) + '</span></div>';
     }).join('');
     openSheet('<div class="grip"></div>' +
       '<div style="display:flex;align-items:center;gap:12px">' + avatarHtml(r.person) +
       '<div><h2>' + esc(r.store || 'お店の名前なし') + '</h2><div class="meta" style="margin:0">' + esc(dayLabel(r.date)) + ' ・ ' + nm(r.person) + '</div></div></div>' +
       (r.purpose ? '<div class="kv" style="margin-top:8px"><span>何の支払い</span><b>' + esc(r.purpose) + '</b></div>' : '') +
-      '<div style="margin-top:12px">' + (items || '<div class="note">品目の記録はありません</div>') +
+      '<div style="margin-top:12px">' + (items ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' + items : '<div class="note">品目の記録はありません</div>') +
       '<div class="line-item total"><span>合計</span><span>' + yen(r.total) + '</span></div></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
       '<button class="btn btn-primary btn-block" id="dtEdit">✏ 編集する</button>' +
       '<button class="btn btn-tonal btn-block" id="dtClose">閉じる</button>' +
       '<button class="btn btn-danger btn-block" id="dtDelete">このレシートを削除</button></div>');
     $('dtClose').addEventListener('click', closeSheet);
+    $('sheet').querySelectorAll('.it-rate').forEach(function (b) { b.addEventListener('click', function () {
+      var it = r.items[+b.dataset.i];
+      var old = NT.data && NT.data.reviews.filter(function (x) { return x.receiptId === r.id && sameItem(x.item, it.name); })[0];
+      openReview(old || { item: it.name, store: r.store, date: r.date, receiptId: r.id });
+    }); });
     $('dtEdit').addEventListener('click', function () { closeSheet(); startEdit(r); });
     $('dtDelete').addEventListener('click', function () {
       if (!confirm('このレシートを削除しますか?\n(30日間はゴミ箱から戻せます)')) return;
@@ -1640,6 +1990,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!document.querySelector('#screen-capture.active')) { go('capture', true); state.person = state.owner; state.editingId = null; renderWho(); }
     openConfirm(r);
     if (r.readBy) { $('cfReadBy').textContent = '🔍 ' + r.readBy; show('cfReadBy', true); }
+    if (!state.editingId) checkRated(r);
     // 読み取ったらすぐに、同じレシートが入っていないか確かめて上に知らせる
     if (!state.editingId && readDate && r.total) findSameReceipt(r).then(function (same) {
       if (!same.length || !state.draft || state.editingId) return;
@@ -1696,7 +2047,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', date: r.date || today(),
       total: r.total || 0, items: (r.items || []).map(function (it) { return { name: it.name, price: it.price }; }) };
     show('capStart', false); show('capLoading', false); show('capError', false); show('capConfirm', true);
-    show('cfError', false); show('cfSame', false); show('cfReadBy', false);
+    show('cfError', false); show('cfSame', false); show('cfReadBy', false); show('cfRated', false);
     $('cfTitle').textContent = state.editingId ? 'レシートを編集' : '読み取り結果を確認';
     show('cfRescan', !!state.editingId);
     show('cfToBill', !state.editingId && !!lastShot);
@@ -1845,6 +2196,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       btn.disabled = false; btn.textContent = '保存する';
       rememberShot('レシート');
       learnStores([d]);
+      if (!editing) tickShop(d);
       toast(editing ? '変更を保存しました' : label(d.person) + 'の買い物を保存しました');
       state.editingId = null;
       state.month = d.date.slice(0, 7);
