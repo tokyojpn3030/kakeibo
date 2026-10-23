@@ -373,7 +373,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
     <div id="capConfirm" class="hidden">
       <div class="section-title" style="margin-top:4px" id="cfTitle">読み取り結果を確認</div>
-      <div class="warn hidden" id="cfSame" style="font-size:18px"></div>
+      <div class="error hidden" id="cfSame" style="font-size:18px;border:3px solid var(--danger);line-height:1.6"></div>
       <button class="btn btn-tonal btn-block hidden" id="cfRescan" style="margin-bottom:12px">📷 撮り直して中身を入れ替える</button>
       <button class="btn btn-tonal btn-block hidden" id="cfToBill" style="margin-bottom:12px">📄 これは納付書・請求書です(支払いとして読み直す)</button>
       <div class="field">
@@ -597,7 +597,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 22:50 版66';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 22:58 版67';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1240,6 +1240,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         esc(x.date.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$2月$3日')) + ' ' + esc(x.store || '') + ' ' + yen(x.total) + '(入れた人:' + esc(label(x.person)) + ')<br>' +
         '<span style="font-size:16px">保存しないときは、いちばん下の「やめる」を押してください。</span>';
       show('cfSame', true);
+      window.scrollTo(0, 0);
+      askSameReceipt(null, state.draft, same, true);
     }).catch(function () {});
   }
   function showBill(slip) {
@@ -1377,7 +1379,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!d.date) { $('cfError').textContent = '買った日を入れてください'; show('cfError', true); return; }
     if (!d.total) { $('cfError').textContent = '合計金額を入れてください'; show('cfError', true); return; }
     var btn = this, editing = state.editingId;
-    if (editing) return doSaveReceipt(btn, d);
+    if (editing || d.sameOk) return doSaveReceipt(btn, d);
     btn.disabled = true; btn.textContent = '同じレシートがないか確かめ中…';
     findSameReceipt(d).then(function (same) {
       btn.disabled = false; btn.textContent = '保存する';
@@ -1397,7 +1399,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       });
     });
   }
-  function askSameReceipt(btn, d, same) {
+  // atRead:読み取った直後に聞くとき(「続ける」を選んだら、保存のときはもう聞かない)
+  function askSameReceipt(btn, d, same, atRead) {
     var r = same[0];
     var line = esc(r.date.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$2月$3日')) + ' ' + esc(r.store || '(お店の名前なし)') + ' ' + yen(r.total) +
       '<br><span style="font-size:16px">入れた人:' + esc(label(r.person)) + (same.length > 1 ? ' ・ ほかに ' + (same.length - 1) + '件' : '') + '</span>';
@@ -1406,10 +1409,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<div class="meta" style="font-size:20px;line-height:1.6;margin:6px 0 14px">' + line + '</div>' +
         '<div style="display:flex;flex-direction:column;gap:10px">' +
         '<button class="btn btn-primary btn-block" id="smNo">保存しない</button>' +
-        '<button class="btn btn-tonal btn-block" id="smYes">別のレシートなので保存する</button>' +
+        '<button class="btn btn-tonal btn-block" id="smYes">' + (atRead ? '別のレシートなので続ける' : '別のレシートなので保存する') + '</button>' +
         '<button class="btn btn-tonal btn-block" id="smSee">前のを見る</button></div>');
       $('smNo').addEventListener('click', function () { closeSheet(); resetCapture(); toast('保存しませんでした(前のレシートはそのままです)'); });
-      $('smYes').addEventListener('click', function () { closeSheet(); doSaveReceipt(btn, d); });
+      $('smYes').addEventListener('click', function () {
+        closeSheet(); d.sameOk = true;
+        if (atRead) { show('cfSame', false); return; }
+        doSaveReceipt(btn, d);
+      });
       $('smSee').addEventListener('click', function () {
         var rows = (r.items || []).map(function (it) {
           return '<tr><td>' + esc(it.name || '') + '</td><td class="num">' + yen(it.price) + '</td></tr>';
