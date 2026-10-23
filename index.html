@@ -334,7 +334,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="label" id="histTotalLabel">合計</div>
       <div class="amount" id="histTotal">¥0</div>
     </div>
-    <button class="btn btn-tonal btn-block" id="histReload" style="min-height:48px;margin:0 0 10px">🔄 最新にする</button>
+    <div style="display:flex;gap:10px;margin:0 0 10px">
+      <button class="btn btn-tonal" id="histManual" style="flex:1;min-height:48px">✍ 手で入力</button>
+      <button class="btn btn-tonal" id="histReload" style="flex:1;min-height:48px">🔄 最新にする</button>
+    </div>
     <div class="chips" id="histChips"></div>
     <div id="histList"></div>
   </section>
@@ -357,6 +360,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       </button>
       <button class="btn btn-tonal btn-block" id="btnAlbum" style="margin:-4px 0 12px">🖼 アルバムの写真から選ぶ</button>
       <input type="file" accept="image/*" id="fileAlbum" class="vh">
+      <button class="btn btn-tonal btn-block" id="btnManual" style="margin:0 0 12px;flex-direction:column;line-height:1.35;padding:10px 12px;min-height:64px">✍ 手で入力する<br><span style="font-size:15px;font-weight:400">ネットで買ったとき・レシートがないとき</span></button>
       <div class="note hidden usage-line" id="capUsage" style="font-size:16px;margin-bottom:6px"></div>
       <p class="note">お店のレシートは「買い物」、税金・保険料の納付書や請求書は「支払い」に自動で分けます。明るい場所で、全体が写るように撮ってください。カメラが起動しないときは、先にスマホのカメラで撮ってから「🖼 アルバムの写真から選ぶ」を使ってください。</p>
       <input type="file" accept="image/*" capture="environment" id="fileInput" class="vh">
@@ -598,7 +602,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 23:05 版68';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 23:08 版69';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1159,9 +1163,19 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   relayFile('fileAlbum', 'fileInput');
   $('capRetry').addEventListener('click', function () { resetCapture(); $('fileInput').value = ''; $('fileInput').click(); });
   $('capCancel').addEventListener('click', function () { resetCapture(); });
-  $('capManual').addEventListener('click', function () {
+  // 手で入力する(ネットで買ったとき・レシートがないとき)。写真の読み取りはしないので、回数は使わない
+  function startManual() {
+    if (!document.querySelector('#screen-capture.active')) go('capture', true);
+    state.editingId = null; state.person = state.owner; renderWho();
     lastShot = null;
     openConfirm({ store: '', date: today(), total: 0, items: [{ name: '', price: 0 }] });
+    $('cfTitle').textContent = '手で入力(ネットで買った・レシートなし)';
+    window.scrollTo(0, 0);
+  }
+  $('btnManual').addEventListener('click', startManual);
+  $('histManual').addEventListener('click', startManual);
+  $('capManual').addEventListener('click', function () {
+    startManual();
   });
 
   $('fileInput').addEventListener('change', function () {
