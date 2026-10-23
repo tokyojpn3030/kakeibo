@@ -396,7 +396,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       </button>
       <button class="btn btn-tonal btn-block" id="btnAlbum" style="margin:-4px 0 12px">🖼 アルバムの写真から選ぶ</button>
       <input type="file" accept="image/*" id="fileAlbum" class="vh">
-      <button class="btn btn-tonal btn-block" id="btnManual" style="margin:0 0 12px;flex-direction:column;line-height:1.35;padding:10px 12px;min-height:64px">✍ 手で入力する<br><span style="font-size:15px;font-weight:400">ネットで買ったとき・レシートがないとき</span></button>
+      <button class="btn btn-tonal btn-block" id="btnManual" style="margin:0 0 12px;flex-direction:column;line-height:1.35;padding:10px 12px;min-height:64px">✍ 手で入力する<br><span style="font-size:15px;font-weight:400">レシートがないとき</span></button>
+      <div class="section-title" style="margin-top:4px">🛒 ネットで買ったとき</div>
+      <button class="btn btn-tonal btn-block" id="btnPaste" style="margin:0 0 8px;flex-direction:column;line-height:1.35;padding:10px 12px;min-height:64px">📋 注文メールの文を貼り付けて読む<br><span style="font-size:15px;font-weight:400">パソコンでも使えます</span></button>
+      <div class="note" style="font-size:15px;margin-bottom:12px">注文の確認画面を <b>スクリーンショット</b> で撮って、「🖼 アルバムの写真から選ぶ」で読み取ることもできます。</div>
       <div class="note hidden usage-line" id="capUsage" style="font-size:16px;margin-bottom:6px"></div>
       <p class="note">お店のレシートは「買い物」、税金・保険料の納付書や請求書は「支払い」に自動で分けます。明るい場所で、全体が写るように撮ってください。カメラが起動しないときは、先にスマホのカメラで撮ってから「🖼 アルバムの写真から選ぶ」を使ってください。</p>
       <input type="file" accept="image/*" capture="environment" id="fileInput" class="vh">
@@ -672,7 +675,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 23:40 版73';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 23:42 版74';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -974,6 +977,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           demoSave(list);
           return resolve({ ok: true, members: data.members });
         }
+        if (action === 'analyzeText') return demoApi('analyze', data).then(function (r) { resolve({ ok: true, receipt: Object.assign(r.receipt, { store: 'Amazon', purpose: '日用品', readBy: 'ライトで、貼り付けた文から読み取りました' }) }); });
         if (action === 'analyzeAny') return demoApi('analyze', data).then(function (r) { resolve({ ok: true, kind: 'receipt', receipt: r.receipt }); });
         if (action === 'analyzePayment') return resolve({ ok: true, slip: (function () {
           var y = new Date().getFullYear();
@@ -1915,6 +1919,36 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     window.scrollTo(0, 0);
   }
   $('btnManual').addEventListener('click', startManual);
+  // ネットで買ったときの注文メールの文を貼り付けて読む(文は保存しない)
+  $('btnPaste').addEventListener('click', function () {
+    openSheet('<div class="grip"></div><h2>📋 注文メールの文を貼り付ける</h2>' +
+      '<div class="meta" style="font-size:17px">Amazon・楽天などの「ご注文ありがとうございます」のメールを開いて、文を長押し →「全て選択」→「コピー」してから、下の欄に貼り付けてください。</div>' +
+      '<button class="btn btn-tonal btn-block" id="ptClip" style="margin:10px 0">📋 コピーした文を貼り付ける</button>' +
+      '<textarea class="input" id="ptText" rows="8" placeholder="ここを長押しして「ペースト」でも貼り付けられます"></textarea>' +
+      '<div class="note" style="font-size:15px;margin-top:6px">貼り付けた文は、読み取りに使うだけで保存しません。名前・住所・注文番号は読み取りません。1日の回数を1回使います。</div>' +
+      '<div class="error hidden" id="ptErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button class="btn btn-primary btn-block" id="ptGo">読み取る</button>' +
+      '<button class="btn btn-tonal btn-block" id="ptBack">やめる</button></div>');
+    $('ptBack').addEventListener('click', closeSheet);
+    $('ptClip').addEventListener('click', function () {
+      if (!navigator.clipboard || !navigator.clipboard.readText) { $('ptText').focus(); toast('欄を長押しして「ペースト」を押してください'); return; }
+      navigator.clipboard.readText().then(function (t) { $('ptText').value = t; if (!t) toast('コピーした文がありません'); })
+        .catch(function () { $('ptText').focus(); toast('欄を長押しして「ペースト」を押してください'); });
+    });
+    $('ptGo').addEventListener('click', function () {
+      var t = $('ptText').value.trim(), b = this;
+      if (t.length < 10) { $('ptErr').textContent = '注文メールの文を貼り付けてください'; show('ptErr', true); return; }
+      b.disabled = true; b.textContent = '読み取り中…(10秒ほど)';
+      api('analyzeText', { text: t }).then(function (res) {
+        closeSheet(); lastShot = null; showReceipt(res.receipt);
+      }).catch(function (e) {
+        b.disabled = false; b.textContent = '読み取る';
+        $('ptErr').textContent = /不明な依頼/.test(e.message) ? '窓口(お家の家計簿 窓口)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください' :
+          e.message + (/上限|無料枠|休んで/.test(e.message) ? '\n' + RESET_NOTE : '');
+        $('ptErr').style.whiteSpace = 'pre-line'; show('ptErr', true);
+      });
+    });
+  });
   $('histManual').addEventListener('click', startManual);
   $('capManual').addEventListener('click', function () {
     startManual();
