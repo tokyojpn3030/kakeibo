@@ -18,6 +18,7 @@
   --bg: #F4F6F9; --surface: #FFFFFF; --surface-2: #EEF1F5;
   --text: #1B1F24; --text-2: #5A626C; --line: #DDE2E8;
   --primary: #1F5FA8; --on-primary: #FFFFFF; --primary-soft: #E3EDF9; --on-primary-soft: #0C3C70;
+  --c1: #1F5FA8; --c2: #D9822B; --c3: #2E9E6B; --c4: #C2417A; --c5: #7A5CC7; --c6: #C9A227; --c7: #9AA1AB; --good: #1E7B3C;
   --danger: #B3261E; --danger-soft: #FCE8E6; --warn-soft: #FFF4D6; --on-warn: #6B4A00;
   --blue-bg: #E3EDF9; --blue-fg: #0C3C70;
   --pink-bg: #FBE6EE; --pink-fg: #72243E;
@@ -34,6 +35,7 @@
     --bg: #111418; --surface: #1B1F25; --surface-2: #262B33;
     --text: #ECEFF3; --text-2: #A7AFB9; --line: #333A44;
     --primary: #8AB6EC; --on-primary: #0A2747; --primary-soft: #1D3654; --on-primary-soft: #CFE2F8;
+    --c1: #8AB6EC; --c2: #F0A868; --c3: #6FD0A0; --c4: #F08DB5; --c5: #B9A5F2; --c6: #E8CF6A; --c7: #6B7380; --good: #7BD69A;
     --danger: #F2B8B5; --danger-soft: #4A1C1A; --warn-soft: #3D3214; --on-warn: #F5D88A;
     --blue-bg: #1D3654; --blue-fg: #CFE2F8;
     --pink-bg: #4B1F31; --pink-fg: #F7CADB;
@@ -176,6 +178,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .rk-body .bar-head span:first-child { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
 .rk-chart { width: 100%; height: auto; display: block; }
 .rk-chart text { fill: var(--text-2); font-size: 12px; }
+.in-card { margin-bottom: 12px; }
+.in-title { font-size: 19px; font-weight: 700; margin-bottom: 10px; }
+.in-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
+.in-line:last-child { border-bottom: none; }
+.in-sub { font-size: 15px; color: var(--text-2); }
+.in-up { color: var(--danger); font-weight: 700; }
+.in-down { color: var(--good); font-weight: 700; }
+.dot { display: inline-block; width: 14px; height: 14px; border-radius: 7px; margin-right: 8px; vertical-align: -1px; }
 
 /* 下のナビ */
 .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
@@ -465,7 +475,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div id="rkRange" class="note" style="font-size:16px;margin:12px 0 4px"></div>
       <div id="rkChart"></div>
       <div id="rkList" style="margin-top:12px"></div>
+      <div id="rkPie"></div>
+      <div id="rkWeek"></div>
     </div>
+
+    <div class="section-title" style="margin-top:22px">🔎 気づき</div>
+    <div class="note" style="font-size:15px;margin:-4px 0 8px">集計で選んでいる月までの記録から見つけます。「だれの」はランキングと同じです。</div>
+    <div id="inBox"></div>
   </section>
 
   <!-- 支払い -->
@@ -629,7 +645,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 23:20 版71';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 23:25 版72';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -846,6 +862,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           var r = Object.assign({ id: String(Date.now()) }, data.receipt);
           list.push(r); demoSave(list); return resolve({ ok: true, id: r.id });
         }
+        if (action === 'listRange') return resolve({ ok: true, receipts: list.filter(function (r) { var m = (r.date || '').slice(0, 7); return m >= data.from && m <= data.to; }) });
         if (action === 'list') {
           if (!list.length && !store.get('demoSeeded')) { list = demoSamples(); demoSave(list); store.set('demoSeeded', '1'); }
           return resolve({ ok: true, receipts: list.filter(function (r) { return (r.date || '').slice(0, 7) === data.month; })
@@ -1141,6 +1158,18 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     return { from: months[0] + '-01', to: last + '-' + pad(lastDay), months: months, unit: months.length === 1 ? 'day' : 'month', label: label };
   }
   function rkLoad(months) {
+    var miss = months.filter(function (m) { return !RK.cache[m]; });
+    if (miss.length > 1 && !RK.noRange) {
+      var from = miss.reduce(function (a, b) { return a < b ? a : b; }), to = miss.reduce(function (a, b) { return a > b ? a : b; });
+      return api('listRange', { from: from, to: to }).then(function (res) {
+        for (var m = from; m <= to; m = shiftMonth(m, 1)) RK.cache[m] = RK.cache[m] || [];
+        (res.receipts || []).forEach(function (r) { var m = (r.date || '').slice(0, 7); if (RK.cache[m] && miss.indexOf(m) >= 0) RK.cache[m].push(r); });
+        return rkLoad(months);
+      }).catch(function (e) {
+        if (!/不明な依頼/.test(e.message)) throw e;
+        RK.noRange = true; return rkLoad(months);   // 窓口が古い版のときは、1か月ずつ読む
+      });
+    }
     return Promise.all(months.map(function (m) {
       if (RK.cache[m]) return Promise.resolve(RK.cache[m]);
       return api('list', { month: m }).then(function (res) { RK.cache[m] = res.receipts || []; return RK.cache[m]; });
@@ -1158,8 +1187,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     rkChips('rkPeriod', RK_PERIODS, RK.period, function (v) { RK.period = v; });
     show('rkSeason', RK.period === 'season');
     if (RK.period === 'season') rkChips('rkSeason', RK_SEASONS, RK.season || seasonOf(state.month), function (v) { RK.season = v; });
-    rkChips('rkWho', who, RK.who, function (v) { RK.who = v; });
+    rkChips('rkWho', who, RK.who, function (v) { RK.who = v; RK.whoChanged = true; });
     rkChips('rkKind', RK_KINDS, RK.kind, function (v) { RK.kind = v; });
+    if (RK.whoChanged || RK.lastBase !== state.month || !$('inBox').innerHTML) { RK.whoChanged = false; RK.lastBase = state.month; renderInsights(); }
     var rg = rkRange(), my = ++RK.seq;
     $('rkRange').textContent = '📅 ' + rg.label + (RK.period.indexOf('week') < 0 ? '(上の「◀ ▶」で月を変えられます)' : '');
     $('rkList').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>'; $('rkChart').innerHTML = '';
@@ -1168,6 +1198,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var rs = all.filter(function (r) { return r.date >= rg.from && r.date <= rg.to && (!RK.who || r.person === RK.who); });
       $('rkChart').innerHTML = rkChart(rs, rg);
       $('rkList').innerHTML = rkList(rs);
+      $('rkPie').innerHTML = rkPie(rs);
+      $('rkWeek').innerHTML = rkWeek(rs);
     }).catch(function (e) { if (my === RK.seq) $('rkList').innerHTML = '<div class="error">' + esc(e.message) + '</div>'; });
   }
   // 期間の中の合計の移り変わり(棒グラフ)
@@ -1216,6 +1248,170 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(3, Math.round(val / max * 100)) + '%;background:var(--primary)"></div></div>' +
         '<div class="bar-sub">' + (byCount ? yen(v.sum) : v.n + unit) + '</div></div></div>';
     }).join('') + (Object.keys(by).length > 20 ? '<div class="note">上位20位まで表示しています</div>' : '');
+  }
+
+  /* ---------- 気づき(季節・くらべる・そろそろ・値段) ----------
+     集計で選んでいる月までの2年分を使う。だれの … はランキングの「だれの」と同じ */
+  var IN = { season: '', cmp: 'prev', seq: 0 };
+  function validItems(rs) {
+    var out = [];
+    rs.forEach(function (r) {
+      (r.items || []).forEach(function (it) {
+        var n = itemKey(it.name); if (!n || NOT_ITEM.test(n) || !(it.price > 0)) return;
+        out.push({ name: n, price: Number(it.price) || 0, date: r.date, store: r.store || '', month: (r.date || '').slice(0, 7) });
+      });
+    });
+    return out;
+  }
+  function daysBetween(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 864e5); }
+  function md(d) { return (d.slice(0, 4) !== today().slice(0, 4) ? (+d.slice(0, 4)) + '年' : '') + (+d.slice(5, 7)) + '月' + (+d.slice(8, 10)) + '日'; }   // 今年でなければ年もつける
+  function inCard(title, body) { return '<div class="card in-card"><div class="in-title">' + title + '</div>' + body + '</div>'; }
+  function inNote(t) { return '<div class="note" style="font-size:16px">' + t + '</div>'; }
+  function renderInsights() {
+    if (!$('inBox')) return;
+    var end = state.month, months = [];
+    for (var i = 23; i >= 0; i--) months.push(shiftMonth(end, -i));
+    var my = ++IN.seq;
+    $('inBox').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+    rkLoad(months).then(function (all) {
+      if (my !== IN.seq) return;
+      var rs = all.filter(function (r) { return r.date && r.date.slice(0, 7) <= end && (!RK.who || r.person === RK.who); });
+      $('inBox').innerHTML = inSeason(rs, months.slice(12)) + inCompare(rs, end) + inSoon(rs) + inPrice(rs);
+      $('inBox').querySelectorAll('[data-season]').forEach(function (c) { c.addEventListener('click', function () { IN.season = c.dataset.season; renderInsights(); }); });
+      $('inBox').querySelectorAll('[data-cmp]').forEach(function (c) { c.addEventListener('click', function () { IN.cmp = c.dataset.cmp; renderInsights(); }); });
+    }).catch(function (e) { if (my === IN.seq) $('inBox').innerHTML = '<div class="error">' + esc(e.message) + '</div>'; });
+  }
+  // 1. この季節に多い物(ほかの時期とくらべて、その季節に特に多く買っている物)
+  function inSeason(rs, months12) {
+    var cur = IN.season || seasonOf(state.month);
+    var chips = '<div class="chips" style="margin-bottom:10px">' + RK_SEASONS.map(function (x) {
+      return '<button class="chip' + (x[0] === cur ? ' on' : '') + '" data-season="' + x[0] + '">' + esc(x[1].replace(/\(.*\)/, '')) + '</button>';
+    }).join('') + '</div>';
+    var title = '🍂 この季節に多い物';
+    var items = validItems(rs.filter(function (r) { return months12.indexOf(r.date.slice(0, 7)) >= 0; }));
+    var hasData = {}; items.forEach(function (x) { hasData[x.month] = 1; });
+    var mAll = Object.keys(hasData), mSea = mAll.filter(function (m) { return seasonOf(m) === cur; });
+    if (!mSea.length) return inCard(title, chips + inNote('この1年のこの季節に、品物の名前が入ったレシートがまだありません。'));
+    var cS = {}, cA = {};
+    items.forEach(function (x) { cA[x.name] = (cA[x.name] || 0) + 1; if (seasonOf(x.month) === cur) cS[x.name] = (cS[x.name] || 0) + 1; });
+    var other = mAll.length - mSea.length, body;
+    var top = Object.keys(cS).sort(function (a, b) { return cS[b] - cS[a]; });
+    if (other >= 2) {
+      var lift = function (n) { var o = (cA[n] - cS[n]) / other, s = cS[n] / mSea.length; return o ? s / o : 99; };
+      var special = top.filter(function (n) { return cS[n] >= 2 && lift(n) >= 1.5; }).sort(function (a, b) { return lift(b) * cS[b] - lift(a) * cS[a]; }).slice(0, 10);
+      body = special.length ? special.map(function (n, i) {
+        var l = lift(n);
+        return '<div class="in-line"><span><b>' + (i + 1) + '.</b> ' + esc(n) + '</span><span class="in-sub">' + cS[n] + '回' + (l >= 99 ? '・この季節だけ' : '・ほかの時期の約' + (Math.round(l * 10) / 10) + '倍') + '</span></div>';
+      }).join('') : inNote('ほかの時期とくらべて、特に多い物はまだ見つかりません。');
+    } else body = inNote('ほかの季節の記録がたまると、「この季節だけ多い物」が分かるようになります。');
+    body += '<div class="in-title" style="font-size:17px;margin-top:12px">この季節によく買った物</div>' +
+      (top.slice(0, 5).map(function (n) { return '<div class="in-line"><span>' + esc(n) + '</span><span class="in-sub">' + cS[n] + '回</span></div>'; }).join('') || inNote('まだありません'));
+    return inCard(title, chips + body);
+  }
+  // 2. 先月・去年の同じ月とくらべて(何の支払いごと)
+  function inCompare(rs, cur) {
+    var other = IN.cmp === 'year' ? shiftMonth(cur, -12) : shiftMonth(cur, -1);
+    var chips = '<div class="chips" style="margin-bottom:10px">' +
+      '<button class="chip' + (IN.cmp !== 'year' ? ' on' : '') + '" data-cmp="prev">先月と</button>' +
+      '<button class="chip' + (IN.cmp === 'year' ? ' on' : '') + '" data-cmp="year">去年の同じ月と</button></div>';
+    var sumBy = function (m) { var o = { _all: 0 }; rs.forEach(function (r) { if (r.date.slice(0, 7) !== m) return; var k = r.purpose || '分類なし'; o[k] = (o[k] || 0) + (Number(r.total) || 0); o._all += Number(r.total) || 0; }); return o; };
+    var a = sumBy(cur), b = sumBy(other);
+    var title = '📈 ' + monthLabel(cur) + ' と ' + monthLabel(other) + ' をくらべて';
+    if (!b._all) return inCard(title, chips + inNote(monthLabel(other) + 'の記録がありません。'));
+    var sign = function (d) { return d > 0 ? '<span class="in-up">+' + yen(d).replace('¥', '¥') + '</span>' : d < 0 ? '<span class="in-down">' + yen(d) + '</span>' : '<span class="in-sub">同じ</span>'; };
+    var keys = Object.keys(a).concat(Object.keys(b)).filter(function (k, i, arr) { return k !== '_all' && arr.indexOf(k) === i; });
+    keys.sort(function (x, y) { return Math.abs((a[y] || 0) - (b[y] || 0)) - Math.abs((a[x] || 0) - (b[x] || 0)); });
+    var body = '<div class="in-line" style="font-size:19px"><b>合計 ' + yen(a._all) + '</b><span>' + sign(a._all - b._all) + '</span></div>' +
+      '<div class="in-sub" style="margin:-4px 0 8px">' + monthLabel(other) + 'は ' + yen(b._all) + '</div>' +
+      keys.slice(0, 8).map(function (k) {
+        return '<div class="in-line"><span>' + esc(k) + '<br><span class="in-sub">' + yen(b[k] || 0) + ' → ' + yen(a[k] || 0) + '</span></span><span>' + sign((a[k] || 0) - (b[k] || 0)) + '</span></div>';
+      }).join('');
+    return inCard(title, chips + body);
+  }
+  // 3. そろそろ買う時期の物(いつも買う物の、買う間隔から)
+  function inSoon(rs) {
+    var t = today(), from = shiftMonth(t.slice(0, 7), -11) + '-01';
+    var dates = {}, last = {};
+    validItems(rs.filter(function (r) { return r.date >= from && r.date <= t; })).forEach(function (x) {
+      dates[x.name] = dates[x.name] || {}; dates[x.name][x.date] = 1;
+      if (!last[x.name] || x.date >= last[x.name].date) last[x.name] = x;
+    });
+    var list = Object.keys(dates).map(function (n) {
+      var d = Object.keys(dates[n]).sort(); if (d.length < 3) return null;
+      var gaps = []; for (var i = 1; i < d.length; i++) gaps.push(daysBetween(d[i - 1], d[i]));
+      gaps.sort(function (p, q) { return p - q; });
+      var iv = gaps[Math.floor(gaps.length / 2)]; if (iv < 3) return null;   // 間隔は真ん中の値(たまにの長い空きに引っぱられない)
+      var since = daysBetween(d[d.length - 1], t);
+      if (since > iv * 3 && since > 45) return null;   // 季節の物など、しばらく買っていない物は出さない
+      return { name: n, iv: Math.round(iv), since: since, ratio: since / iv, last: last[n], n: d.length };
+    }).filter(Boolean);
+    var title = '🔁 そろそろ買う時期の物';
+    if (!list.length) return inCard(title, inNote('3回以上買った物がたまると、買う間隔から「そろそろ」を知らせます。'));
+    var soon = list.filter(function (x) { return x.ratio >= 0.8; }).sort(function (a, b) { return b.ratio - a.ratio; }).slice(0, 8);
+    var line = function (x) {
+      return '<div class="in-line"><span>' + esc(x.name) + '<br><span class="in-sub">だいたい' + x.iv + '日ごと ・ 前は ' + md(x.last.date) + (x.last.store ? '(' + esc(x.last.store) + ')' : '') + '</span></span>' +
+        '<span class="' + (x.ratio >= 1.2 ? 'in-up' : 'in-sub') + '" style="white-space:nowrap">' + x.since + '日たった</span></div>';
+    };
+    var body = soon.length ? soon.map(line).join('') : inNote('今は、そろそろの物はありません。');
+    var regular = list.filter(function (x) { return soon.indexOf(x) < 0; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 5);
+    if (regular.length) body += '<div class="in-title" style="font-size:17px;margin-top:12px">いつも買う物</div>' + regular.map(line).join('');
+    return inCard(title, body);
+  }
+  // 4. 値段の変化(同じお店の同じ品物)
+  function inPrice(rs) {
+    var by = {};
+    validItems(rs).forEach(function (x) { var k = x.name + '|' + normStore(x.store); (by[k] = by[k] || []).push(x); });
+    var list = Object.keys(by).map(function (k) {
+      var a = by[k].sort(function (p, q) { return p.date < q.date ? -1 : 1; }); if (a.length < 2) return null;
+      var f = a[0], l = a[a.length - 1]; if (f.price === l.price || f.date === l.date) return null;
+      var pct = (l.price - f.price) / f.price; if (Math.abs(pct) < 0.05) return null;
+      return { f: f, l: l, pct: pct };
+    }).filter(Boolean).sort(function (a, b) { return Math.abs(b.pct) - Math.abs(a.pct); }).slice(0, 10);
+    var title = '💴 値段の変化(同じお店の同じ品物)';
+    if (!list.length) return inCard(title, inNote('同じお店で同じ品物を2回以上買うと、値段の変わり方が分かります。'));
+    return inCard(title, list.map(function (x) {
+      var up = x.pct > 0;
+      return '<div class="in-line"><span>' + esc(x.l.name) + '<br><span class="in-sub">' + esc(x.l.store || 'お店の名前なし') + ' ・ ' + md(x.f.date) + ' → ' + md(x.l.date) + '</span></span>' +
+        '<span style="text-align:right;white-space:nowrap">' + yen(x.f.price) + ' → <b>' + yen(x.l.price) + '</b><br><span class="' + (up ? 'in-up' : 'in-down') + '">' + (up ? '▲' : '▼') + Math.round(Math.abs(x.pct) * 100) + '%</span></span></div>';
+    }).join('') + inNote('買った数が違うと、値段も違って見えることがあります。'));
+  }
+  // 5. 曜日ごと(ランキングの期間・人で数える)
+  function rkWeek(rs) {
+    var W = '月火水木金土日', n = [0, 0, 0, 0, 0, 0, 0], sum = [0, 0, 0, 0, 0, 0, 0];
+    rs.forEach(function (r) { var d = (new Date(r.date + 'T00:00:00').getDay() + 6) % 7; n[d]++; sum[d] += Number(r.total) || 0; });
+    if (!rs.length) return '';
+    var max = Math.max.apply(null, n.concat([1])), best = n.indexOf(Math.max.apply(null, n));
+    var total = sum.reduce(function (a, b) { return a + b; }, 0);
+    var Wd = 340, H = 150, bottom = 24, top = 20, bw = Wd / 7;
+    var bars = n.map(function (v, i) {
+      var h = Math.round((H - top - bottom) * v / max), x = i * bw;
+      return '<rect x="' + (x + bw * 0.18).toFixed(1) + '" y="' + (H - bottom - h) + '" width="' + (bw * 0.64).toFixed(1) + '" height="' + h + '" rx="3" fill="' + (i === best ? 'var(--c1)' : 'var(--c7)') + '"/>' +
+        (v ? '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - bottom - h - 4) + '" text-anchor="middle">' + v + '回</text>' : '') +
+        '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle" style="font-size:14px">' + W.charAt(i) + '</text>';
+    }).join('');
+    return '<div class="in-title" style="margin-top:18px">📅 曜日ごとの買い物</div>' +
+      '<svg class="rk-chart" viewBox="0 0 ' + Wd + ' ' + H + '" role="img" aria-label="曜日ごとの買い物の回数">' + bars + '</svg>' +
+      '<div style="font-size:17px;margin-top:4px">いちばん多いのは <b>' + W.charAt(best) + '曜日</b>(' + n[best] + '回)。<br>1回の買い物の平均は <b>' + yen(total / rs.length) + '</b> です。</div>';
+  }
+  // 6. 何の支払いの割合(ドーナツの円グラフ)
+  function rkPie(rs) {
+    var by = {}, total = 0;
+    rs.forEach(function (r) { var k = r.purpose || '分類なし'; by[k] = (by[k] || 0) + (Number(r.total) || 0); total += Number(r.total) || 0; });
+    if (!total) return '';
+    var keys = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; });
+    if (keys.length > 6) { var rest = keys.slice(5).reduce(function (a, k) { return a + by[k]; }, 0); keys = keys.slice(0, 5); by['ほか'] = rest; keys.push('ほか'); }
+    var R = 60, C = 2 * Math.PI * R, off = 0;
+    var segs = keys.map(function (k, i) {
+      var len = C * by[k] / total;
+      var s = '<circle cx="80" cy="80" r="' + R + '" fill="none" stroke="var(--c' + (i + 1) + ')" stroke-width="30" stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 80 80)"/>';
+      off += len; return s;
+    }).join('');
+    var legend = keys.map(function (k, i) {
+      return '<div class="in-line" style="padding:6px 0"><span><span class="dot" style="background:var(--c' + (i + 1) + ')"></span>' + esc(k) + '</span><span><b>' + Math.round(by[k] / total * 100) + '%</b> <span class="in-sub">' + yen(by[k]) + '</span></span></div>';
+    }).join('');
+    return '<div class="in-title" style="margin-top:18px">🥧 何に使ったか(割合)</div>' +
+      '<div style="display:flex;justify-content:center"><svg viewBox="0 0 160 160" width="180" height="180" role="img" aria-label="何の支払いの割合">' + segs +
+      '<text x="80" y="76" text-anchor="middle" style="font-size:12px;fill:var(--text-2)">合計</text><text x="80" y="94" text-anchor="middle" style="font-size:15px;font-weight:700;fill:var(--text)">' + yen(total) + '</text></svg></div>' + legend;
   }
 
   /* ---------- 詳細シート ---------- */
