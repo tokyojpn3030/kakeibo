@@ -387,7 +387,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       </div>
       <div class="field">
         <label for="cfStore">お店</label>
-        <input class="input" id="cfStore" placeholder="スーパー○○">
+        <input class="input" id="cfStore" placeholder="スーパー○○" autocomplete="off">
+        <div class="hidden" id="cfStoreSug" style="margin-top:8px">
+          <div class="note" style="font-size:15px;margin-bottom:6px">前に入れたお店(押すと入ります。そのまま新しく入力してもかまいません)</div>
+          <div class="chips" id="cfStoreChips"></div>
+        </div>
       </div>
       <div class="field">
         <label for="cfPurpose">何の支払い(分類)</label>
@@ -602,7 +606,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 23:08 版69';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 23:15 版70';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -968,6 +972,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     api('list', { month: m }).then(function (res) {
       if (m !== state.month) return;
       state.receipts = res.receipts || []; state.loadedMonth = m;
+      learnStores(state.receipts);
       renderHistory(); renderSummary();
     }).catch(function (err) {
       $('histList').innerHTML = '<div class="error">' + esc(err.message) + '</div>';
@@ -1163,6 +1168,61 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   relayFile('fileAlbum', 'fileInput');
   $('capRetry').addEventListener('click', function () { resetCapture(); $('fileInput').value = ''; $('fileInput').click(); });
   $('capCancel').addEventListener('click', function () { resetCapture(); });
+  /* ---------- お店の名前の候補(前に入れたお店を、このスマホに覚えておく) ---------- */
+  function storeBook() { try { return JSON.parse(store.get('stores') || '{}'); } catch (e) { return {}; } }
+  function learnStores(list) {
+    var b = storeBook(), changed = false;
+    (list || []).forEach(function (r) {
+      var n = String(r.store || '').trim(); if (!n || n.length > 40) return;
+      var x = b[n] || { n: 0, at: '', ids: [] }; x.ids = x.ids || [];
+      var key = r.id || ((r.date || '') + '|' + (r.total || ''));
+      if ((r.date || '') > x.at) { x.at = r.date || ''; changed = true; }
+      if (x.ids.indexOf(key) < 0) { x.ids = [key].concat(x.ids).slice(0, 30); x.n = x.ids.length; changed = true; }   // 同じレシートは何度も数えない
+      b[n] = x;
+    });
+    if (!changed) return;
+    var names = Object.keys(b);
+    if (names.length > 300) names.sort(function (a, c) { return (b[c].at > b[a].at) - (b[c].at < b[a].at); }).slice(300).forEach(function (n) { delete b[n]; });
+    store.set('stores', JSON.stringify(b));
+  }
+  var storeSeeded = false;
+  function seedStores() {   // 候補がまだないときは、今月と先月のレシートから覚える
+    if (storeSeeded || Object.keys(storeBook()).length) return;
+    storeSeeded = true;
+    var m = today().slice(0, 7);
+    [m, shiftMonth(m, -1)].forEach(function (mm) {
+      api('list', { month: mm }).then(function (res) { learnStores(res.receipts); if (document.activeElement === $('cfStore')) showStoreSug(); }).catch(function () {});
+    });
+  }
+  function kana(t) {
+    return String(t || '').normalize('NFKC').toLowerCase().replace(/\s/g, '')
+      .replace(/[\u3041-\u3096]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 0x60); });
+  }
+  function showStoreSug() {
+    var q = kana($('cfStore').value), b = storeBook();
+    var names = Object.keys(b).filter(function (n) { var k = kana(n); return k !== q && (!q || k.indexOf(q) >= 0); });
+    names.sort(function (a, c) {
+      var sa = q && kana(a).indexOf(q) === 0 ? 1 : 0, sc = q && kana(c).indexOf(q) === 0 ? 1 : 0;   // 頭が同じものを先に
+      return (sc - sa) || (b[c].n - b[a].n) || (b[c].at > b[a].at ? 1 : -1);
+    });
+    names = names.slice(0, 8);
+    if (!names.length) { show('cfStoreSug', false); return; }
+    $('cfStoreChips').innerHTML = names.map(function (n) {
+      return '<button type="button" class="chip" style="font-size:18px;min-height:46px" data-s="' + esc(n) + '">' + esc(n) + '</button>';
+    }).join('');
+    $('cfStoreChips').querySelectorAll('.chip').forEach(function (c) {
+      c.addEventListener('pointerdown', function (e) { e.preventDefault(); });   // 押したときにキーボードが閉じて候補が消えないように
+      c.addEventListener('click', function () {
+        $('cfStore').value = c.dataset.s; if (state.draft) state.draft.store = c.dataset.s;
+        show('cfStoreSug', false); $('cfStore').blur();
+      });
+    });
+    show('cfStoreSug', true);
+  }
+  $('cfStore').addEventListener('focus', function () { seedStores(); showStoreSug(); });
+  $('cfStore').addEventListener('input', showStoreSug);
+  $('cfStore').addEventListener('blur', function () { setTimeout(function () { show('cfStoreSug', false); }, 200); });
+
   // 手で入力する(ネットで買ったとき・レシートがないとき)。写真の読み取りはしないので、回数は使わない
   function startManual() {
     if (!document.querySelector('#screen-capture.active')) go('capture', true);
@@ -1452,6 +1512,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     (editing ? api('update', { id: editing, receipt: d }) : api('save', { receipt: d })).then(function () {
       btn.disabled = false; btn.textContent = '保存する';
       rememberShot('レシート');
+      learnStores([d]);
       toast(editing ? '変更を保存しました' : label(d.person) + 'の買い物を保存しました');
       state.editingId = null;
       state.month = d.date.slice(0, 7);
