@@ -373,6 +373,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
     <div id="capConfirm" class="hidden">
       <div class="section-title" style="margin-top:4px" id="cfTitle">読み取り結果を確認</div>
+      <div class="warn hidden" id="cfSame" style="font-size:18px"></div>
       <button class="btn btn-tonal btn-block hidden" id="cfRescan" style="margin-bottom:12px">📷 撮り直して中身を入れ替える</button>
       <button class="btn btn-tonal btn-block hidden" id="cfToBill" style="margin-bottom:12px">📄 これは納付書・請求書です(支払いとして読み直す)</button>
       <div class="field">
@@ -596,7 +597,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 22:45 版65';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 22:50 版66';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1225,10 +1226,21 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   function showReceipt(r) {
     r = r || {};
+    var readDate = !!r.date;
     if (!r.date) r.date = today();
+    if (r.upgraded) toast('品物が読めなかったので、標準の仕組みで読み直しました');
     if (!r.items || !r.items.length) r.items = [{ name: '', price: 0 }];
     if (!document.querySelector('#screen-capture.active')) { go('capture', true); state.person = state.owner; state.editingId = null; renderWho(); }
     openConfirm(r);
+    // 読み取ったらすぐに、同じレシートが入っていないか確かめて上に知らせる
+    if (!state.editingId && readDate && r.total) findSameReceipt(r).then(function (same) {
+      if (!same.length || !state.draft || state.editingId) return;
+      var x = same[0];
+      $('cfSame').innerHTML = '⚠ <b>同じレシートが、もう入っているようです</b><br>' +
+        esc(x.date.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$2月$3日')) + ' ' + esc(x.store || '') + ' ' + yen(x.total) + '(入れた人:' + esc(label(x.person)) + ')<br>' +
+        '<span style="font-size:16px">保存しないときは、いちばん下の「やめる」を押してください。</span>';
+      show('cfSame', true);
+    }).catch(function () {});
   }
   function showBill(slip) {
     if (!document.querySelector('#screen-pay.active')) go('pay', true);
@@ -1274,7 +1286,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', date: r.date || today(),
       total: r.total || 0, items: (r.items || []).map(function (it) { return { name: it.name, price: it.price }; }) };
     show('capStart', false); show('capLoading', false); show('capError', false); show('capConfirm', true);
-    show('cfError', false);
+    show('cfError', false); show('cfSame', false);
     $('cfTitle').textContent = state.editingId ? 'レシートを編集' : '読み取り結果を確認';
     show('cfRescan', !!state.editingId);
     show('cfToBill', !state.editingId && !!lastShot);
