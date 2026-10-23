@@ -413,6 +413,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
         <button class="btn btn-primary btn-block" id="capRetry">撮り直す</button>
         <button class="btn btn-tonal btn-block" id="capManual">手で入力する</button>
+        <button class="btn btn-text btn-block" id="capCancel">キャンセル(最初の画面に戻る)</button>
       </div>
     </div>
   </section>
@@ -503,7 +504,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
         <button class="btn btn-primary btn-block" id="payRetry">撮り直す</button>
         <button class="btn btn-tonal btn-block" id="payManual2">手で入力する</button>
-        <button class="btn btn-text btn-block" id="payBack">← 支払いの一覧に戻る</button>
+        <button class="btn btn-text btn-block" id="payBack">キャンセル(支払いの一覧に戻る)</button>
       </div>
     </div>
   </section>
@@ -595,7 +596,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 20:35 版64';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-23 22:45 版65';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1155,6 +1156,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('btnAlbum').addEventListener('click', function () { $('fileAlbum').value = ''; $('fileAlbum').click(); });
   relayFile('fileAlbum', 'fileInput');
   $('capRetry').addEventListener('click', function () { resetCapture(); $('fileInput').value = ''; $('fileInput').click(); });
+  $('capCancel').addEventListener('click', function () { resetCapture(); });
   $('capManual').addEventListener('click', function () {
     lastShot = null;
     openConfirm({ store: '', date: today(), total: 0, items: [{ name: '', price: 0 }] });
