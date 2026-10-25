@@ -372,7 +372,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div id="histIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
     <button class="btn btn-tonal btn-block" id="histIncomeBtn" style="min-height:48px;margin:0 0 10px">💰 収入を入れる・見る</button>
-    <div style="display:flex;gap:8px;margin:0 0 10px">
+    <div style="display:flex;gap:8px;margin:0 0 10px" id="amtRow">
       <input class="input" id="amtQ" type="number" inputmode="numeric" placeholder="🔍 金額で探す(カードの明細など)" style="flex:1;min-width:0">
       <button class="btn btn-primary" id="amtGo" style="min-width:72px">探す</button>
     </div>
@@ -403,9 +403,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <button class="btn btn-tonal btn-block" id="btnAlbum" style="margin:-4px 0 12px">🖼 アルバムの写真から選ぶ</button>
       <input type="file" accept="image/*" id="fileAlbum" class="vh">
       <button class="btn btn-tonal btn-block" id="btnManual" style="margin:0 0 12px;flex-direction:column;line-height:1.35;padding:10px 12px;min-height:64px">✍ 手で入力する<br><span style="font-size:15px;font-weight:400">レシートがないとき</span></button>
+      <div id="netBox">
       <div class="section-title" style="margin-top:4px">🛒 ネットで買ったとき</div>
       <button class="btn btn-tonal btn-block" id="btnPaste" style="margin:0 0 8px;flex-direction:column;line-height:1.35;padding:10px 12px;min-height:64px">📋 注文メールの文を貼り付けて読む<br><span style="font-size:15px;font-weight:400">パソコンでも使えます</span></button>
       <div class="note" style="font-size:15px;margin-bottom:12px">注文の確認画面を <b>スクリーンショット</b> で撮って、「🖼 アルバムの写真から選ぶ」で読み取ることもできます。</div>
+      </div>
       <div class="note hidden usage-line" id="capUsage" style="font-size:16px;margin-bottom:6px"></div>
       <p class="note">お店のレシートは「買い物」、税金・保険料の納付書や請求書は「支払い」に自動で分けます。明るい場所で、全体が写るように撮ってください。カメラが起動しないときは、先にスマホのカメラで撮ってから「🖼 アルバムの写真から選ぶ」を使ってください。</p>
       <input type="file" accept="image/*" capture="environment" id="fileInput" class="vh">
@@ -444,7 +446,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <div class="chips" id="cfPurposeChips" style="margin:0 0 8px"></div>
         <input class="input" id="cfPurpose" placeholder="ほかの分類はここに書く(例:プレゼント)">
       </div>
-      <div class="field">
+      <div class="field" id="cfPayField">
         <label for="cfPayMethod">払い方</label>
         <div class="chips" id="cfPayChips" style="margin:0 0 8px"></div>
         <input class="input" id="cfPayMethod" placeholder="ほかの払い方・カードの名前はここに書く(例:楽天カード)">
@@ -498,6 +500,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <div class="section-title">よく行くお店</div>
     <div class="card" id="sumStores"></div>
 
+    <div id="sumMore">
     <div class="section-title" style="margin-top:22px">📊 ランキング・グラフ</div>
     <div class="card" id="rkBox">
       <div class="rk-label">期間</div>
@@ -517,6 +520,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <div class="section-title" style="margin-top:22px">🔎 気づき</div>
     <div class="note" style="font-size:15px;margin:-4px 0 8px">集計で選んでいる月までの記録から見つけます。「だれの」はランキングと同じです。</div>
     <div id="inBox"></div>
+    </div>
   </section>
 
   <!-- 支払い -->
@@ -690,7 +694,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-25 16:55 版80';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-25 16:50 版81';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1087,7 +1091,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       state.receipts = res.receipts || []; state.loadedMonth = m;
       RK.cache = {}; RK.cache[m] = state.receipts;   // 読み直したら、ランキング用の控えも新しくする
       learnStores(state.receipts);
-      loadIncomes(m);
+      if (feat('income')) loadIncomes(m);
       renderHistory(); renderSummary();
     }).catch(function (err) {
       $('histList').innerHTML = '<div class="error">' + esc(err.message) + '</div>';
@@ -1197,7 +1201,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       return '<div class="line-item"' + (i === top.length - 1 ? ' style="border-bottom:none"' : '') + '><span>' + esc(k) +
         ' <span style="color:var(--text-2);font-size:15px">' + st[k].n + '回</span></span><span>' + yen(st[k].sum) + '</span></div>';
     }).join('') : '<div class="note">まだ記録がありません</div>';
-    if (document.querySelector('#screen-summary.active')) renderRank();
+    if (document.querySelector('#screen-summary.active') && feat('rank')) renderRank();
   }
 
   /* ---------- ランキング・グラフ ----------
@@ -1887,6 +1891,43 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }).catch(function () {});
   }
 
+  /* ---------- 使う機能を選ぶ(このスマホ・この家計簿ごと) ----------
+     管理人のスマホは最初は全部オン。ほかの人は、最初は基本の機能だけ */
+  var FEATURES = [
+    ['memo', '📝 メモ(予定・お知らせメール・味の評価・買い物メモ・お店の情報)'],
+    ['income', '💰 収入と残り'],
+    ['pay', '💳 払い方・カード・引き落とし予定・金額で探す'],
+    ['net', '🛒 ネットで買った物の取り込み'],
+    ['rank', '📊 ランキング・グラフ・気づき(集計の画面)']
+  ];
+  function feat(k) {
+    var f; try { f = JSON.parse(store.get('features') || 'null'); } catch (e) { f = null; }
+    if (!f) return !!G.get('adminCode');
+    return !!f[k];
+  }
+  function applyFeatures() {
+    document.querySelectorAll('.nav-item[data-screen="notes"]').forEach(function (b) { b.classList.toggle('hidden', !feat('memo')); });
+    show('histIncomeBtn', feat('income'));
+    if (!feat('income')) { show('histIncome', false); show('sumIncome', false); }
+    show('amtRow', feat('pay')); show('cfPayField', feat('pay')); show('payWd', feat('pay'));
+    show('netBox', feat('net')); show('sumMore', feat('rank'));
+    if (!feat('memo') && document.querySelector('#screen-notes.active')) go('history');
+  }
+  function openFeatures() {
+    openSheet('<div class="grip"></div><h2>🧩 使う機能を選ぶ</h2>' +
+      '<div class="meta" style="font-size:17px">レシートの読み取り・履歴・集計・支払いは、いつも使えます。ほかの機能は、使うものだけ選んでください。</div>' +
+      FEATURES.map(function (f) { return '<label class="check" style="margin:10px 0;font-size:18px"><input type="checkbox" style="width:26px;height:26px;flex:none" data-f="' + f[0] + '"' + (feat(f[0]) ? ' checked' : '') + '> <span>' + f[1] + '</span></label>'; }).join('') +
+      '<div class="note" style="font-size:15px;margin:6px 0 12px">このスマホだけの設定です。オフにしても、入れた記録は消えません。</div>' +
+      '<button class="btn btn-primary btn-block" id="ftSave">保存する</button>' +
+      '<button class="btn btn-tonal btn-block" id="ftBack" style="margin-top:10px">← 戻る</button>');
+    $('ftBack').addEventListener('click', openSettings);
+    $('ftSave').addEventListener('click', function () {
+      var f = {}; $('sheet').querySelectorAll('[data-f]').forEach(function (c) { f[c.dataset.f] = c.checked; });
+      store.set('features', JSON.stringify(f)); applyFeatures(); closeSheet(); toast('使う機能を保存しました');
+      if (document.querySelector('#screen-history.active') || document.querySelector('#screen-summary.active')) loadMonth(false);
+    });
+  }
+
   /* ---------- 収入 ----------
      残り = その月の収入 − その月の買い物 − その月の支払い(払った分 + この月が期限のまだの分) */
   var INCOME_KINDS = ['給料', '年金', 'パート', 'お小遣い', 'その他'];
@@ -1914,6 +1955,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function monthIncome(who) { return (state.incomes || []).filter(function (x) { return !who || x.person === who; }).reduce(function (a, x) { return a + x.amount; }, 0); }
   function renderIncomeLine(id, spent, who) {
     if (!$(id)) return;
+    if (!feat('income')) { show(id, false); return; }
     if (!state.incomeOk || state.incomeMonth !== state.month) { show(id, false); return; }
     var inc = monthIncome(who), py = monthPay(who), left = inc - spent - py.paid - py.due;
     if (!inc) { $(id).innerHTML = '💰 この月の収入は、まだ入っていません' + (id === 'histIncome' ? '<br><span style="font-size:15px">下の「💰 収入を入れる・見る」から入れると、残りが出ます</span>' : ''); show(id, true); return; }
@@ -2021,7 +2063,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var r = state.receipts.filter(function (x) { return x.id === id; })[0];
     if (!r) return;
     var items = (r.items || []).map(function (it, i) {
-      var can = it.name && it.price > 0 && !NOT_ITEM.test(itemKey(it.name));
+      var can = feat('memo') && it.name && it.price > 0 && !NOT_ITEM.test(itemKey(it.name));
       return '<div class="line-item" style="align-items:center"><span style="display:flex;align-items:center">' + (can ? '<button class="it-rate" data-i="' + i + '" aria-label="評価する">😋</button>' : '') +
         esc(it.name) + '</span><span class="' + (it.price < 0 ? 'minus' : '') + '">' + yen(it.price) + '</span></div>';
     }).join('');
@@ -2030,7 +2072,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div><h2>' + esc(r.store || 'お店の名前なし') + '</h2><div class="meta" style="margin:0">' + esc(dayLabel(r.date)) + ' ・ ' + nm(r.person) + '</div></div></div>' +
       (r.purpose ? '<div class="kv" style="margin-top:8px"><span>何の支払い</span><b>' + esc(r.purpose) + '</b></div>' : '') +
       (r.payMethod ? '<div class="kv" style="margin-top:4px"><span>払い方</span><b>' + esc(r.payMethod) + (cardByLabel(r.payMethod) ? ' <button class="btn btn-text" id="dtCard" style="min-height:36px;padding:0 6px">💳 詳しく</button>' : '') + '</b></div>' : '') +
-      '<div style="margin-top:12px">' + (items ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' + items : '<div class="note">品目の記録はありません</div>') +
+      '<div style="margin-top:12px">' + (items ? (feat('memo') ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' : '') + items : '<div class="note">品目の記録はありません</div>') +
       '<div class="line-item total"><span>合計</span><span>' + yen(r.total) + '</span></div></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
       '<button class="btn btn-primary btn-block" id="dtEdit">✏ 編集する</button>' +
@@ -2283,7 +2325,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!document.querySelector('#screen-capture.active')) { go('capture', true); state.person = state.owner; state.editingId = null; renderWho(); }
     openConfirm(r);
     if (r.readBy) { $('cfReadBy').textContent = '🔍 ' + r.readBy; show('cfReadBy', true); }
-    if (!state.editingId) checkRated(r);
+    if (!state.editingId && feat('memo')) checkRated(r);
     // 読み取ったらすぐに、同じレシートが入っていないか確かめて上に知らせる
     if (!state.editingId && readDate && r.total) findSameReceipt(r).then(function (same) {
       if (!same.length || !state.draft || state.editingId) return;
@@ -2722,7 +2764,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       btn.disabled = false; btn.textContent = '保存する';
       rememberShot('レシート');
       learnStores([d]);
-      if (!editing) tickShop(d);
+      if (!editing && feat('memo')) tickShop(d);
       toast(editing ? '変更を保存しました' : label(d.person) + 'の買い物を保存しました');
       state.editingId = null;
       state.month = d.date.slice(0, 7);
@@ -3521,7 +3563,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stInvite">💌 家族を招待する</button>' +
       '<button class="btn btn-tonal btn-block" id="stMembers">🏠 家族のメンバーを編集</button>' +
       '<button class="btn btn-tonal btn-block" id="stPay">💴 支払いの設定・お知らせ</button>' +
-      '<button class="btn btn-tonal btn-block" id="stCards">💳 カード・スマホ決済の登録(このスマホだけ)</button>' +
+      '<button class="btn btn-tonal btn-block" id="stFeat">🧩 使う機能を選ぶ</button>' +
+      (feat('pay') ? '<button class="btn btn-tonal btn-block" id="stCards">💳 カード・スマホ決済の登録(このスマホだけ)</button>' : '') +
       '<button class="btn btn-tonal btn-block" id="stDelete">🗑 記録の削除とゴミ箱</button>' +
       '<button class="btn btn-tonal btn-block" id="stHomes">🔁 家の切り替え・追加</button>' +
       '<button class="btn btn-tonal btn-block" id="stPass">🔑 家のパスワードを変える</button>' +
@@ -3537,7 +3580,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stMembers').addEventListener('click', openMemberEditor);
     $('stDelete').addEventListener('click', openDelete);
     $('stPay').addEventListener('click', openPaySettings);
-    $('stCards').addEventListener('click', function () { openCards(openSettings); });
+    if ($('stCards')) $('stCards').addEventListener('click', function () { openCards(openSettings); });
+    $('stFeat').addEventListener('click', openFeatures);
     $('stHomes').addEventListener('click', openHomes);
     $('stOwner').addEventListener('click', function () { closeSheet(); openSetup(); });
     $('stPhoneReset').addEventListener('click', openPhoneReset);
@@ -4442,6 +4486,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     setTimeout(tickClock, (60 - d.getSeconds()) * 1000 + 50);
   }
   tickClock();
+  applyFeatures();
 
   /* ---------- ときどき、動物やスイーツがタイトルの横を歩いて通り過ぎる ---------- */
   var WALKERS = ['🐕', '🐈', '🐇', '🐥', '🐢', '🦔', '🐼', '🐧', '🐿️', '🦊', '🐨', '🐹', '🐑', '🦆',
