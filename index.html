@@ -678,7 +678,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-25 16:00 版75';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-25 16:05 版76';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1833,6 +1833,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         return '<button type="button" class="chip' + (m.name === person ? ' on' : '') + '" data-v="' + esc(m.name) + '">' + esc((m.icon ? m.icon + ' ' : '') + m.name) + '</button>'; }).join('') + '</div>' +
       '<div class="rk-label">種類</div><div class="chips" id="icKind">' + INCOME_KINDS.map(function (k) {
         return '<button type="button" class="chip' + (k === kind ? ' on' : '') + '" data-v="' + k + '">' + k + '</button>'; }).join('') + '</div>' +
+      (v.id ? '' : '<label class="check hidden" id="icSplitBox" style="margin-top:10px"><input type="checkbox" id="icSplit" checked> <span>年金は2か月分なので、<b>半分ずつ、この月と次の月</b>に分けて入れる</span></label>') +
       '<div class="field" style="margin-top:12px"><label for="icAmount">金額(円)</label><input class="input" id="icAmount" type="number" inputmode="numeric" style="font-size:24px;font-weight:700" value="' + esc(v.amount) + '"></div>' +
       '<div class="field"><label for="icDate">日付(入った日)</label><input class="input" id="icDate" type="date" value="' + esc(v.date) + '"></div>' +
       '<div class="field"><label for="icMemo">メモ(なくてもよい)</label><input class="input" id="icMemo" placeholder="例:10月分" value="' + esc(v.memo) + '"></div>' +
@@ -1842,7 +1843,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       (v.id ? '<button class="btn btn-danger btn-block" id="icDel">この収入を消す</button>' : '') + '</div>');
     var pick = function (box, set) { $(box).querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
       set(c.dataset.v); $(box).querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === c); }); }); }); };
-    pick('icWho', function (x) { person = x; }); pick('icKind', function (x) { kind = x; });
+    var syncSplit = function () { if ($('icSplitBox')) show('icSplitBox', kind === '年金'); };
+    pick('icWho', function (x) { person = x; }); pick('icKind', function (x) { kind = x; syncSplit(); }); syncSplit();
     var done = function (msg) { toast(msg); var d = $('icDate') ? $('icDate').value : ''; if (d && d.slice(0, 7) !== state.month) { state.month = d.slice(0, 7); } state.incomeMonth = null; loadMonth(true); setTimeout(openIncomesWhenReady, 300); };
     var openIncomesWhenReady = function () { if (state.incomeMonth === state.month) openIncomes(); else setTimeout(openIncomesWhenReady, 300); };
     $('icBack').addEventListener('click', openIncomes);
@@ -1857,8 +1859,18 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (amount <= 0) return err('金額を入れてください');
       if (!$('icDate').value) return err('日付を入れてください');
       b.disabled = true; b.textContent = '保存中…';
-      api('saveIncome', { income: { id: v.id || '', person: person, kind: kind, amount: amount, date: $('icDate').value, memo: $('icMemo').value.trim() } })
-        .then(function () { done('収入を保存しました'); })
+      var date = $('icDate').value, memo = $('icMemo').value.trim();
+      var split = !v.id && kind === '年金' && $('icSplit') && $('icSplit').checked;
+      var save1 = function (amt, d, m) { return api('saveIncome', { income: { id: v.id || '', person: person, kind: kind, amount: amt, date: d, memo: m } }); };
+      var job;
+      if (split) {   // 2か月分の年金:半分ずつ、入った月と次の月に分ける(割り切れない1円は入った月に)
+        var half = Math.floor(amount / 2), nm2 = shiftMonth(date.slice(0, 7), 1);
+        var lastDay = new Date(+nm2.slice(0, 4), +nm2.slice(5, 7), 0).getDate();
+        var d2 = nm2 + '-' + pad(Math.min(+date.slice(8, 10), lastDay));
+        var note = (memo ? memo + ' ' : '') + '(2か月分の半分)';
+        job = save1(amount - half, date, note).then(function () { return save1(half, d2, note); });
+      } else job = save1(amount, date, memo);
+      job.then(function () { done(split ? '年金を、この月と次の月に半分ずつ入れました' : '収入を保存しました'); })
         .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
     });
   }
