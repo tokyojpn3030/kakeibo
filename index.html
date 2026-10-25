@@ -372,6 +372,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div id="histIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
     <button class="btn btn-tonal btn-block" id="histIncomeBtn" style="min-height:48px;margin:0 0 10px">💰 収入を入れる・見る</button>
+    <div style="display:flex;gap:8px;margin:0 0 10px">
+      <input class="input" id="amtQ" type="number" inputmode="numeric" placeholder="🔍 金額で探す(カードの明細など)" style="flex:1;min-width:0">
+      <button class="btn btn-primary" id="amtGo" style="min-width:72px">探す</button>
+    </div>
     <div style="display:flex;gap:10px;margin:0 0 10px">
       <button class="btn btn-tonal" id="histManual" style="flex:1;min-height:48px">✍ 手で入力</button>
       <button class="btn btn-tonal" id="histReload" style="flex:1;min-height:48px">🔄 最新にする</button>
@@ -439,6 +443,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <label for="cfPurpose">何の支払い(分類)</label>
         <div class="chips" id="cfPurposeChips" style="margin:0 0 8px"></div>
         <input class="input" id="cfPurpose" placeholder="ほかの分類はここに書く(例:プレゼント)">
+      </div>
+      <div class="field">
+        <label for="cfPayMethod">払い方</label>
+        <div class="chips" id="cfPayChips" style="margin:0 0 8px"></div>
+        <input class="input" id="cfPayMethod" placeholder="ほかの払い方・カードの名前はここに書く(例:楽天カード)">
       </div>
       <div class="field">
         <label for="cfDate">買った日</label>
@@ -678,7 +687,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-25 16:05 版76';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-25 16:10 版77';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1110,7 +1119,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var d = r.date ? (+r.date.slice(5, 7)) + '/' + (+r.date.slice(8, 10)) + '(' + '日月火水木金土'.charAt(new Date(r.date + 'T00:00:00').getDay()) + ')' : '—';
       html += '<button class="rc-line receipt' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
         '<span class="d">' + (sel ? '<span class="chk">' + (on ? '✓' : '') + '</span>' : '') + d + '</span>' +
-        '<span class="st">' + esc(r.store || 'お店の名前なし') + (r.purpose || MEMBERS.length > 1 ? '<small>' + esc([r.purpose, MEMBERS.length > 1 ? label(r.person) : ''].filter(Boolean).join(' ・ ')) + '</small>' : '') + '</span>' +
+        '<span class="st">' + esc(r.store || 'お店の名前なし') + (r.purpose || r.payMethod || MEMBERS.length > 1 ? '<small>' + esc([r.purpose, r.payMethod, MEMBERS.length > 1 ? label(r.person) : ''].filter(Boolean).join(' ・ ')) + '</small>' : '') + '</span>' +
         '<span class="y">' + yen(r.total) + '</span></button>';
     });
     if (sel) html += '<div style="height:84px"></div>';
@@ -1875,6 +1884,32 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
   }
   $('histIncomeBtn').addEventListener('click', openIncomes);
+  // 金額で探す:カードの明細の金額などから、何の買い物だったかを探す(この1年分)
+  function searchAmount() {
+    var n = Math.round(Number($('amtQ').value) || 0); if (n <= 0) { $('amtQ').focus(); return; }
+    $('amtQ').blur();
+    openSheet('<div class="grip"></div><h2>🔍 ' + yen(n) + ' の買い物を探す</h2><div class="loading"><div class="spinner"></div>この1年分を探しています…</div>');
+    var months = []; for (var i = 11; i >= 0; i--) months.push(shiftMonth(thisMonth(), -i));
+    rkLoad(months).then(function (all) {
+      var card = function (r) { return /カード|クレジット|card/i.test(r.payMethod || '') ? 0 : 1; };
+      var hit = all.filter(function (r) { return Math.round(r.total) === n; }).sort(function (a, b) { return card(a) - card(b) || (a.date < b.date ? 1 : -1); });
+      var near = all.filter(function (r) { return Math.round(r.total) !== n && Math.abs(r.total - n) <= Math.max(10, n * 0.01); }).slice(0, 5);
+      var part = all.filter(function (r) { return Math.round(r.total) !== n && (r.items || []).some(function (it) { return Math.round(it.price) === n; }); }).slice(0, 5);
+      var row = function (r, why) {
+        return '<div class="card" style="margin-bottom:10px"><div class="in-line" style="border:none;padding:0 0 4px"><b style="font-size:19px">' + esc(r.store || 'お店の名前なし') + '</b><b>' + yen(r.total) + '</b></div>' +
+          '<div class="in-sub">' + esc(md(r.date)) + ' ・ ' + nm(r.person) + (r.payMethod ? ' ・ 💳 ' + esc(r.payMethod) : '') + (r.purpose ? ' ・ ' + esc(r.purpose) : '') + (why ? ' ・ ' + why : '') + '</div>' +
+          ((r.items || []).length ? '<div style="margin-top:6px;font-size:16px">' + r.items.slice(0, 8).map(function (it) { return esc(it.name) + ' ' + yen(it.price); }).join('<br>') + (r.items.length > 8 ? '<br>…ほか' + (r.items.length - 8) + '品' : '') + '</div>' : '') + '</div>';
+      };
+      openSheet('<div class="grip"></div><h2>🔍 ' + yen(n) + ' の買い物</h2>' +
+        (hit.length ? hit.map(function (r) { return row(r, ''); }).join('') : '<div class="note" style="font-size:17px;margin-bottom:10px">この1年に、合計がちょうど ' + yen(n) + ' のレシートはありません。記録していない買い物かもしれません。</div>') +
+        (near.length ? '<div class="section-title">近い金額</div>' + near.map(function (r) { return row(r, ''); }).join('') : '') +
+        (part.length ? '<div class="section-title">品物の金額が ' + yen(n) + ' のもの</div>' + part.map(function (r) { return row(r, ''); }).join('') : '') +
+        '<button class="btn btn-tonal btn-block" id="amtClose" style="margin-top:6px">閉じる</button>');
+      $('amtClose').addEventListener('click', closeSheet);
+    }).catch(function (e) { openSheet('<div class="grip"></div><div class="error">' + esc(e.message) + '</div><button class="btn btn-tonal btn-block" id="amtClose">閉じる</button>'); $('amtClose').addEventListener('click', closeSheet); });
+  }
+  $('amtGo').addEventListener('click', searchAmount);
+  $('amtQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') searchAmount(); });
 
   /* ---------- 詳細シート ---------- */
   function openDetail(id) {
@@ -1889,6 +1924,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="display:flex;align-items:center;gap:12px">' + avatarHtml(r.person) +
       '<div><h2>' + esc(r.store || 'お店の名前なし') + '</h2><div class="meta" style="margin:0">' + esc(dayLabel(r.date)) + ' ・ ' + nm(r.person) + '</div></div></div>' +
       (r.purpose ? '<div class="kv" style="margin-top:8px"><span>何の支払い</span><b>' + esc(r.purpose) + '</b></div>' : '') +
+      (r.payMethod ? '<div class="kv" style="margin-top:4px"><span>払い方</span><b>' + esc(r.payMethod) + '</b></div>' : '') +
       '<div style="margin-top:12px">' + (items ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' + items : '<div class="note">品目の記録はありません</div>') +
       '<div class="line-item total"><span>合計</span><span>' + yen(r.total) + '</span></div></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
@@ -2193,7 +2229,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   /* ---------- 確認フォーム ---------- */
   function openConfirm(r) {
-    state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', date: r.date || today(),
+    state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', payMethod: r.payMethod || '', date: r.date || today(),
       total: r.total || 0, items: (r.items || []).map(function (it) { return { name: it.name, price: it.price }; }) };
     show('capStart', false); show('capLoading', false); show('capError', false); show('capConfirm', true);
     show('cfError', false); show('cfSame', false); show('cfReadBy', false); show('cfRated', false);
@@ -2202,6 +2238,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('cfToBill', !state.editingId && !!lastShot);
     $('cfStore').value = state.draft.store;
     $('cfPurpose').value = state.draft.purpose; drawPurpose();
+    $('cfPayMethod').value = state.draft.payMethod; drawPayMethod();
     $('cfDate').value = state.draft.date;
     $('cfTotal').value = state.draft.total || '';
     renderConfirmPerson(); renderItems(); window.scrollTo(0, 0);
@@ -2222,6 +2259,28 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     draw();
   }
   function drawPurpose() { catField('cfPurposeChips', 'cfPurpose'); }
+  // 払い方:よく使う物はボタン。カードの名前などは文字で書く(このスマホで書いた物もボタンに出す)
+  var PAY_METHODS = ['現金', 'Suica', 'PayPay', 'au PAY', 'イオンペイ', 'クレジットカード'];
+  function payMethodList() {
+    var mine = []; try { mine = JSON.parse(store.get('payMethods') || '[]'); } catch (e) {}
+    return PAY_METHODS.concat(mine.filter(function (x) { return PAY_METHODS.indexOf(x) < 0; })).slice(0, 12);
+  }
+  function rememberPayMethod(v) {
+    v = String(v || '').trim(); if (!v || PAY_METHODS.indexOf(v) >= 0) return;
+    var mine = []; try { mine = JSON.parse(store.get('payMethods') || '[]'); } catch (e) {}
+    mine = [v].concat(mine.filter(function (x) { return x !== v; })).slice(0, 6);
+    store.set('payMethods', JSON.stringify(mine));
+  }
+  function drawPayMethod() {
+    var cur = $('cfPayMethod').value.trim();
+    $('cfPayChips').innerHTML = payMethodList().map(function (x) {
+      return '<button type="button" class="chip' + (x === cur ? ' on' : '') + '" data-pm="' + esc(x) + '">' + esc(x) + '</button>';
+    }).join('');
+    $('cfPayChips').querySelectorAll('[data-pm]').forEach(function (b) {
+      b.addEventListener('click', function () { $('cfPayMethod').value = b.dataset.pm === cur ? '' : b.dataset.pm; drawPayMethod(); });
+    });
+    $('cfPayMethod').oninput = drawPayMethod;
+  }
   function renderConfirmPerson() {
     $('cfPerson').innerHTML = MEMBERS.map(function (x) {
       return '<button class="chip' + (x.name === state.draft.person ? ' on' : '') + '" data-p="' + esc(x.name) + '">' + nm(x.name) + '</button>';
@@ -2279,6 +2338,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var d = state.draft;
     d.store = $('cfStore').value.trim();
     d.purpose = $('cfPurpose').value.trim();
+    d.payMethod = $('cfPayMethod').value.trim(); rememberPayMethod(d.payMethod);
     d.date = $('cfDate').value;
     d.total = Math.round(Number($('cfTotal').value) || 0);
     if (!d.total) d.total = itemsSum();
