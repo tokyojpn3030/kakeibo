@@ -595,7 +595,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   </section>
   <!-- 評価(味の記録) -->
   <section class="screen" id="screen-notes">
-    <div class="section-title" style="margin-top:4px">😋 評価・買い物メモ・お店</div>
+    <div class="section-title" style="margin-top:4px">📝 予定・評価・買い物メモ・お店</div>
     <div class="chips" id="ntTabs" style="margin-bottom:12px"></div>
     <div id="ntBody"></div>
   </section>
@@ -615,7 +615,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span>支払い
   </button>
   <button class="nav-item" data-screen="notes">
-    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></span>評価
+    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></span>メモ
   </button>
 </nav>
 
@@ -690,7 +690,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-25 16:45 版79';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-25 16:55 版80';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -906,6 +906,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         if (action === 'save') {
           var r = Object.assign({ id: String(Date.now()) }, data.receipt);
           list.push(r); demoSave(list); return resolve({ ok: true, id: r.id });
+        }
+        if (/^(plans|savePlan|deletePlan|testPlanMail)$/.test(action)) {
+          var P; try { P = JSON.parse(store.get('demoPlans') || '[]'); } catch (e) { P = []; }
+          if (action === 'plans') return resolve({ ok: true, plans: P.filter(function (x) { return x.person === data.person; }) });
+          if (action === 'savePlan') { var pv = Object.assign({}, data.plan); if (pv.id) P = P.map(function (x) { return x.id === pv.id ? pv : x; }); else { pv.id = String(Date.now()); P.push(pv); } store.set('demoPlans', JSON.stringify(P)); return resolve({ ok: true, id: pv.id }); }
+          if (action === 'deletePlan') { P = P.filter(function (x) { return x.id !== data.id; }); store.set('demoPlans', JSON.stringify(P)); return resolve({ ok: true }); }
+          return resolve({ ok: true });
         }
         if (/^(incomes|saveIncome|deleteIncome)$/.test(action)) {
           var I; try { I = JSON.parse(store.get('demoIncome') || '[]'); } catch (e) { I = []; }
@@ -1492,7 +1499,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   };
   var RATE_KEYS = ['again', 'good', 'ok', 'bad'];
   var NOTE_TAGS = ['誕生日', 'お祝い', '記念日', '贈り物', '旅行', 'おもてなし'];
-  var NT = { data: null, loading: null, tab: 'list', q: '', rate: '', who: '', tag: false, rankRate: 'again' };
+  var NT = { data: null, loading: null, tab: 'plans', q: '', rate: '', who: '', tag: false, rankRate: 'again' };
   function loadNotes(force) {
     if (NT.data && !force) return Promise.resolve(NT.data);
     if (NT.loading && !force) return NT.loading;
@@ -1511,18 +1518,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   function openNotes() {
     $('ntBody').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+    if (NT.tab === 'plans') { renderNotes(); loadNotes(true).catch(function () {}); return; }
     loadNotes(true).then(renderNotes).catch(function (e) {
       $('ntBody').innerHTML = '<div class="error">' + esc(e.message) + '</div>' +
         (/不明な依頼/.test(e.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください。</div>' : '');
     });
   }
   function renderNotes() {
-    var tabs = [['list', '📒 記録'], ['rank', '🏆 ランキング'], ['shop', '🛒 買い物メモ'], ['stores', '🏪 お店の情報']];
+    var tabs = [['plans', '📅 予定'], ['list', '😋 評価'], ['rank', '🏆 ランキング'], ['shop', '🛒 買い物メモ'], ['stores', '🏪 お店の情報']];
     $('ntTabs').innerHTML = tabs.map(function (t) {
       var badge = t[0] === 'shop' && NT.data ? NT.data.shop.filter(function (x) { return !x.done; }).length : 0;
       return '<button class="chip' + (NT.tab === t[0] ? ' on' : '') + '" data-t="' + t[0] + '">' + t[1] + (badge ? ' (' + badge + ')' : '') + '</button>';
     }).join('');
     $('ntTabs').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () { NT.tab = c.dataset.t; renderNotes(); }); });
+    if (NT.tab === 'plans') return ntPlans();
     if (!NT.data) return;
     ({ list: ntList, rank: ntRank, shop: ntShop, stores: ntStores })[NT.tab]();
   }
@@ -1671,6 +1680,99 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         .catch(function (e) { b.disabled = false; $('stErr').textContent = e.message; show('stErr', true); });
     });
   }
+  /* ---------- 予定(病院の予約・仕事・やること)。自分の予定だけ見える ---------- */
+  var PLAN_KINDS = [['病院・予約', '🏥'], ['仕事', '💼'], ['やること', '📝'], ['連絡', '📞'], ['その他', '📌']];
+  var PLAN_NOTIFY = [[7, '1週間前'], [3, '3日前'], [1, '前日'], [0, '当日の朝']];
+  var PL = { list: null, showPast: false };
+  function planIcon(k) { var x = PLAN_KINDS.filter(function (p) { return p[0] === k; })[0]; return x ? x[1] : '📌'; }
+  function ntPlans() {
+    $('ntBody').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+    api('plans', { person: state.owner }).then(function (res) { PL.list = res.plans || []; drawPlans(); })
+      .catch(function (e) { $('ntBody').innerHTML = '<div class="error">' + esc(e.message) + '</div>' + (/不明な依頼/.test(e.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください。</div>' : ''); });
+  }
+  function drawPlans() {
+    var t = today(), up = PL.list.filter(function (p) { return p.date >= t && !p.done; }), past = PL.list.filter(function (p) { return p.date < t || p.done; }).reverse();
+    var card = function (p, i) {
+      var d = daysBetween(t, p.date), when = p.done ? '✅ 済み' : d === 0 ? '今日' : d === 1 ? '明日' : d > 0 ? 'あと' + d + '日' : '';
+      return '<div class="card nt-card"' + (d <= 1 && !p.done && d >= 0 ? ' style="border-left:6px solid var(--danger)"' : '') + '>' +
+        '<div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + esc(md(p.date)) + '(' + '日月火水木金土'.charAt(new Date(p.date + 'T00:00:00').getDay()) + ')' + (p.time ? ' ' + esc(p.time) : '') + '</b>' +
+        '<span class="' + (d <= 1 && !p.done ? 'in-up' : 'in-sub') + '">' + when + '</span></div>' +
+        '<div class="nt-item" style="margin-top:4px">' + planIcon(p.kind) + ' ' + esc(p.title) + '</div>' +
+        (p.place ? '<div class="in-sub">📍 ' + esc(p.place) + '</div>' : '') +
+        (p.memo ? '<div class="nt-comment">' + esc(p.memo) + '</div>' : '') +
+        '<div class="in-sub" style="margin-top:4px">📧 ' + (p.notify.length ? PLAN_NOTIFY.filter(function (x) { return p.notify.indexOf(x[0]) >= 0; }).map(function (x) { return x[1]; }).join('・') : 'メールなし') + '</div>' +
+        '<div class="nt-btns"><button class="btn btn-text" data-pe="' + p.id + '">✏ 直す</button>' +
+        '<button class="btn btn-text" data-pn="' + p.id + '">📋 次の予定を作る</button>' +
+        (p.kind === '病院・予約' ? '<button class="btn btn-text" data-pp="' + p.id + '">💴 支払いを記録</button>' : '') + '</div></div>';
+    };
+    $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="plNew" style="margin-bottom:8px">＋ 予定を入れる</button>' +
+      '<div class="note" style="font-size:15px;margin-bottom:12px">予定は <b>自分だけ</b> に見えます。お知らせのメールは、毎朝8時ごろ「💴 支払いの設定・お知らせ」のメールアドレスに届きます。' +
+      ' <button class="btn btn-text" id="plTest" style="min-height:36px;padding:0 4px">📧 確認のメールを送る</button></div>' +
+      '<div class="section-title">これからの予定(' + up.length + '件)</div>' + (up.map(card).join('') || '<div class="note" style="font-size:17px">これからの予定はありません。</div>') +
+      (past.length ? '<button class="btn btn-text btn-block" id="plPast">' + (PL.showPast ? '▲ 終わった予定をしまう' : '▼ 終わった予定(' + past.length + '件)') + '</button>' +
+        (PL.showPast ? past.slice(0, 30).map(card).join('') : '') : '');
+    $('plNew').addEventListener('click', function () { openPlan({}); });
+    $('plTest').addEventListener('click', function () {
+      var b = this; b.disabled = true;
+      api('testPlanMail', { person: state.owner }).then(function () { toast('確認のメールを送りました'); }).catch(function (e) { alert(e.message); }).then(function () { b.disabled = false; });
+    });
+    if ($('plPast')) $('plPast').addEventListener('click', function () { PL.showPast = !PL.showPast; drawPlans(); });
+    var find = function (id) { return PL.list.filter(function (p) { return p.id === id; })[0]; };
+    $('ntBody').querySelectorAll('[data-pe]').forEach(function (b) { b.addEventListener('click', function () { openPlan(find(b.dataset.pe)); }); });
+    $('ntBody').querySelectorAll('[data-pn]').forEach(function (b) { b.addEventListener('click', function () {
+      var p = find(b.dataset.pn), d = shiftMonth(p.date.slice(0, 7), 1);
+      var last = new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate();
+      openPlan({ kind: p.kind, title: p.title, place: p.place, time: p.time, notify: p.notify, date: d + '-' + pad(Math.min(+p.date.slice(8, 10), last)) }, '次の予定(日付を確かめてください)');
+    }); });
+    $('ntBody').querySelectorAll('[data-pp]').forEach(function (b) { b.addEventListener('click', function () {
+      var p = find(b.dataset.pp);
+      startManual();
+      $('cfStore').value = p.title; $('cfDate').value = p.date <= today() ? p.date : today();
+      $('cfPurpose').value = '医療費'; drawPurpose();
+      $('cfPayMethod').value = 'Suica'; drawPayMethod();
+      $('cfTitle').textContent = '病院・薬の支払いを記録';
+    }); });
+  }
+  function openPlan(v, title) {
+    v = Object.assign({ kind: '病院・予約', date: today(), time: '', title: '', place: '', memo: '', notify: [1, 0], done: false }, v || {});
+    var kind = v.kind, notify = v.notify.slice();
+    openSheet('<div class="grip"></div><h2>📅 ' + esc(title || (v.id ? '予定を直す' : '予定を入れる')) + '</h2>' +
+      '<div class="rk-label">種類</div><div class="chips" id="plKind">' + PLAN_KINDS.map(function (k) {
+        return '<button type="button" class="chip' + (k[0] === kind ? ' on' : '') + '" data-v="' + k[0] + '">' + k[1] + ' ' + k[0] + '</button>'; }).join('') + '</div>' +
+      '<div class="field" style="margin-top:12px"><label for="plTitle">内容</label><input class="input" id="plTitle" placeholder="例:○○クリニック、△△さんに聞くこと" value="' + esc(v.title) + '"></div>' +
+      '<div style="display:flex;gap:10px"><div class="field" style="flex:3"><label for="plDate">日付</label><input class="input" id="plDate" type="date" value="' + esc(v.date) + '"></div>' +
+      '<div class="field" style="flex:2"><label for="plTime">時刻</label><input class="input" id="plTime" type="time" value="' + esc(v.time) + '"></div></div>' +
+      '<div class="field"><label for="plPlace">場所(なくてもよい)</label><input class="input" id="plPlace" value="' + esc(v.place) + '"></div>' +
+      '<div class="field"><label for="plMemo">メモ(聞くこと・伝えること・持ち物など)</label><textarea class="input" id="plMemo" rows="4">' + esc(v.memo) + '</textarea></div>' +
+      '<div class="rk-label">📧 お知らせメール(いくつでも選べます)</div><div class="chips" id="plNotify">' + PLAN_NOTIFY.map(function (x) {
+        return '<button type="button" class="chip' + (notify.indexOf(x[0]) >= 0 ? ' on' : '') + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      (v.id ? '<label class="check" style="margin-top:12px"><input type="checkbox" id="plDone"' + (v.done ? ' checked' : '') + '> <span>済み(終わった)</span></label>' : '') +
+      '<div class="error hidden" id="plErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px"><button class="btn btn-primary btn-block" id="plSave">保存する</button>' +
+      '<button class="btn btn-tonal btn-block" id="plBack">やめる</button>' +
+      (v.id ? '<button class="btn btn-danger btn-block" id="plDel">この予定を消す</button>' : '') + '</div>');
+    $('plKind').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
+      kind = c.dataset.v; $('plKind').querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === c); }); }); });
+    $('plNotify').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
+      var d = +c.dataset.v, i = notify.indexOf(d); if (i >= 0) notify.splice(i, 1); else notify.push(d); c.classList.toggle('on', i < 0); }); });
+    $('plBack').addEventListener('click', closeSheet);
+    var after = function (msg) { closeSheet(); toast(msg); if ($('screen-notes').classList.contains('active') && NT.tab === 'plans') ntPlans(); };
+    if ($('plDel')) $('plDel').addEventListener('click', function () {
+      if (!confirm('この予定を消しますか?')) return;
+      api('deletePlan', { id: v.id, person: state.owner }).then(function () { after('消しました'); }).catch(function (e) { alert(e.message); });
+    });
+    $('plSave').addEventListener('click', function () {
+      var err = function (m) { $('plErr').textContent = m; show('plErr', true); };
+      var t = $('plTitle').value.trim(); if (!t) return err('内容を入れてください');
+      if (!$('plDate').value) return err('日付を入れてください');
+      var b = this; b.disabled = true; b.textContent = '保存中…';
+      api('savePlan', { plan: { id: v.id || '', person: state.owner, kind: kind, title: t, date: $('plDate').value, time: $('plTime').value, place: $('plPlace').value.trim(),
+        memo: $('plMemo').value.trim(), notify: notify, done: $('plDone') ? $('plDone').checked : false } })
+        .then(function () { after('予定を保存しました'); })
+        .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
+    });
+  }
+
   // 写真は小さくして、記録の中に入れる(1枚だけ)
   function thumbPhoto(file) {
     return new Promise(function (resolve, reject) {
@@ -2250,7 +2352,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     renderConfirmPerson(); renderItems(); window.scrollTo(0, 0);
   }
   // 何の支払い(分類):ボタンで選ぶか、文字で書く。買い物と支払いで同じ一覧を使う
-  var CATS = ['食料品', '日用品', '外食', '衣類', '住民税', '社会保険料', 'ほかの税金', '公共料金', '通信費', 'その他'];
+  var CATS = ['食料品', '日用品', '外食', '衣類', '医療費', '住民税', '社会保険料', 'ほかの税金', '公共料金', '通信費', 'その他'];
   function catField(chipsId, inputId, onChange) {
     var draw = function () {
       var cur = $(inputId).value.trim();
