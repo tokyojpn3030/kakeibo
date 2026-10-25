@@ -369,7 +369,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <div class="total-card">
       <div class="label" id="histTotalLabel">合計</div>
       <div class="amount" id="histTotal">¥0</div>
+      <div id="histIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
+    <button class="btn btn-tonal btn-block" id="histIncomeBtn" style="min-height:48px;margin:0 0 10px">💰 収入を入れる・見る</button>
     <div style="display:flex;gap:10px;margin:0 0 10px">
       <button class="btn btn-tonal" id="histManual" style="flex:1;min-height:48px">✍ 手で入力</button>
       <button class="btn btn-tonal" id="histReload" style="flex:1;min-height:48px">🔄 最新にする</button>
@@ -478,6 +480,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     <div class="total-card">
       <div class="label">家族全員の合計</div>
       <div class="amount" id="sumTotal">¥0</div>
+      <div id="sumIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
     <div class="section-title">人ごと</div>
     <div class="card" id="sumPeople"></div>
@@ -675,7 +678,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-23 23:42 版74';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-25 16:00 版75';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -892,6 +895,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           var r = Object.assign({ id: String(Date.now()) }, data.receipt);
           list.push(r); demoSave(list); return resolve({ ok: true, id: r.id });
         }
+        if (/^(incomes|saveIncome|deleteIncome)$/.test(action)) {
+          var I; try { I = JSON.parse(store.get('demoIncome') || '[]'); } catch (e) { I = []; }
+          if (action === 'incomes') return resolve({ ok: true, incomes: I.filter(function (x) { return x.date.slice(0, 7) === data.month; }) });
+          if (action === 'saveIncome') { var iv = Object.assign({}, data.income); if (iv.id) I = I.map(function (x) { return x.id === iv.id ? iv : x; }); else { iv.id = String(Date.now()); I.push(iv); } store.set('demoIncome', JSON.stringify(I)); return resolve({ ok: true, id: iv.id }); }
+          if (action === 'deleteIncome') { I = I.filter(function (x) { return x.id !== data.id; }); store.set('demoIncome', JSON.stringify(I)); return resolve({ ok: true }); }
+        }
         if (/^(notes|saveReview|deleteReview|saveStore|addShop|shopDone|clearShop)$/.test(action)) {
           var N; try { N = JSON.parse(store.get('demoNotes') || ''); } catch (e) { N = null; }
           N = N || { reviews: [], stores: [], shop: [] };
@@ -1059,6 +1068,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       state.receipts = res.receipts || []; state.loadedMonth = m;
       RK.cache = {}; RK.cache[m] = state.receipts;   // 読み直したら、ランキング用の控えも新しくする
       learnStores(state.receipts);
+      loadIncomes(m);
       renderHistory(); renderSummary();
     }).catch(function (err) {
       $('histList').innerHTML = '<div class="error">' + esc(err.message) + '</div>';
@@ -1079,8 +1089,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
     var list = state.receipts.filter(function (r) { return !state.filter || r.person === state.filter; });
     var total = list.reduce(function (s, r) { return s + (Number(r.total) || 0); }, 0);
-    $('histTotalLabel').textContent = monthLabel(state.month) + 'の合計' + (state.filter ? '(' + state.filter + ')' : '');
+    $('histTotalLabel').textContent = monthLabel(state.month) + 'の買い物の合計' + (state.filter ? '(' + state.filter + ')' : '');
     $('histTotal').textContent = yen(total);
+    renderIncomeLine('histIncome', total, state.filter);
 
     if (!list.length) {
       $('histList').innerHTML = '<div class="empty"><div class="big">まだ記録がありません</div>下の「撮影」からレシートを撮ってみましょう</div>';
@@ -1145,6 +1156,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var rs = state.receipts;
     var total = rs.reduce(function (s, r) { return s + (Number(r.total) || 0); }, 0);
     $('sumTotal').textContent = yen(total);
+    renderIncomeLine('sumIncome', total, '');
 
     var by = {};
     rs.forEach(function (r) { var k = r.person; by[k] = by[k] || { sum: 0, n: 0 }; by[k].sum += Number(r.total) || 0; by[k].n++; });
@@ -1760,6 +1772,97 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       });
     }).catch(function () {});
   }
+
+  /* ---------- 収入 ----------
+     残り = その月の収入 − その月の買い物 − その月の支払い(払った分 + この月が期限のまだの分) */
+  var INCOME_KINDS = ['給料', '年金', 'パート', 'お小遣い', 'その他'];
+  function loadIncomes(m) {
+    return Promise.all([api('incomes', { month: m }), api('payments', { person: '' }).catch(function () { return { payments: [] }; })]).then(function (rr) {
+      var res = rr[0];
+      if (m !== state.month) return;
+      state.allPays = rr[1].payments || [];
+      state.incomes = res.incomes || []; state.incomeMonth = m; state.incomeOk = true;
+      renderIncomeLine('histIncome', monthSpent(state.filter), state.filter);
+      renderIncomeLine('sumIncome', monthSpent(''), '');
+    }).catch(function (e) { if (/不明な依頼/.test(e.message)) state.incomeOk = false; });
+  }
+  function monthSpent(who) { return (state.receipts || []).filter(function (r) { return !who || r.person === who; }).reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0); }
+  // その月の支払い:払った分(払った日がその月)+ まだ払っていない分(期限がその月)。天引きは入れない
+  function monthPay(who) {
+    var m = state.month, o = { paid: 0, due: 0 };
+    (state.allPays || []).forEach(function (p) {
+      if (who && p.person !== who) return;
+      if (p.status === '済み') { if ((p.paidDate || p.due || '').slice(0, 7) === m) o.paid += Number(p.amount) || 0; }
+      else if (p.status !== '天引き' && (p.due || '').slice(0, 7) === m) o.due += Number(p.amount) || 0;
+    });
+    return o;
+  }
+  function monthIncome(who) { return (state.incomes || []).filter(function (x) { return !who || x.person === who; }).reduce(function (a, x) { return a + x.amount; }, 0); }
+  function renderIncomeLine(id, spent, who) {
+    if (!$(id)) return;
+    if (!state.incomeOk || state.incomeMonth !== state.month) { show(id, false); return; }
+    var inc = monthIncome(who), py = monthPay(who), left = inc - spent - py.paid - py.due;
+    if (!inc) { $(id).innerHTML = '💰 この月の収入は、まだ入っていません' + (id === 'histIncome' ? '<br><span style="font-size:15px">下の「💰 収入を入れる・見る」から入れると、残りが出ます</span>' : ''); show(id, true); return; }
+    $(id).innerHTML = '💰 収入 <b>' + yen(inc) + '</b><br>− 買い物 ' + yen(spent) +
+      (py.paid ? '<br>− 支払い(払った分) ' + yen(py.paid) : '') + (py.due ? '<br>− 支払い(これから・この月が期限) ' + yen(py.due) : '') + '<br>' +
+      '残り <b style="font-size:24px;color:' + (left < 0 ? 'var(--danger)' : 'inherit') + '">' + yen(left) + '</b>' + (left < 0 ? '(使いすぎ)' : '');
+    show(id, true);
+  }
+  function openIncomes() {
+    if (state.incomeOk === false) { alert('窓口(お家の家計簿 窓口)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください'); return; }
+    var list = (state.incomeMonth === state.month ? state.incomes : []) || [];
+    var rows = list.map(function (x, i) {
+      return '<div class="in-line"><span>' + esc(x.kind) + ' <span class="in-sub">' + esc(md(x.date)) + ' ・ ' + nm(x.person) + (x.memo ? ' ・ ' + esc(x.memo) : '') + '</span></span>' +
+        '<span style="white-space:nowrap"><b>' + yen(x.amount) + '</b> <button class="btn btn-text" data-inc="' + i + '" style="min-height:40px;padding:0 6px">✏</button></span></div>';
+    }).join('');
+    openSheet('<div class="grip"></div><h2>💰 ' + esc(monthLabel(state.month)) + 'の収入</h2>' +
+      '<div class="card" style="margin-bottom:12px">' + (rows || '<div class="note">この月の収入は、まだ入っていません。</div>') +
+      (list.length ? '<div class="in-line" style="font-size:19px"><b>合計</b><b>' + yen(monthIncome('')) + '</b></div>' : '') + '</div>' +
+      '<button class="btn btn-primary btn-block" id="incAdd">＋ 収入を入れる</button>' +
+      '<button class="btn btn-tonal btn-block" id="incClose" style="margin-top:10px">閉じる</button>');
+    $('incClose').addEventListener('click', closeSheet);
+    $('incAdd').addEventListener('click', function () { openIncome({}); });
+    $('sheet').querySelectorAll('[data-inc]').forEach(function (b) { b.addEventListener('click', function () { openIncome(list[+b.dataset.inc]); }); });
+  }
+  function openIncome(v) {
+    var t = today(), def = state.month === t.slice(0, 7) ? t : state.month + '-01';
+    v = Object.assign({ person: state.filter || state.owner, date: def, kind: '給料', amount: '', memo: '' }, v || {});
+    var kind = v.kind, person = v.person;
+    openSheet('<div class="grip"></div><h2>💰 ' + (v.id ? '収入を直す' : '収入を入れる') + '</h2>' +
+      '<div class="rk-label">だれの</div><div class="chips" id="icWho">' + MEMBERS.map(function (m) {
+        return '<button type="button" class="chip' + (m.name === person ? ' on' : '') + '" data-v="' + esc(m.name) + '">' + esc((m.icon ? m.icon + ' ' : '') + m.name) + '</button>'; }).join('') + '</div>' +
+      '<div class="rk-label">種類</div><div class="chips" id="icKind">' + INCOME_KINDS.map(function (k) {
+        return '<button type="button" class="chip' + (k === kind ? ' on' : '') + '" data-v="' + k + '">' + k + '</button>'; }).join('') + '</div>' +
+      '<div class="field" style="margin-top:12px"><label for="icAmount">金額(円)</label><input class="input" id="icAmount" type="number" inputmode="numeric" style="font-size:24px;font-weight:700" value="' + esc(v.amount) + '"></div>' +
+      '<div class="field"><label for="icDate">日付(入った日)</label><input class="input" id="icDate" type="date" value="' + esc(v.date) + '"></div>' +
+      '<div class="field"><label for="icMemo">メモ(なくてもよい)</label><input class="input" id="icMemo" placeholder="例:10月分" value="' + esc(v.memo) + '"></div>' +
+      '<div class="error hidden" id="icErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-primary btn-block" id="icSave">保存する</button>' +
+      '<button class="btn btn-tonal btn-block" id="icBack">やめる</button>' +
+      (v.id ? '<button class="btn btn-danger btn-block" id="icDel">この収入を消す</button>' : '') + '</div>');
+    var pick = function (box, set) { $(box).querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
+      set(c.dataset.v); $(box).querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === c); }); }); }); };
+    pick('icWho', function (x) { person = x; }); pick('icKind', function (x) { kind = x; });
+    var done = function (msg) { toast(msg); var d = $('icDate') ? $('icDate').value : ''; if (d && d.slice(0, 7) !== state.month) { state.month = d.slice(0, 7); } state.incomeMonth = null; loadMonth(true); setTimeout(openIncomesWhenReady, 300); };
+    var openIncomesWhenReady = function () { if (state.incomeMonth === state.month) openIncomes(); else setTimeout(openIncomesWhenReady, 300); };
+    $('icBack').addEventListener('click', openIncomes);
+    if ($('icDel')) $('icDel').addEventListener('click', function () {
+      if (!confirm('この収入を消しますか?')) return;
+      api('deleteIncome', { id: v.id }).then(function () { done('消しました'); }).catch(function (e) { alert(e.message); });
+    });
+    $('icSave').addEventListener('click', function () {
+      var b = this, amount = Math.round(Number($('icAmount').value) || 0);
+      var err = function (m) { $('icErr').textContent = m; show('icErr', true); };
+      if (!person) return err('だれの収入かを選んでください');
+      if (amount <= 0) return err('金額を入れてください');
+      if (!$('icDate').value) return err('日付を入れてください');
+      b.disabled = true; b.textContent = '保存中…';
+      api('saveIncome', { income: { id: v.id || '', person: person, kind: kind, amount: amount, date: $('icDate').value, memo: $('icMemo').value.trim() } })
+        .then(function () { done('収入を保存しました'); })
+        .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
+    });
+  }
+  $('histIncomeBtn').addEventListener('click', openIncomes);
 
   /* ---------- 詳細シート ---------- */
   function openDetail(id) {
