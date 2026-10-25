@@ -448,6 +448,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <label for="cfPayMethod">払い方</label>
         <div class="chips" id="cfPayChips" style="margin:0 0 8px"></div>
         <input class="input" id="cfPayMethod" placeholder="ほかの払い方・カードの名前はここに書く(例:楽天カード)">
+        <div id="cfCardInfo" class="hidden" style="margin-top:8px"></div>
+        <button type="button" class="btn btn-text" id="cfCards" style="padding:0 4px">💳 カードを登録する・見る</button>
       </div>
       <div class="field">
         <label for="cfDate">買った日</label>
@@ -687,7 +689,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-25 16:10 版77';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-25 16:15 版78';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1924,7 +1926,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="display:flex;align-items:center;gap:12px">' + avatarHtml(r.person) +
       '<div><h2>' + esc(r.store || 'お店の名前なし') + '</h2><div class="meta" style="margin:0">' + esc(dayLabel(r.date)) + ' ・ ' + nm(r.person) + '</div></div></div>' +
       (r.purpose ? '<div class="kv" style="margin-top:8px"><span>何の支払い</span><b>' + esc(r.purpose) + '</b></div>' : '') +
-      (r.payMethod ? '<div class="kv" style="margin-top:4px"><span>払い方</span><b>' + esc(r.payMethod) + '</b></div>' : '') +
+      (r.payMethod ? '<div class="kv" style="margin-top:4px"><span>払い方</span><b>' + esc(r.payMethod) + (cardByLabel(r.payMethod) ? ' <button class="btn btn-text" id="dtCard" style="min-height:36px;padding:0 6px">💳 詳しく</button>' : '') + '</b></div>' : '') +
       '<div style="margin-top:12px">' + (items ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' + items : '<div class="note">品目の記録はありません</div>') +
       '<div class="line-item total"><span>合計</span><span>' + yen(r.total) + '</span></div></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
@@ -1932,6 +1934,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="dtClose">閉じる</button>' +
       '<button class="btn btn-danger btn-block" id="dtDelete">このレシートを削除</button></div>');
     $('dtClose').addEventListener('click', closeSheet);
+    if ($('dtCard')) $('dtCard').addEventListener('click', function () { openCardInfo(cardByLabel(r.payMethod), function () { openDetail(id); }); });
     $('sheet').querySelectorAll('.it-rate').forEach(function (b) { b.addEventListener('click', function () {
       var it = r.items[+b.dataset.i];
       var old = NT.data && NT.data.reviews.filter(function (x) { return x.receiptId === r.id && sameItem(x.item, it.name); })[0];
@@ -2070,6 +2073,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     window.scrollTo(0, 0);
   }
   $('btnManual').addEventListener('click', startManual);
+  $('cfCards').addEventListener('click', function () { openCards(null); });
   // ネットで買ったときの注文メールの文を貼り付けて読む(文は保存しない)
   $('btnPaste').addEventListener('click', function () {
     openSheet('<div class="grip"></div><h2>📋 注文メールの文を貼り付ける</h2>' +
@@ -2258,6 +2262,110 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $(inputId).oninput = function () { draw(); if (onChange) onChange($(inputId).value.trim()); };
     draw();
   }
+  /* ---------- カードの登録(このスマホの中だけに保存。サーバーには送らない) ----------
+     カード番号と口座番号は下4桁だけ。全部の番号・セキュリティコードは入れない */
+  function cardList() { try { return JSON.parse(store.get('cards') || '[]'); } catch (e) { return []; } }
+  function saveCards(l) { store.set('cards', JSON.stringify(l)); }
+  function cardLabel(c) { return c.name + ' …' + c.last4; }
+  function cardByLabel(v) { return cardList().filter(function (c) { return cardLabel(c) === v; })[0] || null; }
+  function expText(e) { return e ? e.slice(0, 4) + '年' + (+e.slice(5, 7)) + '月' : '—'; }
+  function dayText(d) { return d === 99 || d === '99' ? '月末' : d ? d + '日' : '—'; }
+  // 締め日・引き落とし日から、今の締めの期間と次の引き落とし日を出す
+  function cardPeriod(c, base) {
+    base = base || today();
+    var y = +base.slice(0, 4), m = +base.slice(5, 7), d = +base.slice(8, 10);
+    var closeDay = function (yy, mm) { var last = new Date(yy, mm, 0).getDate(); return c.close == 99 ? last : Math.min(+c.close || last, last); };
+    var ey = y, em = m;
+    if (d > closeDay(y, m)) { em++; if (em > 12) { em = 1; ey++; } }
+    var end = ey + '-' + pad(em) + '-' + pad(closeDay(ey, em));
+    var py = ey, pm = em - 1; if (pm < 1) { pm = 12; py--; }
+    var sd = new Date(py, pm - 1, closeDay(py, pm) + 1);
+    var start = ymd(sd);
+    var wy = ey, wm = em + (c.lag == 2 ? 2 : 1); while (wm > 12) { wm -= 12; wy++; }
+    var wl = new Date(wy, wm, 0).getDate();
+    var wd = c.withdraw == 99 ? wl : Math.min(+c.withdraw || wl, wl);
+    return { start: start, end: end, withdraw: wy + '-' + pad(wm) + '-' + pad(wd) };
+  }
+  function openCardInfo(c, back) {
+    var p = cardPeriod(c);
+    openSheet('<div class="grip"></div><h2>💳 ' + esc(c.name) + '</h2>' +
+      '<div class="card" style="margin-bottom:12px">' +
+      [['カード番号', '…' + esc(c.last4)], ['有効期限', expText(c.exp)], ['締め日', dayText(c.close)],
+       ['引き落とし日', (c.lag == 2 ? '翌々月の ' : '翌月の ') + dayText(c.withdraw)], ['引き落とし口座', esc(c.bank || '—') + (c.acct4 ? ' …' + esc(c.acct4) : '')]]
+        .map(function (x) { return '<div class="in-line"><span class="in-sub">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') +
+      (c.memo ? '<div class="nt-comment">' + esc(c.memo) + '</div>' : '') + '</div>' +
+      '<div class="card" style="margin-bottom:12px"><div class="in-title" style="font-size:17px">今の締めの期間(' + esc(md(p.start)) + '〜' + esc(md(p.end)) + ')</div>' +
+      '<div id="ciUse"><div class="loading"><div class="spinner"></div>数えています…</div></div>' +
+      '<div class="in-sub" style="margin-top:6px">引き落とし予定:' + esc(md(p.withdraw)) + '(土日・祝日は次の平日のことがあります)</div></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-tonal btn-block" id="ciEdit">✏ 登録を直す</button>' +
+      '<button class="btn btn-tonal btn-block" id="ciBack">' + (back ? '← 戻る' : '閉じる') + '</button></div>');
+    $('ciEdit').addEventListener('click', function () { openCardEdit(c, back); });
+    $('ciBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
+    var months = [p.start.slice(0, 7)]; if (p.end.slice(0, 7) !== months[0]) months.push(p.end.slice(0, 7));
+    rkLoad(months).then(function (all) {
+      var rs = all.filter(function (r) { return r.payMethod === cardLabel(c) && r.date >= p.start && r.date <= p.end; });
+      var sum = rs.reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0);
+      if (!$('ciUse')) return;
+      $('ciUse').innerHTML = '<div class="in-line" style="font-size:19px"><b>使った金額</b><b>' + yen(sum) + '</b></div>' +
+        rs.slice(0, 10).map(function (r) { return '<div class="in-line"><span>' + esc(r.store || 'お店の名前なし') + '<br><span class="in-sub">' + esc(md(r.date)) + '</span></span><span>' + yen(r.total) + '</span></div>'; }).join('') +
+        (rs.length > 10 ? '<div class="in-sub">ほか ' + (rs.length - 10) + '件</div>' : '') +
+        (rs.length ? '' : '<div class="in-sub">このカードで払ったレシートは、まだありません</div>');
+    }).catch(function () { if ($('ciUse')) $('ciUse').innerHTML = '<div class="in-sub">数えられませんでした</div>'; });
+  }
+  function openCards(back) {
+    var l = cardList();
+    openSheet('<div class="grip"></div><h2>💳 カードの登録</h2>' +
+      '<div class="note" style="font-size:15px;margin-bottom:10px">このスマホの中だけに保存します(家族には見えません)。カード番号と口座番号は <b>下4桁だけ</b>。全部の番号やセキュリティコードは入れないでください。</div>' +
+      (l.map(function (c, i) {
+        return '<button class="card" data-ci="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:10px;border:1px solid var(--line);cursor:pointer;color:var(--text)">' +
+          '<div class="nt-item">💳 ' + esc(c.name) + ' …' + esc(c.last4) + '</div>' +
+          '<div class="in-sub">期限 ' + expText(c.exp) + ' ・ 引き落とし ' + esc(c.bank || '—') + (c.acct4 ? ' …' + esc(c.acct4) : '') + '</div></button>';
+      }).join('') || '<div class="note" style="font-size:17px;margin-bottom:10px">まだカードが登録されていません。</div>') +
+      '<button class="btn btn-primary btn-block" id="cdAdd">＋ カードを登録する</button>' +
+      '<button class="btn btn-tonal btn-block" id="cdBack" style="margin-top:10px">' + (back ? '← 戻る' : '閉じる') + '</button>');
+    $('cdAdd').addEventListener('click', function () { openCardEdit({}, function () { openCards(back); }); });
+    $('cdBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
+    $('sheet').querySelectorAll('[data-ci]').forEach(function (b) { b.addEventListener('click', function () { openCardInfo(l[+b.dataset.ci], function () { openCards(back); }); }); });
+  }
+  function openCardEdit(c, back) {
+    c = Object.assign({ name: '', last4: '', exp: '', close: '', withdraw: '', lag: 1, bank: '', acct4: '', memo: '' }, c || {});
+    var days = '<option value="">—</option>' + Array.from({ length: 31 }, function (_, i) { return '<option value="' + (i + 1) + '">' + (i + 1) + '日</option>'; }).join('') + '<option value="99">月末</option>';
+    openSheet('<div class="grip"></div><h2>💳 ' + (c.id ? 'カードを直す' : 'カードを登録する') + '</h2>' +
+      '<div class="field"><label for="ceName">カードの名前</label><input class="input" id="ceName" placeholder="例:楽天カード" value="' + esc(c.name) + '"></div>' +
+      '<div class="field"><label for="ceLast">カード番号の下4桁</label><input class="input" id="ceLast" inputmode="numeric" maxlength="4" placeholder="1234" value="' + esc(c.last4) + '"></div>' +
+      '<div class="field"><label for="ceExp">有効期限(年と月)</label><input class="input" id="ceExp" type="month" value="' + esc(c.exp) + '"></div>' +
+      '<div class="field"><label for="ceClose">締め日</label><select class="input" id="ceClose">' + days + '</select></div>' +
+      '<div class="field"><label for="ceLag">引き落としの月</label><select class="input" id="ceLag"><option value="1">締めた次の月(翌月)</option><option value="2">締めた次の次の月(翌々月)</option></select></div>' +
+      '<div class="field"><label for="ceWd">引き落とし日</label><select class="input" id="ceWd">' + days + '</select></div>' +
+      '<div class="field"><label for="ceBank">引き落とし口座(銀行の名前)</label><input class="input" id="ceBank" placeholder="例:ゆうちょ銀行" value="' + esc(c.bank) + '"></div>' +
+      '<div class="field"><label for="ceAcct">口座番号の下4桁</label><input class="input" id="ceAcct" inputmode="numeric" maxlength="4" placeholder="5678" value="' + esc(c.acct4) + '"></div>' +
+      '<div class="field"><label for="ceMemo">メモ(なくてもよい)</label><input class="input" id="ceMemo" placeholder="例:ネットの買い物用" value="' + esc(c.memo) + '"></div>' +
+      '<div class="error hidden" id="ceErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-primary btn-block" id="ceSave">保存する</button>' +
+      '<button class="btn btn-tonal btn-block" id="ceBack">やめる</button>' +
+      (c.id ? '<button class="btn btn-danger btn-block" id="ceDel">このカードの登録を消す</button>' : '') + '</div>');
+    $('ceClose').value = String(c.close || ''); $('ceWd').value = String(c.withdraw || ''); $('ceLag').value = String(c.lag || 1);
+    $('ceBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
+    if ($('ceDel')) $('ceDel').addEventListener('click', function () {
+      if (!confirm('このカードの登録を消しますか?(レシートの記録は消えません)')) return;
+      saveCards(cardList().filter(function (x) { return x.id !== c.id; })); toast('消しました'); openCards(null);
+    });
+    $('ceSave').addEventListener('click', function () {
+      var err = function (m) { $('ceErr').textContent = m; show('ceErr', true); };
+      var v = { id: c.id || String(Date.now()), name: $('ceName').value.trim().slice(0, 30), last4: $('ceLast').value.trim(), exp: $('ceExp').value,
+        close: $('ceClose').value, withdraw: $('ceWd').value, lag: +$('ceLag').value || 1, bank: $('ceBank').value.trim().slice(0, 30), acct4: $('ceAcct').value.trim(), memo: $('ceMemo').value.trim().slice(0, 60) };
+      if (!v.name) return err('カードの名前を入れてください');
+      if (!/^\d{4}$/.test(v.last4)) return err('カード番号は、下4桁の数字だけを入れてください');
+      if (v.acct4 && !/^\d{4}$/.test(v.acct4)) return err('口座番号は、下4桁の数字だけを入れてください');
+      var l = cardList(), old = cardLabel(c.id ? c : v), i = l.map(function (x) { return x.id; }).indexOf(v.id);
+      if (i >= 0) l[i] = v; else l.push(v);
+      saveCards(l); toast('カードを保存しました');
+      if ($('cfPayMethod') && $('cfPayMethod').value === old) $('cfPayMethod').value = cardLabel(v);
+      if (back) back(); else openCards(null);
+      if (document.querySelector('#capConfirm:not(.hidden)')) drawPayMethod();
+    });
+  }
+
   function drawPurpose() { catField('cfPurposeChips', 'cfPurpose'); }
   // 払い方:よく使う物はボタン。カードの名前などは文字で書く(このスマホで書いた物もボタンに出す)
   var PAY_METHODS = ['現金', 'Suica', 'PayPay', 'au PAY', 'イオンペイ', 'クレジットカード'];
@@ -2272,10 +2380,23 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     store.set('payMethods', JSON.stringify(mine));
   }
   function drawPayMethod() {
-    var cur = $('cfPayMethod').value.trim();
-    $('cfPayChips').innerHTML = payMethodList().map(function (x) {
+    var cur = $('cfPayMethod').value.trim(), cards = cardList();
+    var labels = cards.map(cardLabel);
+    $('cfPayChips').innerHTML = payMethodList().filter(function (x) { return labels.indexOf(x) < 0; }).map(function (x) {
       return '<button type="button" class="chip' + (x === cur ? ' on' : '') + '" data-pm="' + esc(x) + '">' + esc(x) + '</button>';
+    }).join('') + cards.map(function (c) {
+      var l = cardLabel(c);
+      return '<button type="button" class="chip' + (l === cur ? ' on' : '') + '" data-pm="' + esc(l) + '" style="text-align:left;line-height:1.3;padding:6px 12px">💳 ' + esc(l) +
+        '<br><span style="font-size:13px;font-weight:400">期限 ' + expText(c.exp) + ' ・ ' + esc(c.bank || '—') + (c.acct4 ? ' …' + esc(c.acct4) : '') + '</span></button>';
     }).join('');
+    var sel = cardByLabel(cur);
+    if (sel) {
+      $('cfCardInfo').innerHTML = '<div class="card" style="padding:10px 12px;font-size:16px">💳 <b>' + esc(sel.name) + '</b> …' + esc(sel.last4) + ' ・ 期限 ' + expText(sel.exp) +
+        '<br>引き落とし:' + esc(sel.bank || '—') + (sel.acct4 ? ' …' + esc(sel.acct4) : '') +
+        ' <button type="button" class="btn btn-text" id="cfCardMore" style="min-height:36px;padding:0 6px">詳しく見る</button></div>';
+      $('cfCardMore').addEventListener('click', function () { openCardInfo(sel); });
+    }
+    show('cfCardInfo', !!sel);
     $('cfPayChips').querySelectorAll('[data-pm]').forEach(function (b) {
       b.addEventListener('click', function () { $('cfPayMethod').value = b.dataset.pm === cur ? '' : b.dataset.pm; drawPayMethod(); });
     });
@@ -3204,6 +3325,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stInvite">💌 家族を招待する</button>' +
       '<button class="btn btn-tonal btn-block" id="stMembers">🏠 家族のメンバーを編集</button>' +
       '<button class="btn btn-tonal btn-block" id="stPay">💴 支払いの設定・お知らせ</button>' +
+      '<button class="btn btn-tonal btn-block" id="stCards">💳 カードの登録(このスマホだけ)</button>' +
       '<button class="btn btn-tonal btn-block" id="stDelete">🗑 記録の削除とゴミ箱</button>' +
       '<button class="btn btn-tonal btn-block" id="stHomes">🔁 家の切り替え・追加</button>' +
       '<button class="btn btn-tonal btn-block" id="stPass">🔑 家のパスワードを変える</button>' +
@@ -3219,6 +3341,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stMembers').addEventListener('click', openMemberEditor);
     $('stDelete').addEventListener('click', openDelete);
     $('stPay').addEventListener('click', openPaySettings);
+    $('stCards').addEventListener('click', function () { openCards(openSettings); });
     $('stHomes').addEventListener('click', openHomes);
     $('stOwner').addEventListener('click', function () { closeSheet(); openSetup(); });
     $('stPhoneReset').addEventListener('click', openPhoneReset);
