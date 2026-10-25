@@ -372,6 +372,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div id="histIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
     <button class="btn btn-tonal btn-block" id="histIncomeBtn" style="min-height:48px;margin:0 0 10px">💰 収入を入れる・見る</button>
+    <button class="btn btn-tonal btn-block" id="ptBtn" style="min-height:48px;margin:0 0 10px">🎁 ポイントの残り</button>
     <div style="display:flex;gap:8px;margin:0 0 10px" id="amtRow">
       <input class="input" id="amtQ" type="number" inputmode="numeric" placeholder="🔍 金額で探す(カードの明細など)" style="flex:1;min-width:0">
       <button class="btn btn-primary" id="amtGo" style="min-width:72px">探す</button>
@@ -452,6 +453,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <input class="input" id="cfPayMethod" placeholder="ほかの払い方・カードの名前はここに書く(例:楽天カード)">
         <div id="cfCardInfo" class="hidden" style="margin-top:8px"></div>
         <button type="button" class="btn btn-text" id="cfCards" style="padding:0 4px">💳 カードを登録する・見る</button>
+      </div>
+      <div class="field" id="cfPointField">
+        <label for="cfPointName">🎁 ポイント(使った・もらったとき)</label>
+        <div class="chips" id="cfPointChips" style="margin:0 0 8px"></div>
+        <input class="input" id="cfPointName" placeholder="ポイントの名前(ほかの名前はここに書く)">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <div style="flex:1"><div class="in-sub">使った</div><input class="input" id="cfPtUsed" type="number" inputmode="numeric" placeholder="0"></div>
+          <div style="flex:1"><div class="in-sub">もらった</div><input class="input" id="cfPtEarned" type="number" inputmode="numeric" placeholder="0"></div>
+          <div style="flex:1"><div class="in-sub">残り</div><input class="input" id="cfPtBal" type="number" inputmode="numeric" placeholder="—"></div>
+        </div>
       </div>
       <div class="field">
         <label for="cfDate">買った日</label>
@@ -694,7 +705,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-25 16:50 版81';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-25 17:00 版82';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1898,11 +1909,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     ['income', '💰 収入と残り'],
     ['pay', '💳 払い方・カード・引き落とし予定・金額で探す'],
     ['net', '🛒 ネットで買った物の取り込み'],
-    ['rank', '📊 ランキング・グラフ・気づき(集計の画面)']
+    ['rank', '📊 ランキング・グラフ・気づき(集計の画面)'],
+    ['points', '🎁 ポイントの残り']
   ];
   function feat(k) {
     var f; try { f = JSON.parse(store.get('features') || 'null'); } catch (e) { f = null; }
-    if (!f) return !!G.get('adminCode');
+    if (!f || !(k in f)) return !!G.get('adminCode');   // あとから増えた機能も、管理人のスマホでは最初はオン
     return !!f[k];
   }
   function applyFeatures() {
@@ -1910,7 +1922,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('histIncomeBtn', feat('income'));
     if (!feat('income')) { show('histIncome', false); show('sumIncome', false); }
     show('amtRow', feat('pay')); show('cfPayField', feat('pay')); show('payWd', feat('pay'));
-    show('netBox', feat('net')); show('sumMore', feat('rank'));
+    show('netBox', feat('net')); show('sumMore', feat('rank')); show('ptBtn', feat('points'));
     if (!feat('memo') && document.querySelector('#screen-notes.active')) go('history');
   }
   function openFeatures() {
@@ -1926,6 +1938,72 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       store.set('features', JSON.stringify(f)); applyFeatures(); closeSheet(); toast('使う機能を保存しました');
       if (document.querySelector('#screen-history.active') || document.querySelector('#screen-summary.active')) loadMonth(false);
     });
+  }
+
+  /* ---------- ポイント(このスマホの中だけに保存) ----------
+     レシートに残りが書いてあればそれを使う。なければ「前の残り − 使った + もらった」で数える */
+  var POINT_NAMES = ['dポイント', 'JRE POINT', 'WAON POINT', '楽天ポイント', 'Ponta', 'Vポイント', 'PayPayポイント'];
+  function pointBook() { try { return JSON.parse(store.get('points') || '{}'); } catch (e) { return {}; } }
+  function savePointBook(b) { store.set('points', JSON.stringify(b)); }
+  function pointNames() { var b = pointBook(); return POINT_NAMES.concat(Object.keys(b).filter(function (k) { return POINT_NAMES.indexOf(k) < 0; })); }
+  function addPointLog(b, name, bal, change, note, src) {
+    var x = b[name] = b[name] || { balance: 0, at: '', src: '', memo: '', log: [] };
+    x.balance = Math.max(0, Math.round(bal)); x.at = today(); x.src = src;
+    x.log = [{ date: today(), change: change, bal: x.balance, note: note }].concat(x.log || []).slice(0, 30);
+  }
+  function updatePointsFromReceipt(d) {
+    var name = String(d.pointName || '').trim(); if (!name) return;
+    var used = Math.round(Number(d.pointUsed) || 0), earned = Math.round(Number(d.pointEarned) || 0), bal = Math.round(Number(d.pointBalance) || 0);
+    if (!used && !earned && !bal) return;
+    var b = pointBook(), old = (b[name] || {}).balance || 0;
+    var next = bal > 0 ? bal : old - used + earned;
+    addPointLog(b, name, next, earned - used, (d.store || 'レシート') + (used ? ' 使った' + used : '') + (earned ? ' もらった' + earned : ''), bal > 0 ? 'レシートの残り' : '計算');
+    savePointBook(b);
+    toast(name + ' の残り:' + next.toLocaleString('ja-JP') + 'ポイント');
+  }
+  function drawPointChips() {
+    var cur = $('cfPointName').value.trim();
+    $('cfPointChips').innerHTML = pointNames().map(function (x) {
+      return '<button type="button" class="chip' + (x === cur ? ' on' : '') + '" data-pt="' + esc(x) + '">' + esc(x) + '</button>'; }).join('');
+    $('cfPointChips').querySelectorAll('[data-pt]').forEach(function (b) { b.addEventListener('click', function () {
+      $('cfPointName').value = b.dataset.pt === cur ? '' : b.dataset.pt; drawPointChips(); }); });
+    $('cfPointName').oninput = drawPointChips;
+  }
+  function openPoints() {
+    var b = pointBook(), names = Object.keys(b).sort(function (x, y) { return (b[y].at || '') > (b[x].at || '') ? 1 : -1; });
+    openSheet('<div class="grip"></div><h2>🎁 ポイントの残り</h2>' +
+      '<div class="note" style="font-size:15px;margin-bottom:10px">このスマホの中だけに保存します。レシートにポイントが書いてあれば、読み取ったときに自動で直します。</div>' +
+      (names.map(function (n, i) {
+        var x = b[n];
+        return '<div class="card nt-card"><div class="in-line" style="border:none;padding:0"><b style="font-size:20px">' + esc(n) + '</b>' +
+          '<b style="font-size:24px">' + (x.balance || 0).toLocaleString('ja-JP') + '<span style="font-size:15px"> ポイント</span></b></div>' +
+          '<div class="in-sub">' + (x.at ? esc(md(x.at)) + 'に' + esc(x.src || '') + 'で更新' : 'まだ入っていません') + '</div>' +
+          (x.memo ? '<div class="nt-comment">' + esc(x.memo) + '</div>' : '') +
+          '<div class="nt-btns"><button class="btn btn-tonal" data-pset="' + i + '" style="min-height:40px">✏ 残りを入れる</button>' +
+          '<button class="btn btn-text" data-pmemo="' + i + '" style="min-height:40px">📝 メモ(期限など)</button>' +
+          '<button class="btn btn-text" data-plog="' + i + '" style="min-height:40px">📜 記録</button></div>' +
+          '<div class="hidden" id="plog' + i + '">' + (x.log || []).map(function (l) {
+            return '<div class="in-line" style="font-size:16px"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><span>' + (l.change > 0 ? '+' : '') + (l.change || 0) + ' → ' + l.bal + '</span></div>'; }).join('') + '</div></div>';
+      }).join('') || '<div class="note" style="font-size:17px;margin-bottom:10px">まだポイントがありません。下の「＋ ポイントを足す」で、名前と今の残りを入れてください。</div>') +
+      '<button class="btn btn-primary btn-block" id="ptAdd">＋ ポイントを足す</button>' +
+      '<button class="btn btn-tonal btn-block" id="ptClose" style="margin-top:10px">閉じる</button>');
+    $('ptClose').addEventListener('click', closeSheet);
+    $('ptAdd').addEventListener('click', function () {
+      var n = prompt('ポイントの名前を入れてください(例:' + POINT_NAMES.slice(0, 3).join('、') + ')'); if (!n || !n.trim()) return;
+      var v = prompt(n.trim() + ' の今の残りは何ポイントですか?', '0'); if (v === null) return;
+      var bk = pointBook(); addPointLog(bk, n.trim().slice(0, 20), Number(String(v).replace(/[^0-9]/g, '')) || 0, 0, '手で入れた', '手入力'); savePointBook(bk); openPoints();
+    });
+    $('sheet').querySelectorAll('[data-pset]').forEach(function (btn) { btn.addEventListener('click', function () {
+      var n = names[+btn.dataset.pset], bk = pointBook(), old = bk[n].balance || 0;
+      var v = prompt(n + ' の今の残りは何ポイントですか?(アプリやレシートで見た数)', old); if (v === null) return;
+      var nv = Number(String(v).replace(/[^0-9]/g, '')) || 0; addPointLog(bk, n, nv, nv - old, '手で直した', '手入力'); savePointBook(bk); openPoints();
+    }); });
+    $('sheet').querySelectorAll('[data-pmemo]').forEach(function (btn) { btn.addEventListener('click', function () {
+      var n = names[+btn.dataset.pmemo], bk = pointBook();
+      var v = prompt(n + ' のメモ(例:期間限定500ポイントは11月末まで)', bk[n].memo || ''); if (v === null) return;
+      bk[n].memo = v.trim().slice(0, 100); savePointBook(bk); openPoints();
+    }); });
+    $('sheet').querySelectorAll('[data-plog]').forEach(function (btn) { btn.addEventListener('click', function () { $('plog' + btn.dataset.plog).classList.toggle('hidden'); }); });
   }
 
   /* ---------- 収入 ----------
@@ -2031,6 +2109,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
   }
   $('histIncomeBtn').addEventListener('click', openIncomes);
+  $('ptBtn').addEventListener('click', openPoints);
   // 金額で探す:カードの明細の金額などから、何の買い物だったかを探す(この1年分)
   function searchAmount() {
     var n = Math.round(Number($('amtQ').value) || 0); if (n <= 0) { $('amtQ').focus(); return; }
@@ -2389,6 +2468,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('cfStore').value = state.draft.store;
     $('cfPurpose').value = state.draft.purpose; drawPurpose();
     $('cfPayMethod').value = state.draft.payMethod; drawPayMethod();
+    $('cfPointName').value = r.pointName || ''; drawPointChips();
+    $('cfPtUsed').value = r.pointUsed || ''; $('cfPtEarned').value = r.pointEarned || ''; $('cfPtBal').value = r.pointBalance || '';
+    show('cfPointField', feat('points') && !state.editingId);
     $('cfDate').value = state.draft.date;
     $('cfTotal').value = state.draft.total || '';
     renderConfirmPerson(); renderItems(); window.scrollTo(0, 0);
@@ -2698,6 +2780,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     d.store = $('cfStore').value.trim();
     d.purpose = $('cfPurpose').value.trim();
     d.payMethod = $('cfPayMethod').value.trim(); rememberPayMethod(d.payMethod);
+    d.pointName = $('cfPointName').value.trim(); d.pointUsed = $('cfPtUsed').value; d.pointEarned = $('cfPtEarned').value; d.pointBalance = $('cfPtBal').value;
     d.date = $('cfDate').value;
     d.total = Math.round(Number($('cfTotal').value) || 0);
     if (!d.total) d.total = itemsSum();
@@ -2765,6 +2848,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       rememberShot('レシート');
       learnStores([d]);
       if (!editing && feat('memo')) tickShop(d);
+      if (!editing && feat('points')) updatePointsFromReceipt(d);
       toast(editing ? '変更を保存しました' : label(d.person) + 'の買い物を保存しました');
       state.editingId = null;
       state.month = d.date.slice(0, 7);
