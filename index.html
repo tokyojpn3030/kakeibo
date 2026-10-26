@@ -2407,6 +2407,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (/^現金|お預り|お預かり/.test(t)) return '現金';
     return v;
   }
+  // 登録したカード・電子マネーに同じ仲間の名前があれば、その登録の名前を使う(「AEON Pay」で登録しても「イオンペイ」で登録してもよい)
+  function matchRegistered(v) {
+    if (!v) return '';
+    var k = normPayMethod(v), hit = cardList().filter(function (c) { return normPayMethod(cardLabel(c)) === k || normPayMethod(c.name) === k; })[0];
+    return hit && k !== 'クレジットカード' ? cardLabel(hit) : k;
+  }
   function normPointName(v) {
     var t = String(v || '').normalize('NFKC').trim(); if (!t) return '';
     if (/waon/i.test(t)) return 'WAON POINT';
@@ -2420,7 +2426,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   function showReceipt(r) {
     r = r || {};
-    r.payMethod = normPayMethod(r.payMethod); r.pointName = normPointName(r.pointName);
+    r.payMethod = matchRegistered(r.payMethod); r.pointName = normPointName(r.pointName);
     // 登録した名前(例:「AEON Pay」で登録)があれば、その名前に合わせる
     var myCard = cardList().filter(function (c) { return normPayMethod(cardLabel(c)) === r.payMethod || normPayMethod(c.name) === r.payMethod; })[0];
     if (r.payMethod && myCard) r.payMethod = cardLabel(myCard);
@@ -2532,7 +2538,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   // レシートを保存したとき:チャージ式で払っていたら残高から引く(レシートに残高があればそれに合わせる)
   function prepaidFromReceipt(d) {
-    var l = cardList(), c = l.filter(function (x) { return isPrepaid(x) && cardLabel(x) === d.payMethod; })[0];
+    var l = cardList(), c = l.filter(function (x) { return isPrepaid(x) && (cardLabel(x) === d.payMethod || normPayMethod(x.name) === normPayMethod(d.payMethod)); })[0];
     if (!c) return;
     var paid = Math.round(Number(d.total) || 0), rb = Math.round(Number(d.payBalance) || 0);
     var next = rb > 0 ? rb : (c.balance || 0) - paid;
