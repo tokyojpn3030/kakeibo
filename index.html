@@ -707,7 +707,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-26 17:40 版88';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-26 17:45 版89';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2625,11 +2625,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">' +
       '<button class="btn btn-primary btn-block" id="ppCharge">＋ チャージを記録する</button>' +
       '<button class="btn btn-tonal btn-block" id="ppFix">✏ 残高を直す(アプリで見た数)</button></div>' +
-      '<div class="section-title">記録</div><div class="card" style="margin-bottom:12px">' + (function () {
-        // 日付の順に並べて、今の残高からさかのぼって、そのときの残高を出す
+      '<div class="section-title">記録</div><div class="card" style="margin-bottom:12px">' + ((function () {
+        // 日付の順に並べて、今の残高からさかのぼって、そのときの残高を出す。✕ で記録を消せる
         var run = c.balance || 0;
-        return (c.log || []).map(function (l) {
-          var h = '<div class="in-line" style="font-size:16px"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><span style="white-space:nowrap"><b class="' + (l.change > 0 ? 'in-down' : '') + '">' + (l.change > 0 ? '+' : '') + yen(l.change || 0) + '</b><br><span class="in-sub">残高 ' + yen(run) + '</span></span></div>';
+        return (c.log || []).map(function (l, i) {
+          var h = '<div class="in-line" style="font-size:16px"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><span style="white-space:nowrap;display:flex;align-items:center;gap:6px"><span style="text-align:right"><b class="' + (l.change > 0 ? 'in-down' : '') + '">' + (l.change > 0 ? '+' : '') + yen(l.change || 0) + '</b><br><span class="in-sub">残高 ' + yen(run) + '</span></span>' +
+            '<button class="btn btn-text" data-pdel="' + i + '" aria-label="この記録を消す" style="min-height:40px;min-width:40px;padding:0;font-size:20px">✕</button></span></div>';
           run -= (l.change || 0); return h;
         }).join('');
       })() || '<div class="note">まだ記録がありません</div>') + '</div>' +
@@ -2638,6 +2639,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="ppBack" style="margin-top:10px">' + (back ? '← 戻る' : '閉じる') + '</button>');
     $('ppBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
     $('ppEdit').addEventListener('click', function () { openCardEdit(c, back); });
+    $('sheet').querySelectorAll('[data-pdel]').forEach(function (btn) { btn.addEventListener('click', function () {
+      var l = cardList(), x = l.filter(function (y) { return y.id === c.id; })[0], i = +btn.dataset.pdel, e = (x.log || [])[i];
+      if (!e) return;
+      if (!confirm(md(e.date) + ' の「' + (e.note || '') + '」(' + yen(e.change || 0) + ')を消しますか?\n残高も、その分だけ元に戻します。')) return;
+      x.balance = Math.max(0, (x.balance || 0) - (e.change || 0)); x.log.splice(i, 1); x.at = today();
+      saveCards(l); toast('記録を消して、残高を ' + yen(x.balance) + ' にしました'); re();
+    }); });
     $('ppCharge').addEventListener('click', function () {
       var from = '現金';
       openSheet('<div class="grip"></div><h2>💴 ' + esc(c.name) + ' にチャージ</h2>' +
