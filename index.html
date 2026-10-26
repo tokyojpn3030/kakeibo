@@ -372,6 +372,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div id="histIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
     <button class="btn btn-tonal btn-block" id="histIncomeBtn" style="min-height:48px;margin:0 0 10px">💰 収入を入れる・見る</button>
+    <button class="btn btn-tonal btn-block hidden" id="ppBtn" style="min-height:48px;margin:0 0 10px">💴 電子マネーの残高</button>
     <button class="btn btn-tonal btn-block" id="ptBtn" style="min-height:48px;margin:0 0 10px">🎁 ポイントの残り</button>
     <div style="display:flex;gap:8px;margin:0 0 10px" id="amtRow">
       <input class="input" id="amtQ" type="number" inputmode="numeric" placeholder="🔍 金額で探す(カードの明細など)" style="flex:1;min-width:0">
@@ -1923,6 +1924,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!feat('income')) { show('histIncome', false); show('sumIncome', false); }
     show('amtRow', feat('pay')); show('cfPayField', feat('pay')); show('payWd', feat('pay'));
     show('netBox', feat('net')); show('sumMore', feat('rank')); show('ptBtn', feat('points'));
+    show('ppBtn', feat('pay') && cardList().some(isPrepaid));
     if (!feat('memo') && document.querySelector('#screen-notes.active')) go('history');
   }
   function openFeatures() {
@@ -2110,6 +2112,19 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   $('histIncomeBtn').addEventListener('click', openIncomes);
   $('ptBtn').addEventListener('click', openPoints);
+  // 電子マネー(チャージ式)の残高をまとめて見る
+  function openBalances() {
+    var l = cardList().filter(isPrepaid);
+    if (l.length === 1) return openPrepaid(l[0], null);
+    openSheet('<div class="grip"></div><h2>💴 電子マネーの残高</h2>' + l.map(function (c, i) {
+      return '<button class="card" data-pb="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:10px;border:1px solid var(--line);color:var(--text)">' +
+        '<div class="in-line" style="border:none;padding:0"><b style="font-size:20px">💴 ' + esc(cardLabel(c)) + '</b><b style="font-size:22px">' + yen(c.balance || 0) + '</b></div>' +
+        '<div class="in-sub">' + (c.at ? esc(md(c.at)) + 'に更新' : '') + ' ・ 押すと記録とチャージ</div></button>';
+    }).join('') + '<button class="btn btn-tonal btn-block" id="pbClose">閉じる</button>');
+    $('pbClose').addEventListener('click', closeSheet);
+    $('sheet').querySelectorAll('[data-pb]').forEach(function (b) { b.addEventListener('click', function () { openPrepaid(l[+b.dataset.pb], openBalances); }); });
+  }
+  $('ppBtn').addEventListener('click', openBalances);
   // 金額で探す:カードの明細の金額などから、何の買い物だったかを探す(この1年分)
   function searchAmount() {
     var n = Math.round(Number($('amtQ').value) || 0); if (n <= 0) { $('amtQ').focus(); return; }
@@ -2689,7 +2704,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (v.acct4 && !/^\d{4}$/.test(v.acct4)) return err('口座番号は、下4桁の数字だけを入れてください');
       var l = cardList(), old = cardLabel(c.id ? c : v), i = l.map(function (x) { return x.id; }).indexOf(v.id);
       if (i >= 0) l[i] = v; else l.push(v);
-      saveCards(l); toast('カードを保存しました');
+      saveCards(l); toast('保存しました'); applyFeatures();
       if ($('cfPayMethod') && $('cfPayMethod').value === old) $('cfPayMethod').value = cardLabel(v);
       if (back) back(); else openCards(null);
       if (document.querySelector('#capConfirm:not(.hidden)')) drawPayMethod();
