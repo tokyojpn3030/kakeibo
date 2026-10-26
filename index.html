@@ -705,7 +705,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-26 17:05 版83';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-26 17:15 版84';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2395,8 +2395,32 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       $('shGo').addEventListener('click', function () { closeSheet(); go2(h); });
     });
   }
+  // 読み取った払い方・ポイントの名前を、アプリのボタンと同じ名前にそろえる(例:AEON Pay → イオンペイ)
+  function normPayMethod(v) {
+    v = String(v || '').trim(); if (!v) return '';
+    var t = v.normalize('NFKC');
+    if (/aeon\s*pay|イオンペイ/i.test(t)) return 'イオンペイ';
+    if (/paypay/i.test(t)) return 'PayPay';
+    if (/au\s*pay/i.test(t)) return 'au PAY';
+    if (/suica|pasmo|icoca|交通系/i.test(t)) return 'Suica';
+    if (/クレジット|visa|master|jcb|amex|credit/i.test(t)) return 'クレジットカード';
+    if (/^現金|お預り|お預かり/.test(t)) return '現金';
+    return v;
+  }
+  function normPointName(v) {
+    var t = String(v || '').normalize('NFKC').trim(); if (!t) return '';
+    if (/waon/i.test(t)) return 'WAON POINT';
+    if (/jre/i.test(t)) return 'JRE POINT';
+    if (/^d\s*ポイント|dポイント|dpoint/i.test(t)) return 'dポイント';
+    if (/楽天/.test(t)) return '楽天ポイント';
+    if (/ponta/i.test(t)) return 'Ponta';
+    if (/^v\s*ポイント|vポイント|v point/i.test(t)) return 'Vポイント';
+    if (/paypay/i.test(t)) return 'PayPayポイント';
+    return t;
+  }
   function showReceipt(r) {
     r = r || {};
+    r.payMethod = normPayMethod(r.payMethod); r.pointName = normPointName(r.pointName);
     var readDate = !!r.date;
     if (!r.date) r.date = today();
     if (r.upgraded) toast('品物が読めなかったので、標準の仕組みで読み直しました');
