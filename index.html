@@ -359,6 +359,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 </div>
 
 <main>
+  <!-- 電子マネーの残高(どの画面でも一番上) -->
+  <div id="balStrip" class="hidden" style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 10px"></div>
   <!-- 履歴 -->
   <section class="screen active" id="screen-history">
     <div class="month-nav">
@@ -372,7 +374,6 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div id="histIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
     <button class="btn btn-tonal btn-block" id="histIncomeBtn" style="min-height:48px;margin:0 0 10px">💰 収入を入れる・見る</button>
-    <button class="btn btn-tonal btn-block hidden" id="ppBtn" style="min-height:48px;margin:0 0 10px">💴 電子マネーの残高</button>
     <button class="btn btn-tonal btn-block" id="ptBtn" style="min-height:48px;margin:0 0 10px">🎁 ポイントの残り</button>
     <div style="display:flex;gap:8px;margin:0 0 10px" id="amtRow">
       <input class="input" id="amtQ" type="number" inputmode="numeric" placeholder="🔍 金額で探す(カードの明細など)" style="flex:1;min-width:0">
@@ -706,7 +707,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-26 17:30 版86';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-26 17:35 版87';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1924,7 +1925,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!feat('income')) { show('histIncome', false); show('sumIncome', false); }
     show('amtRow', feat('pay')); show('cfPayField', feat('pay')); show('payWd', feat('pay'));
     show('netBox', feat('net')); show('sumMore', feat('rank')); show('ptBtn', feat('points'));
-    show('ppBtn', feat('pay') && cardList().some(isPrepaid));
+    renderBalStrip();
     if (!feat('memo') && document.querySelector('#screen-notes.active')) go('history');
   }
   function openFeatures() {
@@ -2124,7 +2125,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('pbClose').addEventListener('click', closeSheet);
     $('sheet').querySelectorAll('[data-pb]').forEach(function (b) { b.addEventListener('click', function () { openPrepaid(l[+b.dataset.pb], openBalances); }); });
   }
-  $('ppBtn').addEventListener('click', openBalances);
+  // どの画面でも一番上に、チャージ式の電子マネーの残高を出す(押すと記録・チャージ)
+  function renderBalStrip() {
+    var l = feat('pay') ? cardList().filter(isPrepaid) : [];
+    $('balStrip').innerHTML = l.map(function (c, i) {
+      return '<button class="chip" data-bs="' + i + '" style="font-size:17px;min-height:44px;padding:4px 12px;background:var(--primary-soft);color:var(--on-primary-soft);border-color:transparent">💴 ' +
+        esc(cardLabel(c)) + ' <b style="margin-left:4px">' + yen(c.balance || 0) + '</b></button>';
+    }).join('');
+    $('balStrip').querySelectorAll('[data-bs]').forEach(function (b) { b.addEventListener('click', function () { openPrepaid(l[+b.dataset.bs], null); }); });
+    $('balStrip').classList.toggle('hidden', !l.length);
+  }
   // 金額で探す:カードの明細の金額などから、何の買い物だったかを探す(この1年分)
   function searchAmount() {
     var n = Math.round(Number($('amtQ').value) || 0); if (n <= 0) { $('amtQ').focus(); return; }
@@ -2543,7 +2553,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   /* ---------- カードの登録(このスマホの中だけに保存。サーバーには送らない) ----------
      カード番号と口座番号は下4桁だけ。全部の番号・セキュリティコードは入れない */
   function cardList() { try { return JSON.parse(store.get('cards') || '[]'); } catch (e) { return []; } }
-  function saveCards(l) { store.set('cards', JSON.stringify(l)); }
+  function saveCards(l) { store.set('cards', JSON.stringify(l)); if ($('balStrip')) renderBalStrip(); }
   function cardLabel(c) { return c.last4 ? c.name + ' …' + c.last4 : c.name; }
   function isPrepaid(c) { return c && c.type === 'チャージ式'; }
   function prepaidLog(l, c, bal, change, note) {
