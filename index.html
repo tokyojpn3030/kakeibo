@@ -705,7 +705,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-26 17:15 版84';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-26 17:15 版85';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2421,6 +2421,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function showReceipt(r) {
     r = r || {};
     r.payMethod = normPayMethod(r.payMethod); r.pointName = normPointName(r.pointName);
+    // 登録した名前(例:「AEON Pay」で登録)があれば、その名前に合わせる
+    var myCard = cardList().filter(function (c) { return normPayMethod(cardLabel(c)) === r.payMethod || normPayMethod(c.name) === r.payMethod; })[0];
+    if (r.payMethod && myCard) r.payMethod = cardLabel(myCard);
+    var myPt = Object.keys(pointBook()).filter(function (k) { return normPointName(k) === r.pointName; })[0];
+    if (r.pointName && myPt) r.pointName = myPt;
     var readDate = !!r.date;
     if (!r.date) r.date = today();
     if (r.upgraded) toast('品物が読めなかったので、標準の仕組みで読み直しました');
