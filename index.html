@@ -707,7 +707,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-26 17:35 版87';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-26 17:40 版88';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2556,9 +2556,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function saveCards(l) { store.set('cards', JSON.stringify(l)); if ($('balStrip')) renderBalStrip(); }
   function cardLabel(c) { return c.last4 ? c.name + ' …' + c.last4 : c.name; }
   function isPrepaid(c) { return c && c.type === 'チャージ式'; }
-  function prepaidLog(l, c, bal, change, note) {
+  function prepaidLog(l, c, bal, change, note, date) {
     c.balance = Math.max(0, Math.round(bal)); c.at = today();
-    c.log = [{ date: today(), change: change, bal: c.balance, note: note }].concat(c.log || []).slice(0, 40);
+    c.log = [{ date: date || today(), change: change, bal: c.balance, note: note }].concat(c.log || [])
+      .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; }).slice(0, 40);
     saveCards(l);
   }
   // レシートを保存したとき:チャージ式で払っていたら残高から引く(レシートに残高があればそれに合わせる)
@@ -2624,21 +2625,40 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">' +
       '<button class="btn btn-primary btn-block" id="ppCharge">＋ チャージを記録する</button>' +
       '<button class="btn btn-tonal btn-block" id="ppFix">✏ 残高を直す(アプリで見た数)</button></div>' +
-      '<div class="section-title">記録</div><div class="card" style="margin-bottom:12px">' + ((c.log || []).map(function (l) {
-        return '<div class="in-line" style="font-size:16px"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><span style="white-space:nowrap"><b class="' + (l.change > 0 ? 'in-down' : '') + '">' + (l.change > 0 ? '+' : '') + yen(l.change || 0) + '</b><br><span class="in-sub">残高 ' + yen(l.bal) + '</span></span></div>';
-      }).join('') || '<div class="note">まだ記録がありません</div>') + '</div>' +
+      '<div class="section-title">記録</div><div class="card" style="margin-bottom:12px">' + (function () {
+        // 日付の順に並べて、今の残高からさかのぼって、そのときの残高を出す
+        var run = c.balance || 0;
+        return (c.log || []).map(function (l) {
+          var h = '<div class="in-line" style="font-size:16px"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><span style="white-space:nowrap"><b class="' + (l.change > 0 ? 'in-down' : '') + '">' + (l.change > 0 ? '+' : '') + yen(l.change || 0) + '</b><br><span class="in-sub">残高 ' + yen(run) + '</span></span></div>';
+          run -= (l.change || 0); return h;
+        }).join('');
+      })() || '<div class="note">まだ記録がありません</div>') + '</div>' +
       '<div class="note" style="font-size:15px;margin-bottom:10px">チャージは、お金の置き場所を移すだけなので、出費には数えません。買い物は、レシートの払い方で「' + esc(cardLabel(c)) + '」を選ぶと、出費として記録して残高から引きます。</div>' +
       '<button class="btn btn-tonal btn-block" id="ppEdit">✏ 登録を直す</button>' +
       '<button class="btn btn-tonal btn-block" id="ppBack" style="margin-top:10px">' + (back ? '← 戻る' : '閉じる') + '</button>');
     $('ppBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
     $('ppEdit').addEventListener('click', function () { openCardEdit(c, back); });
     $('ppCharge').addEventListener('click', function () {
-      var v = prompt(c.name + ' にチャージした金額(円)は?'); if (v === null) return;
-      var n = Math.round(Number(String(v).replace(/[^0-9]/g, '')) || 0); if (n <= 0) return;
-      var from = prompt('どこからチャージしましたか?(例:現金、ゆうちょ銀行)', '現金'); if (from === null) from = '';
-      var l = cardList(), x = l.filter(function (y) { return y.id === c.id; })[0];
-      prepaidLog(l, x, (x.balance || 0) + n, n, 'チャージ' + (from.trim() ? '(' + from.trim().slice(0, 20) + ')' : ''));
-      toast('チャージを記録しました'); re();
+      var from = '現金';
+      openSheet('<div class="grip"></div><h2>💴 ' + esc(c.name) + ' にチャージ</h2>' +
+        '<div class="field"><label for="chDate">チャージした日</label><input class="input" id="chDate" type="date" value="' + today() + '"></div>' +
+        '<div class="field"><label for="chAmt">チャージした金額(円)</label><input class="input" id="chAmt" type="number" inputmode="numeric" style="font-size:24px;font-weight:700"></div>' +
+        '<div class="rk-label">どこから</div><div class="chips" id="chFrom">' + ['現金', '銀行口座', 'クレジットカード', 'ポイント'].map(function (x) {
+          return '<button type="button" class="chip' + (x === from ? ' on' : '') + '" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+        '<div class="error hidden" id="chErr"></div>' +
+        '<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px"><button class="btn btn-primary btn-block" id="chSave">記録する</button>' +
+        '<button class="btn btn-tonal btn-block" id="chBack">やめる</button></div>');
+      $('chFrom').querySelectorAll('.chip').forEach(function (b) { b.addEventListener('click', function () {
+        from = b.dataset.v; $('chFrom').querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === b); }); }); });
+      $('chBack').addEventListener('click', re);
+      $('chSave').addEventListener('click', function () {
+        var n = Math.round(Number($('chAmt').value) || 0), d = $('chDate').value;
+        if (n <= 0) { $('chErr').textContent = '金額を入れてください'; show('chErr', true); return; }
+        if (!d) { $('chErr').textContent = 'チャージした日を入れてください'; show('chErr', true); return; }
+        var l = cardList(), x = l.filter(function (y) { return y.id === c.id; })[0];
+        prepaidLog(l, x, (x.balance || 0) + n, n, 'チャージ(' + from + ')', d);
+        toast('チャージを記録しました'); re();
+      });
     });
     $('ppFix').addEventListener('click', function () {
       var v = prompt(c.name + ' の今の残高(円)は?(アプリで見た数)', c.balance || 0); if (v === null) return;
