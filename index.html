@@ -102,6 +102,8 @@ input { font: inherit; color: var(--text); }
   padding: 8px 12px; font-size: 17px; line-height: 1.45; box-shadow: 0 4px 14px rgba(0,0,0,.18); pointer-events: none; transition: opacity .3s; }
 .fun-pop { position: fixed; left: 50%; bottom: 230px; z-index: 61; font-size: 64px; line-height: 1; transform: translateX(-50%); pointer-events: none;
   animation: funIn .5s cubic-bezier(.3,1.6,.5,1) both, funHop .5s .5s ease-in-out 4 alternate; }
+.hop { display: inline-block; animation: hop .45s ease-in-out infinite alternate; }
+.hop-slow { display: inline-block; animation: hop .8s ease-in-out infinite alternate; }
 .fun-pop.out { animation: funOut .4s ease-in both; }
 @keyframes funIn { from { transform: translate(-50%, 160px) scale(.3) rotate(-20deg); } to { transform: translate(-50%, 0) scale(1) rotate(0); } }
 @keyframes funHop { from { transform: translate(-50%, 0) rotate(-8deg); } to { transform: translate(-50%, -22px) rotate(8deg); } }
@@ -745,7 +747,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-27 22:50 版91';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-27 23:00 版92';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1184,7 +1186,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var d = r.date ? (+r.date.slice(5, 7)) + '/' + (+r.date.slice(8, 10)) + '(' + '日月火水木金土'.charAt(new Date(r.date + 'T00:00:00').getDay()) + ')' : '—';
       html += '<button class="rc-line receipt' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
         '<span class="d">' + (sel ? '<span class="chk">' + (on ? '✓' : '') + '</span>' : '') + d + '</span>' +
-        '<span class="st">' + esc(r.store || 'お店の名前なし') + (r.purpose || r.payMethod || MEMBERS.length > 1 ? '<small>' + esc([r.purpose, r.payMethod, MEMBERS.length > 1 ? label(r.person) : ''].filter(Boolean).join(' ・ ')) + '</small>' : '') + '</span>' +
+        '<span class="st">' + esc(r.store || 'お店の名前なし') + (function () { var sw = (r.items || []).filter(function (it) { return SWEETS.test(String(it.name || '').normalize('NFKC')); })[0]; return sw ? ' <span class="hop-slow" title="' + esc(sw.name) + '">' + sweetEmoji(sw.name) + '</span>' : ''; })() + (r.purpose || r.payMethod || MEMBERS.length > 1 ? '<small>' + esc([r.purpose, r.payMethod, MEMBERS.length > 1 ? label(r.person) : ''].filter(Boolean).join(' ・ ')) + '</small>' : '') + '</span>' +
         '<span class="y">' + yen(r.total) + '</span></button>';
     });
     if (sel) html += '<div style="height:84px"></div>';
@@ -1752,7 +1754,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       return '<div class="card nt-card"' + (d <= 1 && !p.done && d >= 0 ? ' style="border-left:6px solid var(--danger)"' : '') + '>' +
         '<div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + esc(md(p.date)) + '(' + '日月火水木金土'.charAt(new Date(p.date + 'T00:00:00').getDay()) + ')' + (p.time ? ' ' + esc(p.time) : '') + '</b>' +
         '<span class="' + (d <= 1 && !p.done ? 'in-up' : 'in-sub') + '">' + when + '</span></div>' +
-        '<div class="nt-item" style="margin-top:4px">' + planIcon(p.kind) + ' ' + esc(p.title) + '</div>' +
+        '<div class="nt-item" style="margin-top:4px"><span class="' + (!p.done && d >= 0 && d <= 1 ? 'hop' : '') + '">' + planEmoji(p) + '</span> ' + esc(p.title) + '</div>' +
         (p.place ? '<div class="in-sub">📍 ' + esc(p.place) + '</div>' : '') +
         (p.memo ? '<div class="nt-comment">' + esc(p.memo) + '</div>' : '') +
         '<div class="in-sub" style="margin-top:4px">📧 ' + (p.notify.length ? PLAN_NOTIFY.filter(function (x) { return p.notify.indexOf(x[0]) >= 0; }).map(function (x) { return x[1]; }).join('・') : 'メールなし') + '</div>' +
@@ -1823,7 +1825,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var b = this; b.disabled = true; b.textContent = '保存中…';
       api('savePlan', { plan: { id: v.id || '', person: state.owner, kind: kind, title: t, date: $('plDate').value, time: $('plTime').value, place: $('plPlace').value.trim(),
         memo: $('plMemo').value.trim(), notify: notify, done: $('plDone') ? $('plDone').checked : false } })
-        .then(function () { after('予定を保存しました'); if (!v.id) setTimeout(function () { celebrate(planIcon(kind), pickOne(['予定を入れたよ。忘れないように、お知らせするね', '「' + t + '」だね。ちゃんと覚えておくよ', 'メモしたよ!当日の朝もお知らせするね'])); }, 600); TALK.plansAt = 0; })
+        .then(function () { after('予定を保存しました'); if (!v.id) setTimeout(function () { celebrate(planEmoji({ title: t, kind: kind, memo: $('plMemo') ? $('plMemo').value : '' }), pickOne(['予定を入れたよ。忘れないように、お知らせするね', '「' + t + '」だね。ちゃんと覚えておくよ', 'メモしたよ!当日の朝もお知らせするね'])); }, 600); TALK.plansAt = 0; })
         .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
     });
   }
@@ -4895,11 +4897,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   var SWEETS = /ケーキ|プリン|アイス|チョコ|菓子|ドーナツ|団子|だんご|大福|饅頭|まんじゅう|クッキー|シュー|どら焼|ゼリー|ようかん|羊羹|パフェ|タルト|マカロン|スイーツ|ワッフル|カステラ|せんべい|煎餅|ポテトチップ|グミ|キャンディ|あめ/;
   var SWEET_EMOJI = ['🍰', '🍮', '🍩', '🍦', '🍫', '🍪', '🍡', '🧁'];
+  // 品物の名前から、その物の絵を選ぶ
+  var SWEET_MAP = [[/ショート|ケーキ|タルト|ロール/, '🍰'], [/プリン/, '🍮'], [/アイス|ソフト|パフェ/, '🍦'], [/ドーナツ/, '🍩'], [/チョコ/, '🍫'],
+    [/クッキー|ビスケット/, '🍪'], [/団子|だんご|大福|饅頭|まんじゅう|どら焼|ようかん|羊羹|和菓子/, '🍡'], [/マフィン|カップケーキ/, '🧁'], [/シュー/, '🥮'],
+    [/せんべい|煎餅|おかき/, '🍘'], [/キャンディ|あめ|飴|グミ/, '🍬'], [/ポテトチップ|スナック/, '🥔'], [/ゼリー/, '🍧'], [/カステラ|ワッフル/, '🧇']];
+  function sweetEmoji(name) { var n = String(name || '').normalize('NFKC'); for (var i = 0; i < SWEET_MAP.length; i++) if (SWEET_MAP[i][0].test(n)) return SWEET_MAP[i][1]; return pickOne(SWEET_EMOJI); }
+  // 予定の内容から絵を選ぶ(なければ種類の絵)
+  var PLAN_MAP = [[/歯/, '🦷'], [/眼科|目/, '👓'], [/薬|処方/, '💊'], [/病院|クリニック|医院|診療|検診|健診/, '🏥'], [/美容|床屋|散髪|カット/, '💇'],
+    [/誕生日|バースデー/, '🎂'], [/旅行|旅/, '✈️'], [/会議|打ち合わせ|ミーティング/, '💼'], [/電話|連絡/, '📞'], [/買い物/, '🛒'], [/ごみ|ゴミ/, '🗑️'], [/銀行|振込|支払/, '🏦'], [/食事|ランチ|ディナー|飲み/, '🍽️']];
+  function planEmoji(p) { var t = String((p.title || '') + ' ' + (p.memo || '')); for (var i = 0; i < PLAN_MAP.length; i++) if (PLAN_MAP[i][0].test(t)) return PLAN_MAP[i][1]; return planIcon(p.kind); }
   var pickOne = function (a) { return a[Math.floor(Math.random() * a.length)]; };
   // レシートを保存したとき
   function celebrateReceipt(d) {
     var sw = (d.items || []).filter(function (it) { return SWEETS.test(String(it.name || '').normalize('NFKC')); });
-    if (sw.length) return celebrate(pickOne(SWEET_EMOJI), pickOne(['おいしそう!「' + sw[0].name + '」を買ったんだね', 'わーい、スイーツだ!「' + sw[0].name + '」いいなあ', '「' + sw[0].name + '」、ひと口ちょうだい?']));
+    if (sw.length) return celebrate(sweetEmoji(sw[0].name), pickOne(['おいしそう!「' + sw[0].name + '」を買ったんだね', 'わーい、スイーツだ!「' + sw[0].name + '」いいなあ', '「' + sw[0].name + '」、ひと口ちょうだい?']));
     if (/医療費/.test(d.purpose || '')) return celebrate('🩹', 'おつかれさま。お大事にね');
     if (Math.random() < 0.25) celebrate(pickOne(['🐥', '🐶', '🐱', '🐰']), pickOne(['記録できたよ。えらい!', 'レシート、ちゃんと入れたね', 'ばっちり保存したよ']));
   }
