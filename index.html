@@ -98,6 +98,21 @@ input { font: inherit; color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .btn-step2 { animation: none; } }
 .walker { position: absolute; top: 14px; left: 0; font-size: 30px; line-height: 1; pointer-events: none; z-index: 1; will-change: transform; }
 .walker span { display: inline-block; animation: hop .45s ease-in-out infinite alternate; }
+.walk-bubble { position: fixed; z-index: 60; max-width: 260px; background: var(--surface); color: var(--text); border: 2px solid var(--primary); border-radius: 14px;
+  padding: 8px 12px; font-size: 17px; line-height: 1.45; box-shadow: 0 4px 14px rgba(0,0,0,.18); pointer-events: none; transition: opacity .3s; }
+.fun-pop { position: fixed; left: 50%; bottom: 230px; z-index: 61; font-size: 64px; line-height: 1; transform: translateX(-50%); pointer-events: none;
+  animation: funIn .5s cubic-bezier(.3,1.6,.5,1) both, funHop .5s .5s ease-in-out 4 alternate; }
+.fun-pop.out { animation: funOut .4s ease-in both; }
+@keyframes funIn { from { transform: translate(-50%, 160px) scale(.3) rotate(-20deg); } to { transform: translate(-50%, 0) scale(1) rotate(0); } }
+@keyframes funHop { from { transform: translate(-50%, 0) rotate(-8deg); } to { transform: translate(-50%, -22px) rotate(8deg); } }
+@keyframes funOut { to { transform: translate(-50%, 160px) scale(.3); opacity: 0; } }
+.fun-bubble { position: fixed; left: 50%; bottom: 312px; transform: translateX(-50%); z-index: 61; max-width: 300px; width: max-content; text-align: center;
+  background: var(--surface); color: var(--text); border: 2px solid var(--primary); border-radius: 16px; padding: 10px 14px; font-size: 18px; line-height: 1.45;
+  box-shadow: 0 4px 14px rgba(0,0,0,.2); pointer-events: none; animation: funFade .3s .3s both; }
+.fun-bubble::after { content: ''; position: absolute; bottom: -10px; left: 50%; margin-left: -9px; border: 9px solid transparent; border-bottom: none; border-top: 10px solid var(--primary); }
+@keyframes funFade { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .fun-pop { animation: none; } }
+.walk-bubble::before { content: ''; position: absolute; top: -9px; left: var(--tail, 22px); border: 8px solid transparent; border-top: none; border-bottom: 9px solid var(--primary); }
 @keyframes hop { from { transform: translateY(0) rotate(-4deg); } to { transform: translateY(-6px) rotate(4deg); } }
 @media (prefers-reduced-motion: reduce) { .walker { display: none; } }
 .topbar { position: sticky; top: 30px; z-index: 10; background: var(--bg);
@@ -730,7 +745,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-26 17:50 版90';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-27 22:50 版91';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1808,7 +1823,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var b = this; b.disabled = true; b.textContent = '保存中…';
       api('savePlan', { plan: { id: v.id || '', person: state.owner, kind: kind, title: t, date: $('plDate').value, time: $('plTime').value, place: $('plPlace').value.trim(),
         memo: $('plMemo').value.trim(), notify: notify, done: $('plDone') ? $('plDone').checked : false } })
-        .then(function () { after('予定を保存しました'); })
+        .then(function () { after('予定を保存しました'); if (!v.id) setTimeout(function () { celebrate(planIcon(kind), pickOne(['予定を入れたよ。忘れないように、お知らせするね', '「' + t + '」だね。ちゃんと覚えておくよ', 'メモしたよ!当日の朝もお知らせするね'])); }, 600); TALK.plansAt = 0; })
         .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
     });
   }
@@ -1892,7 +1907,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
               return api('saveStore', { store: { name: (storeInfo(storeName) || {}).name || storeName, phone: phone, address: addr, holiday: si.holiday || '', memo: si.memo || '' } });
             }
           })
-          .then(function () { closeSheet(); toast('評価を保存しました'); return loadNotes(true); })
+          .then(function () { closeSheet(); toast('評価を保存しました'); if (rating === 'again') setTimeout(function () { celebrate('😋', 'また買いたいんだね。「' + item + '」覚えておくよ'); }, 500); else if (rating === 'bad') setTimeout(function () { celebrate('😢', '残念だったね。次は気をつけるね'); }, 500); return loadNotes(true); })
           .then(function () { if ($('screen-notes').classList.contains('active')) renderNotes(); })
           .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
       });
@@ -2130,7 +2145,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         var note = (memo ? memo + ' ' : '') + '(2か月分の半分)';
         job = save1(amount - half, date, note).then(function () { return save1(half, d2, note); });
       } else job = save1(amount, date, memo);
-      job.then(function () { done(split ? '年金を、この月と次の月に半分ずつ入れました' : '収入を保存しました'); })
+      job.then(function () { done(split ? '年金を、この月と次の月に半分ずつ入れました' : '収入を保存しました'); setTimeout(function () { celebrate('💰', kind === '給料' ? 'お給料日だね。いつもおつかれさま!' : kind === '年金' ? '年金が入ったね。大事に使おうね' : '収入を入れたよ。ありがとう'); }, 900); })
         .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
     });
   }
@@ -2689,6 +2704,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         var l = cardList(), x = l.filter(function (y) { return y.id === c.id; })[0];
         prepaidLog(l, x, (x.balance || 0) + n, n, 'チャージ(' + from + ')', d);
         toast('チャージを記録しました'); re();
+        setTimeout(function () { celebrate('💴', 'チャージしたよ!' + x.name + ' の残高は ' + yen(x.balance) + ' だよ'); }, 500);
       });
     });
     $('ppFix').addEventListener('click', function () {
@@ -3028,6 +3044,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (!editing && feat('memo')) tickShop(d);
       if (!editing && feat('points')) updatePointsFromReceipt(d);
       if (!editing && feat('pay')) prepaidFromReceipt(d);
+      if (!editing) setTimeout(function () { celebrateReceipt(d); }, 1800);
       toast(editing ? '変更を保存しました' : label(d.person) + 'の買い物を保存しました');
       state.editingId = null;
       state.month = d.date.slice(0, 7);
@@ -3836,6 +3853,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stPhoneReset">📱 このスマホの設定を消す</button>' +
       '<button class="btn btn-tonal btn-block" id="stUpdate">⬆ 新しい版に更新する</button>' +
       '<label class="check" style="margin:4px 0"><input type="checkbox" id="stWalk"' + (G.get('walkOff') ? '' : ' checked') + '> 🐾 ときどき(1日に数回)動物やスイーツを歩かせる</label>' +
+      '<button class="btn btn-tonal btn-block" id="stTalk">🗨 ふきだしと声(しゃべる)の設定</button>' +
       '<button class="btn btn-text btn-block" id="stHelp">❓ 読み取りの回数について</button>' +
       '<button class="btn btn-text btn-block" id="stAdmin">🛠 管理人(新しい家計簿を作る・引っ越し)</button>' +
       '<button class="btn btn-text btn-block" id="stClose">閉じる</button></div>' +
@@ -3846,6 +3864,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stPay').addEventListener('click', openPaySettings);
     if ($('stCards')) $('stCards').addEventListener('click', function () { openCards(openSettings); });
     $('stFeat').addEventListener('click', openFeatures);
+    $('stTalk').addEventListener('click', openTalkSettings);
     $('stReopen').addEventListener('click', function () { toast('開き直しています…'); window.kakeiboFix(); });
     $('stHomes').addEventListener('click', openHomes);
     $('stOwner').addEventListener('click', function () { closeSheet(); openSetup(); });
@@ -4783,21 +4802,143 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (start - end < 40) { w.remove(); return scheduleWalk(); }   // 空きがせまいときは歩かない
     w.style.top = (h1.getBoundingClientRect().top - br.top) + 'px';
     var dur = (start - end) * 45 + 1500, t0 = null;
+    // ふきだし:歩きはじめに出して、立ち止まって話してから、また歩く
+    var msg = G.get('bubbleOff') ? '' : talkMessage(), bub = null, PAUSE = msg ? Math.max(4500, msg.length * 260) : 0, paused = 0;
+    if (msg) {
+      bub = document.createElement('div'); bub.className = 'walk-bubble'; bub.textContent = msg; bub.style.opacity = '0';
+      document.body.appendChild(bub);
+    }
+    function place(x) {
+      if (!bub) return;
+      var b2 = bar.getBoundingClientRect(), bw = bub.offsetWidth, vw = document.documentElement.clientWidth;
+      var left = Math.max(8, Math.min(vw - bw - 8, b2.left + x - 16));
+      bub.style.left = left + 'px'; bub.style.top = (w.getBoundingClientRect().bottom + 10) + 'px';
+      bub.style.setProperty('--tail', Math.max(10, Math.min(bw - 26, b2.left + x - left)) + 'px');
+    }
     function step(ts) {
       if (t0 == null) t0 = ts;
-      var k = Math.min(1, (ts - t0) / dur);
-      w.style.transform = 'translateX(' + (start + (end - start) * k) + 'px)';
+      var el = ts - t0, k;
+      if (msg && el > dur * 0.25 && paused < PAUSE) {   // 4分の1くらい歩いたら、立ち止まって話す
+        if (!paused) { bub.style.opacity = '1'; speak(msg); }
+        paused = Math.min(PAUSE, el - dur * 0.25); k = 0.25;
+      } else k = Math.min(1, (el - paused) / dur);
+      var x = start + (end - start) * k;
+      w.style.transform = 'translateX(' + x + 'px)'; place(x);
+      if (bub && paused >= PAUSE) bub.style.opacity = '0';
       w.style.opacity = k > 0.85 ? String((1 - k) / 0.15) : '1';
-      if (k < 1) requestAnimationFrame(step); else { w.remove(); scheduleWalk(); }
+      if (k < 1) requestAnimationFrame(step); else { w.remove(); if (bub) bub.remove(); scheduleWalk(); }
     }
+    refreshTalkPlans();
     requestAnimationFrame(step);
   }
+  /* ---------- 歩く子のふきだしと、声(オン・オフ・声の選択はこのスマホの設定) ---------- */
+  var TALK = { plans: null, plansAt: 0, voices: [] };
+  function loadVoices() { try { TALK.voices = (window.speechSynthesis ? speechSynthesis.getVoices() : []).filter(function (v) { return /^ja/i.test(v.lang); }); } catch (e) { TALK.voices = []; } return TALK.voices; }
+  if (window.speechSynthesis) { loadVoices(); try { speechSynthesis.onvoiceschanged = loadVoices; } catch (e) {} }
+  var FEMALE = /kyoko|haruka|ayumi|nanami|mizuki|sayaka|o-ren|female|女性|女|google 日本語|ja-jp-x-jab|ja-jp-x-htm|ja-jp-language/i;
+  function pickVoice() {
+    var v = loadVoices(), want = G.get('talkVoice');
+    return v.filter(function (x) { return x.name === want; })[0] || v.filter(function (x) { return FEMALE.test(x.name); })[0] || v[0] || null;
+  }
+  function quietNow() { var h = new Date().getHours(); return G.get('talkQuiet') !== '0' && (h >= 22 || h < 7); }
+  function speak(text, force) {
+    if (!window.speechSynthesis || !text) return;
+    if (!force && (G.get('talkOn') !== '1' || quietNow())) return;
+    try {
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text.replace(/[💴🛒📅🏥😋🎁✨🍂⛄🌸🌻]/g, '').replace(/¥([\d,]+)/g, '$1円'));
+      u.lang = 'ja-JP'; u.rate = Number(G.get('talkRate') || 0.9); u.pitch = 1.1;
+      var v = pickVoice(); if (v) u.voice = v;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  // 予定は5分ごとに読み直す(歩くときに使う)
+  function refreshTalkPlans() {
+    if (!feat('memo') || Date.now() - TALK.plansAt < 5 * 60e3) return;
+    TALK.plansAt = Date.now();
+    api('plans', { person: state.owner }).then(function (r) { TALK.plans = r.plans || []; }).catch(function () {});
+    if (!NT.data) loadNotes().catch(function () {});
+  }
+  // 言うことを選ぶ:近い予定 → 支払いの期限 → 買い物メモ → 電子マネーの残高 → あいさつ・季節
+  function talkMessage() {
+    var t = today(), out = [], d = new Date(), h = d.getHours(), mo = d.getMonth() + 1;
+    if (feat('memo') && TALK.plans) TALK.plans.forEach(function (p) {
+      if (p.done) return; var n = daysBetween(t, p.date);
+      if (n === 0) out.push('今日' + (p.time ? 'の' + p.time.replace(':', '時') + '分' : '') + 'は、' + p.title + 'だよ');
+      else if (n === 1) out.push('明日' + (p.time ? 'の' + p.time.replace(':', '時') + '分' : '') + 'は、' + p.title + 'だよ');
+    });
+    (pay.list || []).forEach(function (p) {
+      if (p.status !== 'これから' || !p.due) return; var n = daysBetween(t, p.due);
+      if (n >= 0 && n <= 3) out.push((n === 0 ? '今日' : n + '日後') + 'が、' + p.title + 'の期限だよ');
+    });
+    if (out.length) return out[Math.floor(Math.random() * out.length)];
+    var info = [];
+    if (feat('memo') && NT.data) { var k = NT.data.shop.filter(function (x) { return !x.done; }).length; if (k) info.push('🛒 買い物メモに ' + k + 'つあるよ'); }
+    if (feat('pay')) cardList().filter(isPrepaid).forEach(function (c) { info.push('💴 ' + c.name + ' の残高は ' + yen(c.balance || 0) + ' だよ'); });
+    var r = rokuyo(d); if (r === '大安') info.push('今日は大安だよ。いいことがありそう');
+    var talk = [h < 10 ? 'おはよう!' : h < 17 ? 'こんにちは!' : h < 22 ? 'こんばんは。今日もおつかれさま' : 'そろそろ休もうね',
+      mo >= 3 && mo <= 5 ? '🌸 春だね。お散歩が気持ちいいね' : mo >= 6 && mo <= 8 ? '🌻 暑いね。お水を飲んでね' : mo >= 9 && mo <= 11 ? '🍂 秋だね。おいしい物がいっぱい' : '⛄ 寒いね。あったかくしてね',
+      'レシートは、もらったらすぐ撮ると楽だよ', '今日もいい日になりますように'];
+    var pool = info.length && Math.random() < 0.7 ? info : talk;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  // おちゃめな知らせ:下からぴょんと出てきて、ふきだしで話す(声がオンなら声でも)
+  function celebrate(emoji, text) {
+    if (G.get('funOff') || !text) return;
+    document.querySelectorAll('.fun-pop,.fun-bubble').forEach(function (x) { x.remove(); });
+    var e = document.createElement('div'); e.className = 'fun-pop'; e.textContent = emoji;
+    var b = document.createElement('div'); b.className = 'fun-bubble'; b.textContent = text;
+    document.body.appendChild(e); document.body.appendChild(b);
+    speak(text);
+    setTimeout(function () { e.classList.add('out'); b.style.transition = 'opacity .3s'; b.style.opacity = '0'; }, 3600);
+    setTimeout(function () { e.remove(); b.remove(); }, 4100);
+  }
+  var SWEETS = /ケーキ|プリン|アイス|チョコ|菓子|ドーナツ|団子|だんご|大福|饅頭|まんじゅう|クッキー|シュー|どら焼|ゼリー|ようかん|羊羹|パフェ|タルト|マカロン|スイーツ|ワッフル|カステラ|せんべい|煎餅|ポテトチップ|グミ|キャンディ|あめ/;
+  var SWEET_EMOJI = ['🍰', '🍮', '🍩', '🍦', '🍫', '🍪', '🍡', '🧁'];
+  var pickOne = function (a) { return a[Math.floor(Math.random() * a.length)]; };
+  // レシートを保存したとき
+  function celebrateReceipt(d) {
+    var sw = (d.items || []).filter(function (it) { return SWEETS.test(String(it.name || '').normalize('NFKC')); });
+    if (sw.length) return celebrate(pickOne(SWEET_EMOJI), pickOne(['おいしそう!「' + sw[0].name + '」を買ったんだね', 'わーい、スイーツだ!「' + sw[0].name + '」いいなあ', '「' + sw[0].name + '」、ひと口ちょうだい?']));
+    if (/医療費/.test(d.purpose || '')) return celebrate('🩹', 'おつかれさま。お大事にね');
+    if (Math.random() < 0.25) celebrate(pickOne(['🐥', '🐶', '🐱', '🐰']), pickOne(['記録できたよ。えらい!', 'レシート、ちゃんと入れたね', 'ばっちり保存したよ']));
+  }
+  function openTalkSettings() {
+    var v = loadVoices(), cur = (pickVoice() || {}).name || '';
+    openSheet('<div class="grip"></div><h2>🗨 ふきだしと声</h2>' +
+      '<label class="check" style="margin:8px 0;font-size:18px"><input type="checkbox" id="tkBubble" style="width:26px;height:26px;flex:none"' + (G.get('bubbleOff') ? '' : ' checked') + '> <span>歩くときに、ふきだしで話す</span></label>' +
+      '<label class="check" style="margin:8px 0;font-size:18px"><input type="checkbox" id="tkOn" style="width:26px;height:26px;flex:none"' + (G.get('talkOn') === '1' ? ' checked' : '') + '> <span>🔊 声でもしゃべる</span></label>' +
+      '<label class="check" style="margin:8px 0;font-size:18px"><input type="checkbox" id="tkQuiet" style="width:26px;height:26px;flex:none"' + (G.get('talkQuiet') === '0' ? '' : ' checked') + '> <span>夜(22時〜朝7時)は声を出さない</span></label>' +
+      '<div class="field"><label for="tkVoice">声</label>' + (v.length ? '<select class="input" id="tkVoice">' + v.map(function (x) {
+        return '<option value="' + esc(x.name) + '"' + (x.name === cur ? ' selected' : '') + '>' + esc(x.name) + (FEMALE.test(x.name) ? '(女性)' : '') + '</option>'; }).join('') + '</select>' :
+        '<div class="note">このスマホでは、日本語の声が見つかりませんでした。</div>') + '</div>' +
+      '<div class="field"><label for="tkRate">話す速さ</label><select class="input" id="tkRate">' + [['0.75', 'ゆっくり'], ['0.9', 'ふつう(少しゆっくり)'], ['1.05', '少し速く']].map(function (x) {
+        return '<option value="' + x[0] + '"' + ((G.get('talkRate') || '0.9') === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>' +
+      '<label class="check" style="margin:8px 0;font-size:18px"><input type="checkbox" id="tkFun" style="width:26px;height:26px;flex:none"' + (G.get('funOff') ? '' : ' checked') + '> <span>🎉 スイーツを買ったときや予定を入れたときに、ぴょんと出てきて話す</span></label>' +
+      '<button class="btn btn-tonal btn-block" id="tkTest">🔊 ためしにしゃべる</button>' +
+      '<button class="btn btn-tonal btn-block" id="tkFunTest" style="margin-top:8px">🎉 ためしに出てくる</button>' +
+      '<div class="note" style="font-size:15px;margin:8px 0 12px">言うこと:近い予定・支払いの期限・買い物メモ・電子マネーの残高・あいさつなど。声はスマホに入っている読み上げの声を使います(名前に「女性」とあるのが女性の声です。スマホによって選べる声が違います)。</div>' +
+      '<button class="btn btn-primary btn-block" id="tkSave">保存する</button>' +
+      '<button class="btn btn-tonal btn-block" id="tkBack" style="margin-top:10px">← 戻る</button>');
+    var keep = function () {
+      if ($('tkBubble').checked) G.del('bubbleOff'); else G.set('bubbleOff', '1');
+      G.set('talkOn', $('tkOn').checked ? '1' : '0'); G.set('talkQuiet', $('tkQuiet').checked ? '1' : '0');
+      if ($('tkVoice')) G.set('talkVoice', $('tkVoice').value); G.set('talkRate', $('tkRate').value);
+      if ($('tkFun').checked) G.del('funOff'); else G.set('funOff', '1');
+    };
+    $('tkFunTest').addEventListener('click', function () { keep(); closeSheet(); celebrateReceipt({ items: [{ name: 'いちごのショートケーキ' }] }); });
+    $('tkTest').addEventListener('click', function () { keep(); refreshTalkPlans(); speak(talkMessage() || 'こんにちは', true); });
+    $('tkSave').addEventListener('click', function () { keep(); toast('保存しました'); openSettings(); });
+    $('tkBack').addEventListener('click', openSettings);
+  }
+
   function scheduleWalk(ms) {
     clearTimeout(walkTimer);
     // 次に歩いてよいか、30分ごとに確かめる(アプリを開いたままのとき)
     walkTimer = setTimeout(walkOnce, ms != null ? ms : 30 * 60e3);
   }
   scheduleWalk(5000 + Math.random() * 20000);   // 開いてから少しして(その日の回数が残っていれば)
+  setTimeout(refreshTalkPlans, 2500);   // ふきだしで予定を言えるように、先に読んでおく
 
   /* ---------- 起動 ---------- */
   show('lineBanner', /\bLine\//i.test(navigator.userAgent) && !STANDALONE);
