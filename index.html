@@ -747,7 +747,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-27 23:00 版92';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-27 23:10 版93';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1825,7 +1825,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var b = this; b.disabled = true; b.textContent = '保存中…';
       api('savePlan', { plan: { id: v.id || '', person: state.owner, kind: kind, title: t, date: $('plDate').value, time: $('plTime').value, place: $('plPlace').value.trim(),
         memo: $('plMemo').value.trim(), notify: notify, done: $('plDone') ? $('plDone').checked : false } })
-        .then(function () { after('予定を保存しました'); if (!v.id) setTimeout(function () { celebrate(planEmoji({ title: t, kind: kind, memo: $('plMemo') ? $('plMemo').value : '' }), pickOne(['予定を入れたよ。忘れないように、お知らせするね', '「' + t + '」だね。ちゃんと覚えておくよ', 'メモしたよ!当日の朝もお知らせするね'])); }, 600); TALK.plansAt = 0; })
+        .then(function () { after('予定を保存しました'); if (!v.id) setTimeout(function () { celebrate(planEmoji({ title: t, kind: kind, memo: $('plMemo') ? $('plMemo').value : '' }), pickOne(['予定を入れたよ。忘れないように、お知らせするね', '「' + t + '」だね。ちゃんと覚えておくよ', 'メモしたよ!当日の朝もお知らせするね',
+  '「' + t + '」、ぼくもついていっていい?', 'まかせて!「' + t + '」、忘れそうになったら教えるね', '「' + t + '」の日、晴れるといいね', '予定を入れたね。えらい!ぼくのおやつの予定も入れて?'])); }, 600); TALK.plansAt = 0; })
         .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
     });
   }
@@ -1909,7 +1910,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
               return api('saveStore', { store: { name: (storeInfo(storeName) || {}).name || storeName, phone: phone, address: addr, holiday: si.holiday || '', memo: si.memo || '' } });
             }
           })
-          .then(function () { closeSheet(); toast('評価を保存しました'); if (rating === 'again') setTimeout(function () { celebrate('😋', 'また買いたいんだね。「' + item + '」覚えておくよ'); }, 500); else if (rating === 'bad') setTimeout(function () { celebrate('😢', '残念だったね。次は気をつけるね'); }, 500); return loadNotes(true); })
+          .then(function () { closeSheet(); toast('評価を保存しました'); if (rating === 'again') setTimeout(function () { celebrate('😋', pickOne(['また買いたいんだね。「' + item + '」覚えておくよ', '「' + item + '」、そんなにおいしいの?今度ひと口ちょうだい', '「' + item + '」、お気に入りに入れたよ!'])); }, 500);
+            else if (rating === 'bad') setTimeout(function () { celebrate('😢', pickOne(['残念だったね。次は気をつけるね', 'あらら…「' + item + '」はもう買わないでおこうね', 'ざんねん。今度はおいしいのに出会えますように'])); }, 500); return loadNotes(true); })
           .then(function () { if ($('screen-notes').classList.contains('active')) renderNotes(); })
           .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
       });
@@ -2147,7 +2149,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         var note = (memo ? memo + ' ' : '') + '(2か月分の半分)';
         job = save1(amount - half, date, note).then(function () { return save1(half, d2, note); });
       } else job = save1(amount, date, memo);
-      job.then(function () { done(split ? '年金を、この月と次の月に半分ずつ入れました' : '収入を保存しました'); setTimeout(function () { celebrate('💰', kind === '給料' ? 'お給料日だね。いつもおつかれさま!' : kind === '年金' ? '年金が入ったね。大事に使おうね' : '収入を入れたよ。ありがとう'); }, 900); })
+      job.then(function () { done(split ? '年金を、この月と次の月に半分ずつ入れました' : '収入を保存しました'); setTimeout(function () { celebrate('💰', kind === '給料' ? pickOne(['お給料日だね。いつもおつかれさま!', 'お給料日だ!ぼくにもおこづかい、ある?', 'がんばったごほうび、何か買う?']) : kind === '年金' ? pickOne(['年金が入ったね。大事に使おうね', '年金の日だね。おいしい物、ひとつだけ買っちゃう?']) : pickOne(['収入を入れたよ。ありがとう', 'やったね!ちょっとうれしい日だね'])); }, 900); })
         .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
     });
   }
@@ -2706,7 +2708,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         var l = cardList(), x = l.filter(function (y) { return y.id === c.id; })[0];
         prepaidLog(l, x, (x.balance || 0) + n, n, 'チャージ(' + from + ')', d);
         toast('チャージを記録しました'); re();
-        setTimeout(function () { celebrate('💴', 'チャージしたよ!' + x.name + ' の残高は ' + yen(x.balance) + ' だよ'); }, 500);
+        setTimeout(function () { celebrate('💴', pickOne(['チャージしたよ!' + x.name + ' の残高は ' + yen(x.balance) + ' だよ', 'お財布がふっくらしたね。' + x.name + ' は ' + yen(x.balance) + ' だよ', 'チャージありがとう!これでおやつも買える?(' + yen(x.balance) + ')'])); }, 500);
       });
     });
     $('ppFix').addEventListener('click', function () {
@@ -4880,7 +4882,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var r = rokuyo(d); if (r === '大安') info.push('今日は大安だよ。いいことがありそう');
     var talk = [h < 10 ? 'おはよう!' : h < 17 ? 'こんにちは!' : h < 22 ? 'こんばんは。今日もおつかれさま' : 'そろそろ休もうね',
       mo >= 3 && mo <= 5 ? '🌸 春だね。お散歩が気持ちいいね' : mo >= 6 && mo <= 8 ? '🌻 暑いね。お水を飲んでね' : mo >= 9 && mo <= 11 ? '🍂 秋だね。おいしい物がいっぱい' : '⛄ 寒いね。あったかくしてね',
-      'レシートは、もらったらすぐ撮ると楽だよ', '今日もいい日になりますように'];
+      'レシートは、もらったらすぐ撮ると楽だよ', '今日もいい日になりますように', 'おやつの時間はまだかな?', 'ちょっとおさんぽ中。じゃましないからね',
+      'お水、飲んだ?', 'ぼくの好物はレシートだよ…うそだよ', '今日もここでまってるね', 'ねえねえ、今日のおやつはなあに?'];
     var pool = info.length && Math.random() < 0.7 ? info : talk;
     return pool[Math.floor(Math.random() * pool.length)];
   }
@@ -4910,9 +4913,22 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   // レシートを保存したとき
   function celebrateReceipt(d) {
     var sw = (d.items || []).filter(function (it) { return SWEETS.test(String(it.name || '').normalize('NFKC')); });
-    if (sw.length) return celebrate(sweetEmoji(sw[0].name), pickOne(['おいしそう!「' + sw[0].name + '」を買ったんだね', 'わーい、スイーツだ!「' + sw[0].name + '」いいなあ', '「' + sw[0].name + '」、ひと口ちょうだい?']));
-    if (/医療費/.test(d.purpose || '')) return celebrate('🩹', 'おつかれさま。お大事にね');
-    if (Math.random() < 0.25) celebrate(pickOne(['🐥', '🐶', '🐱', '🐰']), pickOne(['記録できたよ。えらい!', 'レシート、ちゃんと入れたね', 'ばっちり保存したよ']));
+    if (sw.length) {
+      var n = '「' + sw[0].name + '」';
+      return celebrate(sweetEmoji(sw[0].name), pickOne([n + '、ひと口ちょうだい?', n + '、ひと口だけでいいから…ね?', 'いいなあ…' + n + '、半分こしない?', n + 'だ!ぼくの分もある?',
+        'じーっ…' + n + '、見てるだけだよ。ほんとだよ', n + '、おいしかったら、また買ってきてね', 'わーい、' + n + '!お茶をいれて待ってるね', n + '、ないしょで一緒に食べよう?',
+        'スイーツの日だね!' + n + '、いいにおいがするよ', n + '…ごくり。だいじに食べてね']));
+    }
+    var food = (d.items || []).map(function (it) { return String(it.name || '').normalize('NFKC'); });
+    var has = function (re) { return food.filter(function (x) { return re.test(x); })[0]; };
+    var x;
+    if (/医療費/.test(d.purpose || '')) return celebrate('🩹', pickOne(['おつかれさま。お大事にね', 'ちゃんと病院に行ってえらいね。ゆっくり休んでね', 'お薬、忘れずに飲んでね']));
+    if ((x = has(/米/))) return celebrate('🍚', pickOne(['お米、重かったでしょ?おつかれさま', 'お米を買ったね。これでしばらく安心だね', '炊きたてごはん、ひと口ちょうだい?']));
+    if ((x = has(/ビール|酒|ワイン|チューハイ|ハイボール/))) return celebrate('🍺', pickOne(['今日はかんぱいの日?飲みすぎないでね', '「' + x + '」だ!おつまみも買った?', 'ぼくはジュースでかんぱいするね']));
+    if ((x = has(/パン/))) return celebrate('🍞', pickOne(['「' + x + '」、焼きたてかな?いいにおい', '「' + x + '」、ひと口ちぎってちょうだい?']));
+    if ((x = has(/果物|りんご|みかん|バナナ|いちご|ぶどう|梨|柿|メロン|すいか|もも/))) return celebrate('🍎', pickOne(['「' + x + '」だ!むいたら呼んでね', '「' + x + '」、ひと切れちょうだい?']));
+    if ((x = has(/肉|牛|豚|鶏|ステーキ|焼肉/))) return celebrate('🍖', pickOne(['今日はごちそう?「' + x + '」だね', '「' + x + '」…ぼく、においだけでしあわせ']));
+    if (Math.random() < 0.3) celebrate(pickOne(['🐥', '🐶', '🐱', '🐰', '🐻']), pickOne(['記録できたよ。えらい!', 'レシート、ちゃんと入れたね。花まる!', 'ばっちり保存したよ', 'お買い物おつかれさま。ひと休みしよう?', 'えらいえらい。毎日つづけてるね']));
   }
   function openTalkSettings() {
     var v = loadVoices(), cur = (pickVoice() || {}).name || '';
