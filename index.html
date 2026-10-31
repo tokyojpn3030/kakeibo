@@ -524,6 +524,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       </div>
       <div class="sum-line"><span>品目を足した金額</span><span id="cfItemsSum">¥0</span></div>
       <div class="warn hidden" id="cfWarn"></div>
+      <button class="btn btn-tonal btn-block" id="cfShareBtn" style="margin-top:10px">🤝 合計のあとに引く分を入れる(割り勘など)</button>
+      <div class="card hidden" id="cfShareBox" style="margin-top:10px">
+        <div class="section-title" style="margin-top:0">🤝 合計のあとに引く分</div>
+        <div class="note" style="font-size:15px;margin-bottom:8px">レシートの合計(お店の金額)は、そのまま残します。ここに入れた分を引いた金額を、家計簿に入れます。<br>例:「池水さん 割り勘」5600</div>
+        <div id="cfAdjRows"></div>
+        <button class="btn btn-text" id="cfAdjAdd" style="padding:0 8px">+ 行を足す</button>
+        <div class="sum-line" style="font-size:16px"><span>レシートの合計</span><span id="cfShareTot">¥0</span></div>
+        <div class="sum-line" style="font-size:16px"><span>引く分の合計</span><span id="cfShareSum">¥0</span></div>
+        <div class="sum-line" style="font-size:19px"><span>家計簿に入る金額</span><b id="cfShareNet">¥0</b></div>
+      </div>
       <div class="error hidden" id="cfError"></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin:20px 0">
         <button class="btn btn-primary btn-block" id="cfSave">保存する</button>
@@ -774,7 +784,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 17:20 版117';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 23:50 版118';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版116';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -956,9 +966,24 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       });
     });
   }
+  /* 🤝 割り勘:レシートの合計(お店の金額)はそのまま。もらった分は「🤝割り勘:だれ」のマイナスの品目として保存し、
+     家計簿の合計には「レシートの合計 − もらった分」を入れる。品目に「割り勘」と書いたマイナスの行も同じに扱う */
+  var SHARE_TAG = '🤝割り勘';
+  function adjName(n) { return String(n || '').replace(/^🤝割り勘[::]\s*(.+)$/, '$1 割り勘').replace(/^🤝/, '').trim() || '割り勘'; }
+  function isShareItem(it) { return it && Number(it.price) < 0 && /^🤝|割り勘|わりかん/.test(String(it.name || '')); }
+  function normRc(r) {
+    if (!r || !r.items || r.share != null) return r;
+    var sh = r.items.filter(isShareItem);
+    r.share = sh.reduce(function (a, it) { return a - (Number(it.price) || 0); }, 0);
+    r.adj = sh.map(function (it) { return { name: adjName(it.name), amount: -(Number(it.price) || 0) }; });
+    r.items = r.items.filter(function (it) { return !isShareItem(it); });
+    return r;
+  }
+  function normRes(res) { if (res && Array.isArray(res.receipts)) res.receipts.forEach(normRc); return res; }
+  function spentOf(r) { return (Number(r.total) || 0) - (Number(r.share) || 0); }
   function api(action, data, passOverride) {
     if (DEMO) return demoApi(action, data || {}).then(function (res) {
-      if (!res.ok) throw new Error(res.error || 'エラーが起きました'); return res;
+      if (!res.ok) throw new Error(res.error || 'エラーが起きました'); return normRes(res);
     });
     var body = Object.assign({ action: action, pass: passOverride != null ? passOverride : state.pass }, HOME.h ? { home: HOME.h } : {}, data || {});
     return fetch(HOME.url, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' })
@@ -970,7 +995,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         if (res && res.usage) showUsage(res.usage);
         // 前の版の窓口が「合言葉」と返しても、画面には「パスワード」と出す
         if (!res.ok) throw new Error(String(res.error || 'エラーが起きました').replace(/合言葉/g, 'パスワード'));
-        return res;
+        return normRes(res);
       });
   }
 
@@ -1204,7 +1229,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
 
     var list = state.receipts.filter(function (r) { return !state.filter || r.person === state.filter; });
-    var total = list.reduce(function (s, r) { return s + (Number(r.total) || 0); }, 0);
+    var total = list.reduce(function (s, r) { return s + spentOf(r); }, 0);
     $('histTotalLabel').textContent = monthLabel(state.month) + 'の買い物の合計' + (state.filter ? '(' + state.filter + ')' : '');
     $('histTotal').textContent = yen(total);
     renderIncomeLine('histIncome', total, state.filter);
@@ -1227,7 +1252,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       html += '<button class="rc-line receipt' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
         '<span class="d">' + (sel ? '<span class="chk">' + (on ? '✓' : '') + '</span>' : '') + d + '</span>' +
         '<span class="st">' + esc(r.store || 'お店の名前なし') + (function () { var sw = (r.items || []).filter(function (it) { return SWEETS.test(String(it.name || '').normalize('NFKC')); })[0]; return sw ? ' <span class="hop-slow" title="' + esc(sw.name) + '">' + sweetEmoji(sw.name) + '</span>' : ''; })() + (r.purpose || r.payMethod || MEMBERS.length > 1 ? '<small>' + esc([r.purpose, r.payMethod, MEMBERS.length > 1 ? label(r.person) : ''].filter(Boolean).join(' ・ ')) + '</small>' : '') + '</span>' +
-        '<span class="y">' + yen(r.total) + '</span></button>';
+        '<span class="y">' + yen(spentOf(r)) + (r.share ? '<small style="display:block;font-size:13px;font-weight:400">🤝 お店 ' + yen(r.total) + '</small>' : '') + '</span></button>';
     });
     if (sel) html += '<div style="height:84px"></div>';
     $('histList').innerHTML = html;
@@ -1249,7 +1274,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('selBar', !!state.sel && onHist);
     if (!state.sel) return;
     var ids = selIds();
-    var sum = state.receipts.filter(function (r) { return state.sel[r.id]; }).reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0);
+    var sum = state.receipts.filter(function (r) { return state.sel[r.id]; }).reduce(function (a, r) { return a + spentOf(r); }, 0);
     $('selDel').textContent = ids.length ? '選んだ ' + ids.length + '件(' + yen(sum) + ')を削除' : 'レシートを選んでください';
     $('selDel').disabled = !ids.length;
   }
@@ -1270,12 +1295,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   function renderSummary() {
     var rs = state.receipts;
-    var total = rs.reduce(function (s, r) { return s + (Number(r.total) || 0); }, 0);
+    var total = rs.reduce(function (s, r) { return s + spentOf(r); }, 0);
     $('sumTotal').textContent = yen(total);
     renderIncomeLine('sumIncome', total, '');
 
     var by = {};
-    rs.forEach(function (r) { var k = r.person; by[k] = by[k] || { sum: 0, n: 0 }; by[k].sum += Number(r.total) || 0; by[k].n++; });
+    rs.forEach(function (r) { var k = r.person; by[k] = by[k] || { sum: 0, n: 0 }; by[k].sum += spentOf(r); by[k].n++; });
     var names = MEMBERS.map(function (m) { return m.name; });
     Object.keys(by).forEach(function (k) { if (names.indexOf(k) < 0) names.push(k); });
     var max = Math.max.apply(null, names.map(function (n) { return by[n] ? by[n].sum : 0; }).concat([1]));
@@ -1288,7 +1313,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }).join('');
 
     var st = {};
-    rs.forEach(function (r) { var k = r.store || 'お店の名前なし'; st[k] = st[k] || { sum: 0, n: 0 }; st[k].sum += Number(r.total) || 0; st[k].n++; });
+    rs.forEach(function (r) { var k = r.store || 'お店の名前なし'; st[k] = st[k] || { sum: 0, n: 0 }; st[k].sum += spentOf(r); st[k].n++; });
     var top = Object.keys(st).sort(function (a, b) { return st[b].sum - st[a].sum; }).slice(0, 5);
     $('sumStores').innerHTML = top.length ? top.map(function (k, i) {
       return '<div class="line-item"' + (i === top.length - 1 ? ' style="border-bottom:none"' : '') + '><span>' + esc(k) +
@@ -1381,8 +1406,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (rg.unit === 'month') { keys = rg.months; labels = rg.months.map(function (m) { return (+m.slice(5)) + '月'; }); }
     else { for (var d = new Date(rg.from + 'T00:00:00'); ymd(d) <= rg.to; d.setDate(d.getDate() + 1)) { keys.push(ymd(d)); labels.push(String(d.getDate())); } }
     var sum = {}; keys.forEach(function (k) { sum[k] = 0; });
-    rs.forEach(function (r) { var k = rg.unit === 'month' ? r.date.slice(0, 7) : r.date; if (k in sum) sum[k] += Number(r.total) || 0; });
-    var total = rs.reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0);
+    rs.forEach(function (r) { var k = rg.unit === 'month' ? r.date.slice(0, 7) : r.date; if (k in sum) sum[k] += spentOf(r); });
+    var total = rs.reduce(function (a, r) { return a + spentOf(r); }, 0);
     var max = Math.max.apply(null, keys.map(function (k) { return sum[k]; }).concat([1]));
     var W = 340, H = 170, top = 18, bottom = 22, n = keys.length, bw = W / n;
     var bars = keys.map(function (k, i) {
@@ -1402,8 +1427,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var k = RK.kind, by = {};
     var add = function (name, money, id) { var x = by[name] = by[name] || { sum: 0, n: 0, ids: {} }; x.sum += money; if (!x.ids[id]) { x.ids[id] = 1; x.n++; } };
     rs.forEach(function (r) {
-      if (k === 'storeSum' || k === 'storeCnt') add(r.store || 'お店の名前なし', Number(r.total) || 0, r.id);
-      else if (k === 'purpose') add(r.purpose || '分類なし', Number(r.total) || 0, r.id);
+      if (k === 'storeSum' || k === 'storeCnt') add(r.store || 'お店の名前なし', spentOf(r), r.id);
+      else if (k === 'purpose') add(r.purpose || '分類なし', spentOf(r), r.id);
       else (r.items || []).forEach(function (it, i) {
         var nmv = itemKey(it.name); if (!nmv || NOT_ITEM.test(nmv) || !(it.price > 0)) return;
         add(nmv, Number(it.price) || 0, r.id + ':' + i);
@@ -1487,7 +1512,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var chips = '<div class="chips" style="margin-bottom:10px">' +
       '<button class="chip' + (IN.cmp !== 'year' ? ' on' : '') + '" data-cmp="prev">先月と</button>' +
       '<button class="chip' + (IN.cmp === 'year' ? ' on' : '') + '" data-cmp="year">去年の同じ月と</button></div>';
-    var sumBy = function (m) { var o = { _all: 0 }; rs.forEach(function (r) { if (r.date.slice(0, 7) !== m) return; var k = r.purpose || '分類なし'; o[k] = (o[k] || 0) + (Number(r.total) || 0); o._all += Number(r.total) || 0; }); return o; };
+    var sumBy = function (m) { var o = { _all: 0 }; rs.forEach(function (r) { if (r.date.slice(0, 7) !== m) return; var k = r.purpose || '分類なし'; o[k] = (o[k] || 0) + spentOf(r); o._all += spentOf(r); }); return o; };
     var a = sumBy(cur), b = sumBy(other);
     var title = '📈 ' + monthLabel(cur) + ' と ' + monthLabel(other) + ' をくらべて';
     if (!b._all) return inCard(title, chips + inNote(monthLabel(other) + 'の記録がありません。'));
@@ -1551,7 +1576,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   // 5. 曜日ごと(ランキングの期間・人で数える)
   function rkWeek(rs) {
     var W = '月火水木金土日', n = [0, 0, 0, 0, 0, 0, 0], sum = [0, 0, 0, 0, 0, 0, 0];
-    rs.forEach(function (r) { var d = (new Date(r.date + 'T00:00:00').getDay() + 6) % 7; n[d]++; sum[d] += Number(r.total) || 0; });
+    rs.forEach(function (r) { var d = (new Date(r.date + 'T00:00:00').getDay() + 6) % 7; n[d]++; sum[d] += spentOf(r); });
     if (!rs.length) return '';
     var max = Math.max.apply(null, n.concat([1])), best = n.indexOf(Math.max.apply(null, n));
     var total = sum.reduce(function (a, b) { return a + b; }, 0);
@@ -1569,7 +1594,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   // 6. 何の支払いの割合(ドーナツの円グラフ)
   function rkPie(rs) {
     var by = {}, total = 0;
-    rs.forEach(function (r) { var k = r.purpose || '分類なし'; by[k] = (by[k] || 0) + (Number(r.total) || 0); total += Number(r.total) || 0; });
+    rs.forEach(function (r) { var k = r.purpose || '分類なし'; by[k] = (by[k] || 0) + spentOf(r); total += spentOf(r); });
     if (!total) return '';
     var keys = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; });
     if (keys.length > 6) { var rest = keys.slice(5).reduce(function (a, k) { return a + by[k]; }, 0); keys = keys.slice(0, 5); by['ほか'] = rest; keys.push('ほか'); }
@@ -2104,7 +2129,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       renderIncomeLine('sumIncome', monthSpent(''), '');
     }).catch(function (e) { if (/不明な依頼/.test(e.message)) state.incomeOk = false; });
   }
-  function monthSpent(who) { return (state.receipts || []).filter(function (r) { return !who || r.person === who; }).reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0); }
+  function monthSpent(who) { return (state.receipts || []).filter(function (r) { return !who || r.person === who; }).reduce(function (a, r) { return a + spentOf(r); }, 0); }
   // その月の支払い:払った分(払った日がその月)+ まだ払っていない分(期限がその月)。天引きは入れない
   function monthPay(who) {
     var m = state.month, o = { paid: 0, due: 0 };
@@ -2475,15 +2500,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   // 買物の合計の明細:日付の順(1件ごとにそこまでの合計)・払い方ごと・何の支払いごと・お店ごと
   function openHistDetail() {
     var rs = (state.receipts || []).filter(function (r) { return !state.filter || r.person === state.filter; });
-    var total = rs.reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0);
+    var total = rs.reduce(function (a, r) { return a + spentOf(r); }, 0);
     var by = function (keyOf) {
-      var m = {}; rs.forEach(function (r) { var k = keyOf(r); m[k] = m[k] || { n: 0, sum: 0 }; m[k].n++; m[k].sum += Number(r.total) || 0; });
+      var m = {}; rs.forEach(function (r) { var k = keyOf(r); m[k] = m[k] || { n: 0, sum: 0 }; m[k].n++; m[k].sum += spentOf(r); });
       return Object.keys(m).sort(function (a, b) { return m[b].sum - m[a].sum; }).map(function (k) {
         return '<div class="in-line"><span>' + esc(k) + ' <span class="in-sub">' + m[k].n + '件</span></span><b>' + yen(m[k].sum) + '</b></div>'; }).join('');
     };
     var list = ledgerHtml(rs.map(function (r) {
       var its = (r.items || []).filter(function (it) { return it.price > 0; }).slice(0, 3).map(function (it) { return it.name; }).join('・');
-      return { date: r.date, label: esc(r.store || 'お店の名前なし'), sub: [r.purpose, r.payMethod, its].filter(Boolean).join(' ・ '), amount: Number(r.total) || 0,
+      return { date: r.date, label: esc(r.store || 'お店の名前なし'), sub: [r.purpose, r.payMethod, its].filter(Boolean).join(' ・ '), amount: spentOf(r),
         attrs: ' data-hr="' + esc(r.id) + '" role="button" style="cursor:pointer"', tail: '<span style="font-size:20px">›</span>' };
     }), 'sum');
     openSheet('<div class="grip"></div><h2>🧾 ' + esc(monthLabel(state.month)) + 'の買物の明細' + (state.filter ? '(' + esc(state.filter) + ')' : '') + '</h2>' +
@@ -2615,7 +2640,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       (r.purpose ? '<div class="kv" style="margin-top:8px"><span>何の支払い</span><b>' + esc(r.purpose) + '</b></div>' : '') +
       (r.payMethod ? '<div class="kv" style="margin-top:4px"><span>払い方</span><b>' + esc(r.payMethod) + (cardByLabel(r.payMethod) ? ' <button class="btn btn-text" id="dtCard" style="min-height:36px;padding:0 6px">💳 詳しく</button>' : '') + '</b></div>' : '') +
       '<div style="margin-top:12px">' + (items ? (feat('memo') ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' : '') + items : '<div class="note">品目の記録はありません</div>') +
-      '<div class="line-item total"><span>合計</span><span>' + yen(r.total) + '</span></div></div>' +
+      '<div class="line-item total"><span>' + (r.share ? 'レシートの合計(お店の金額)' : '合計') + '</span><span>' + yen(r.total) + '</span></div>' +
+      (r.share ? (r.adj || []).map(function (a) { return '<div class="line-item"><span>🤝 ' + esc(a.name) + '</span><span class="minus">−' + yen(a.amount) + '</span></div>'; }).join('') +
+        '<div class="line-item total"><span>家計簿に入る金額</span><span>' + yen(spentOf(r)) + '</span></div>' : '') + '</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
       '<button class="btn btn-primary btn-block" id="dtEdit">✏ 編集する</button>' +
       '<button class="btn btn-tonal btn-block" id="dtClose">閉じる</button>' +
@@ -2968,7 +2995,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   /* ---------- 確認フォーム ---------- */
   function openConfirm(r) {
     state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', payMethod: r.payMethod || '', payBalance: r.payBalance || 0, date: r.date || today(),
-      total: r.total || 0, items: (r.items || []).map(function (it) { return { name: it.name, price: it.price }; }) };
+      total: r.total || 0, items: (r.items || []).filter(function (it) { return !isShareItem(it); }).map(function (it) { return { name: it.name, price: it.price }; }) };
+    var rsh = r.share != null ? r : normRc({ items: (r.items || []).slice() });
+    state.draft.adj = (rsh.adj || []).map(function (a) { return { name: a.name, amount: a.amount }; });
+    show('cfShareBox', state.draft.adj.length > 0); show('cfShareBtn', !state.draft.adj.length); drawAdj();
     show('capStart', false); show('capLoading', false); show('capError', false); show('capConfirm', true);
     show('cfError', false); show('cfSame', false); show('cfReadBy', false); show('cfRated', false);
     $('cfTitle').textContent = state.editingId ? 'レシートを編集' : '読み取り結果を確認';
@@ -2981,7 +3011,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('cfPtUsed').value = r.pointUsed || ''; $('cfPtEarned').value = r.pointEarned || ''; $('cfPtBal').value = r.pointBalance || '';
     show('cfPointField', feat('points') && !state.editingId);
     $('cfDate').value = state.draft.date;
-    $('cfTotal').value = state.draft.total || '';
+    $('cfTotal').value = state.draft.total || ''; drawShareNet();
     renderConfirmPerson(); renderItems(); window.scrollTo(0, 0);
   }
   // 何の支払い(分類):ボタンで選ぶか、文字で書く。買い物と支払いで同じ一覧を使う
@@ -3864,6 +3894,33 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
     updateSums();
   }
+  function adjSum() { return (state.draft && state.draft.adj || []).reduce(function (a, x) { return a + (Math.round(Number(x.amount) || 0)); }, 0); }
+  function drawShareNet() {
+    if (!state.draft) return;
+    var t = Math.round(Number($('cfTotal').value) || 0), sh = adjSum();
+    $('cfShareTot').textContent = yen(t); $('cfShareSum').textContent = '−' + yen(sh); $('cfShareNet').textContent = yen(t - sh);
+  }
+  function drawAdj() {
+    var l = state.draft.adj || [];
+    $('cfAdjRows').innerHTML = l.map(function (a, i) {
+      return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">' +
+        '<input class="input" data-an="' + i + '" placeholder="項目(例:池水さん 割り勘)" value="' + esc(a.name || '') + '" style="flex:1;min-width:0">' +
+        '<input class="input" data-aa="' + i + '" type="number" inputmode="numeric" placeholder="金額" value="' + esc(a.amount || '') + '" style="width:110px;font-weight:700">' +
+        '<button class="btn btn-text" data-ad="' + i + '" aria-label="この行を消す" style="min-width:40px;padding:0;font-size:20px">✕</button></div>';
+    }).join('');
+    $('cfAdjRows').querySelectorAll('[data-an]').forEach(function (x) { x.addEventListener('input', function () { l[+x.dataset.an].name = x.value; }); });
+    $('cfAdjRows').querySelectorAll('[data-aa]').forEach(function (x) { x.addEventListener('input', function () { l[+x.dataset.aa].amount = x.value; drawShareNet(); }); });
+    $('cfAdjRows').querySelectorAll('[data-ad]').forEach(function (x) { x.addEventListener('click', function () {
+      l.splice(+x.dataset.ad, 1); drawAdj(); if (!l.length) { show('cfShareBox', false); show('cfShareBtn', true); } }); });
+    drawShareNet();
+  }
+  $('cfShareBtn').addEventListener('click', function () {
+    state.draft.adj = state.draft.adj || []; if (!state.draft.adj.length) state.draft.adj.push({ name: '割り勘', amount: '' });
+    show('cfShareBox', true); show('cfShareBtn', false); drawAdj();
+    var f = $('cfAdjRows').querySelector('[data-an]'); if (f) f.focus();
+  });
+  $('cfAdjAdd').addEventListener('click', function () { state.draft.adj.push({ name: '', amount: '' }); drawAdj(); var f = $('cfAdjRows').querySelectorAll('[data-an]'); if (f.length) f[f.length - 1].focus(); });
+  $('cfTotal').addEventListener('input', drawShareNet);
   function itemsSum() { return state.draft.items.reduce(function (s, it) { return s + (Number(it.price) || 0); }, 0); }
   function updateSums() {
     var s = itemsSum(), t = Math.round(Number($('cfTotal').value) || 0);
@@ -3900,8 +3957,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     d.date = $('cfDate').value;
     d.total = Math.round(Number($('cfTotal').value) || 0);
     if (!d.total) d.total = itemsSum();
-    d.items = d.items.filter(function (it) { return (it.name || '').trim() || it.price; });
+    d.items = d.items.filter(function (it) { return ((it.name || '').trim() || it.price) && !isShareItem(it); });
+    var adj = (d.adj || []).map(function (a) { return { name: String(a.name || '').trim().slice(0, 30) || '割り勘', amount: Math.round(Number(a.amount) || 0) }; }).filter(function (a) { return a.amount; });
+    var share = adj.reduce(function (a, x) { return a + x.amount; }, 0);
     show('cfError', false);
+    if (adj.some(function (a) { return a.amount < 0; })) { $('cfError').textContent = '合計のあとに引く分は、プラスの数で入れてください'; show('cfError', true); return; }
+    if (share && share >= d.total) { $('cfError').textContent = '引く分の合計は、レシートの合計より少ない数にしてください'; show('cfError', true); return; }
+    d.items = d.items.concat(adj.map(function (a) { return { name: '🤝' + a.name, price: -a.amount }; }));
     if (!d.date) { $('cfError').textContent = '買った日を入れてください'; show('cfError', true); return; }
     if (!d.total) { $('cfError').textContent = '合計金額を入れてください'; show('cfError', true); return; }
     var btn = this, editing = state.editingId;
