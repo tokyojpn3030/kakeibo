@@ -771,7 +771,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 12:25 版107';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 12:45 版108';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2699,17 +2699,22 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     return out;
   }
   // チャージ式で、その月に使った記録(電車賃・買い物・使った金額)。残高を直したものとチャージは入れない
+  function ppByCharge(c) { return !!(c.auto && c.auto.on); }
+  function ppCharges(c, m) { return (c.log || []).filter(function (l) { return l.change > 0 && /チャージ/.test(l.note || '') && (l.date || '').slice(0, 7) === m; }); }
+  function ppBasis(c, m) { return ppByCharge(c) ? ppCharges(c, m) : ppUsed(c, m); }
   function ppUsed(c, m) { return (c.log || []).filter(function (l) { return l.change < 0 && (l.date || '').slice(0, 7) === m && !/残高を直した|登録したときの残高/.test(l.note || ''); }); }
   // 引き落としのある電子マネーの、使った分の明細と請求額
   function openPpBill(c, wm, back) {
-    var pm = shiftMonth(wm, -1), used = ppUsed(c, pm).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }), key = c.id + '|pp|' + wm, ov = billOverrides()[key];
-    var est = used.reduce(function (a, l) { return a - l.change; }, 0);
+    var byCh = ppByCharge(c), pm = shiftMonth(wm, -1), used = ppBasis(c, pm).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }), key = c.id + '|pp|' + wm, ov = billOverrides()[key];
+    var est = used.reduce(function (a, l) { return a + Math.abs(l.change); }, 0);
     var last = new Date(+wm.slice(0, 4), +wm.slice(5, 7), 0).getDate(), d = nextBizDay(wm + '-' + pad(c.ppWd == 99 ? last : Math.min(+c.ppWd, last)));
     openSheet('<div class="grip"></div><h2>💴 ' + esc(c.name) + '</h2>' +
       '<div class="total-card" style="margin-bottom:12px"><div class="label">' + esc(md(d)) + ' 引き落とし(' + (ov != null ? '✅ 請求額' : '見込み') + ')</div><div class="amount">' + yen(ov != null ? ov : est) + '</div>' +
-      '<div style="font-size:15px">🏦 ' + esc(c.ppBank || '口座が未登録') + (c.ppAcct ? ' …' + esc(c.ppAcct) : '') + ' ・ ' + esc(monthLabel(pm)) + 'に使った分</div></div>' +
-      '<div class="section-title">使ったもの(' + used.length + '件 ・ ' + yen(est) + ')</div><div class="card" style="margin-bottom:12px">' +
-      (used.map(function (l) { return '<div class="in-line"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><b>' + yen(-l.change) + '</b></div>'; }).join('') || '<div class="note">記録がありません</div>') + '</div>' +
+      '<div style="font-size:15px">🏦 ' + esc(c.ppBank || '口座が未登録') + (c.ppAcct ? ' …' + esc(c.ppAcct) : '') + ' ・ ' + esc(monthLabel(pm)) + (byCh ? 'のチャージ' + (c.auto.src ? '(' + esc(c.auto.src) + ')' : '') : 'に使った分') + '</div></div>' +
+      '<div class="section-title">' + (byCh ? 'チャージ(' + used.length + '回 ・ ' : '使ったもの(' + used.length + '件 ・ ') + yen(est) + ')</div><div class="card" style="margin-bottom:12px">' +
+      (used.map(function (l) { return '<div class="in-line"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><b>' + yen(Math.abs(l.change)) + '</b></div>'; }).join('') || '<div class="note">記録がありません</div>') + '</div>' +
+      (byCh ? '<div class="section-title">この月に使ったもの(参考 ・ ' + yen(ppUsed(c, pm).reduce(function (a, l) { return a - l.change; }, 0)) + ')</div><div class="card" style="margin-bottom:12px">' +
+        (ppUsed(c, pm).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).map(function (l) { return '<div class="in-line" style="font-size:16px"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><span>' + yen(-l.change) + '</span></div>'; }).join('') || '<div class="note">記録がありません</div>') + '</div>' : '') +
       '<div class="note" style="font-size:15px;margin-bottom:10px">本当の引き落とし額(オートチャージの合計)が分かったら、下のボタンで入れてください。</div>' +
       '<button class="btn btn-primary btn-block" id="pbAmt">✏ 請求額を入れる</button>' +
       '<button class="btn btn-tonal btn-block" id="pbRec" style="margin-top:10px">💴 ' + esc(c.name) + ' の記録・使った金額を入れる</button>' +
@@ -2733,8 +2738,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var from = new Date((c.commute.done || t) + 'T00:00:00'); from.setDate(from.getDate() + 1);
       if (ymd(from) > t) return;
       commuteDays(c, ymd(from), t).forEach(function (d) {
-        c.balance = Math.max(0, (c.balance || 0) - c.commute.fare); c.at = t;
+        c.balance = (c.balance || 0) - c.commute.fare; c.at = t;
         c.log = [{ date: d, change: -c.commute.fare, bal: c.balance, note: '🚃 通勤(往復)', auto: true }].concat(c.log || []); n++;
+        autoCharge(c, d); c.balance = Math.max(0, c.balance);
       });
       c.log = (c.log || []).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; }).slice(0, 200);
       c.commute.done = t; changed = true;
@@ -2749,11 +2755,25 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   function commuteSum(c, b) { var n = commuteDays(c, b.start, b.end).length; return n * (Number(c.commute && c.commute.fare) || 0); }
   function prepaidLog(l, c, bal, change, note, date) {
-    c.balance = Math.max(0, Math.round(bal)); c.at = today();
-    c.log = [{ date: date || today(), change: change, bal: c.balance, note: note }].concat(c.log || [])
-      .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; }).slice(0, 200);
+    c.balance = Math.round(bal); c.at = today();
+    c.log = [{ date: date || today(), change: change, bal: c.balance, note: note }].concat(c.log || []);
+    if (change < 0 && !/残高を直した/.test(note || '')) autoCharge(c, date || today());
+    c.balance = Math.max(0, c.balance);
+    c.log = c.log.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; }).slice(0, 200);
     saveCards(l);
   }
+  // オートチャージ:残高が決めた金額より少なくなったら、決めた金額をチャージしたことにする(記録に残す)
+  function autoCharge(c, date) {
+    var a = c.auto; if (!a || !a.on || !a.amt) return 0;
+    var n = 0;
+    while (c.balance < (a.under || 1000) && n < 5) {
+      c.balance += a.amt; n++;
+      c.log = [{ date: date, change: a.amt, bal: c.balance, note: 'オートチャージ(' + (a.src || 'カード') + ')', auto: true }].concat(c.log || []);
+    }
+    if (n) AUTOCH.n += n;
+    return n;
+  }
+  var AUTOCH = { n: 0 };
   // レシートを保存したとき:チャージ式で払っていたら残高から引く(レシートに残高があればそれに合わせる)
   function prepaidFromReceipt(d) {
     var l = cardList(), c = l.filter(function (x) { return isPrepaid(x) && (cardLabel(x) === d.payMethod || normPayMethod(x.name) === normPayMethod(d.payMethod)); })[0];
@@ -2820,7 +2840,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="ppCharge">＋ チャージを記録する</button>' +
       '<button class="btn btn-tonal btn-block" id="ppFix">✏ 残高を直す(アプリで見た数)</button></div>' +
       (c.commute ? '<div class="note" style="font-size:15px;margin-bottom:10px">🚃 通勤(' + c.commute.days.map(function (d) { return '日月火水木金土'.charAt(d); }).join('・') + ')の往復 ' + yen(c.commute.fare) + ' は、その日になると自動で残高から引きます。乗らなかった日は ✕ で戻せます。</div>' : '') +
-      (c.ppWd ? '<div class="note" style="font-size:15px;margin-bottom:10px">🏦 使った分は、次の月の' + dayText(c.ppWd) + 'に ' + esc(c.ppBank || '口座') + (c.ppAcct ? ' …' + esc(c.ppAcct) : '') + ' から引き落とされる見込みとして「支払い」に出ます。今月使った分:' + yen(ppUsed(c, thisMonth()).reduce(function (a, l) { return a - l.change; }, 0)) + '</div>' : '') +
+      (c.auto && c.auto.on ? '<div class="note" style="font-size:15px;margin-bottom:10px">🔁 オートチャージ:残高が ' + yen(c.auto.under) + ' より少なくなったら、' + yen(c.auto.amt) + ' を自動でチャージしたことにします' + (c.auto.src ? '(' + esc(c.auto.src) + ')' : '') + '。</div>' : '') +
+      (c.ppWd ? '<div class="note" style="font-size:15px;margin-bottom:10px">🏦 ' + (ppByCharge(c) ? 'チャージした分' : '使った分') + 'は、次の月の' + dayText(c.ppWd) + 'に ' + esc(c.ppBank || '口座') + (c.ppAcct ? ' …' + esc(c.ppAcct) : '') + ' から引き落とされる見込みとして「支払い」に出ます。今月の分:' + yen(ppBasis(c, thisMonth()).reduce(function (a, l) { return a + Math.abs(l.change); }, 0)) + '</div>' : '') +
       '<div class="section-title">記録</div><div class="card" style="margin-bottom:12px">' + ((function () {
         // 日付の順に並べて、今の残高からさかのぼって、そのときの残高を出す。✕ で記録を消せる
         var run = c.balance || 0;
@@ -2861,15 +2882,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         if (n <= 0) { $('usErr').textContent = '金額を入れてください'; show('usErr', true); return; }
         var l = cardList(), x = l.filter(function (y) { return y.id === c.id; })[0];
         prepaidLog(l, x, (x.balance || 0) - n, -n, what + (m ? '(' + m + ')' : ''), d || today());
-        toast(x.name + ' の残高:' + yen(x.balance)); re();
+        toast(x.name + ' の残高:' + yen(x.balance) + (AUTOCH.n ? '(オートチャージ ' + AUTOCH.n + '回)' : '')); AUTOCH.n = 0; re();
       });
     });
     $('ppCharge').addEventListener('click', function () {
-      var from = '現金';
+      var from = (c.auto && c.auto.src) || '現金';
       openSheet('<div class="grip"></div><h2>💴 ' + esc(c.name) + ' にチャージ</h2>' +
         '<div class="field"><label for="chDate">チャージした日</label><input class="input" id="chDate" type="date" value="' + today() + '"></div>' +
         '<div class="field"><label for="chAmt">チャージした金額(円)</label><input class="input" id="chAmt" type="number" inputmode="numeric" style="font-size:24px;font-weight:700"></div>' +
-        '<div class="rk-label">どこから</div><div class="chips" id="chFrom">' + ['現金', '銀行口座', 'クレジットカード', 'ポイント'].map(function (x) {
+        '<div class="rk-label">どこから</div><div class="chips" id="chFrom">' + ((c.auto && c.auto.src && ['現金', '銀行口座', 'クレジットカード', 'ポイント'].indexOf(c.auto.src) < 0) ? [c.auto.src] : []).concat(['現金', '銀行口座', 'クレジットカード', 'ポイント']).map(function (x) {
           return '<button type="button" class="chip' + (x === from ? ' on' : '') + '" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
         '<div class="error hidden" id="chErr"></div>' +
         '<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px"><button class="btn btn-primary btn-block" id="chSave">記録する</button>' +
@@ -2962,8 +2983,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="field" style="margin-top:10px"><label for="ceName">名前</label><input class="input" id="ceName" placeholder="' + (group === 'emoney' ? '例:イオンペイ、モバイルSuica、PayPay、au PAY' : '例:楽天カード、イオンカード') + '" value="' + esc(c.name) + '"></div>' +
       (group === 'emoney' ? '<div class="note" style="font-size:15px;margin:-6px 0 10px">払い方のボタンと同じ名前(Suica・PayPay・au PAY・イオンペイ)にすると、今までのレシートも数えられます。</div>' : '') +
       '<div class="field hidden" id="ceBalBox"><label for="ceBal">今の残高(円)</label><input class="input" id="ceBal" type="number" inputmode="numeric" placeholder="0" value="' + esc(c.balance != null ? c.balance : '') + '"></div>' +
-      '<div class="card hidden" id="cePpWdBox" style="margin-bottom:12px"><div class="in-title" style="font-size:17px">🏦 使った分の引き落とし(オートチャージなど・なくてもよい)</div>' +
-        '<div class="in-sub" style="margin-bottom:6px">その月に使った金額の合計を、次の月のこの日に引き落とす見込みとして「支払い」に出します。現金でチャージするもの(イオンペイなど)は空のままにしてください。</div>' +
+      '<div class="card hidden" id="cePpWdBox" style="margin-bottom:12px"><div class="in-title" style="font-size:17px">🏦 チャージをカードで払うとき(オートチャージなど・なくてもよい)</div>' +
+        '<div class="in-sub" style="margin-bottom:6px">チャージの合計(オートチャージ + 手でチャージした分)を、次の月のこの日に引き落とす見込みとして「支払い」に出します。現金でチャージするもの(イオンペイなど)は空のままにしてください。</div>' +
+        '<label class="check" style="margin:4px 0 8px"><input type="checkbox" id="ceAuto"' + (c.auto && c.auto.on ? ' checked' : '') + '> <span>オートチャージを使っている</span></label>' +
+        '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"><div class="field" style="flex:1;min-width:110px"><label for="ceAutoUnder">残高がこれより少ないとき</label><input class="input" id="ceAutoUnder" type="number" inputmode="numeric" value="' + esc(c.auto ? c.auto.under : 1000) + '"></div>' +
+        '<div class="field" style="flex:1;min-width:110px"><label for="ceAutoAmt">チャージする金額</label><input class="input" id="ceAutoAmt" type="number" inputmode="numeric" value="' + esc(c.auto ? c.auto.amt : 5000) + '"></div></div>' +
+        '<div class="field"><label for="ceAutoSrc">チャージのお金を払うカード</label><input class="input" id="ceAutoSrc" placeholder="例:VIEWカード" value="' + esc(c.auto && c.auto.src ? c.auto.src : '') + '"></div>' +
         '<div class="field"><label for="cePpWd">次の月の何日に引き落とし</label><select class="input" id="cePpWd">' + days + '</select></div>' +
         '<div style="display:flex;gap:8px"><div class="field" style="flex:2"><label for="cePpBank">口座</label><input class="input" id="cePpBank" placeholder="例:ゆうちょ銀行" value="' + esc(c.ppBank || '') + '"></div>' +
         '<div class="field" style="flex:1"><label for="cePpAcct">下4桁</label><input class="input" id="cePpAcct" inputmode="numeric" maxlength="4" value="' + esc(c.ppAcct || '') + '"></div></div></div>' +
@@ -3017,6 +3042,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }
       if (ctype === 'チャージ式') {
         v.ppWd = $('cePpWd').value; v.ppBank = $('cePpBank').value.trim().slice(0, 30); v.ppAcct = $('cePpAcct').value.trim();
+        v.auto = { on: $('ceAuto').checked, under: Math.round(Number($('ceAutoUnder').value) || 1000), amt: Math.round(Number($('ceAutoAmt').value) || 5000), src: $('ceAutoSrc').value.trim().slice(0, 20) };
         if (v.ppAcct && !/^\d{4}$/.test(v.ppAcct)) return err('口座番号は、下4桁の数字だけを入れてください');
       }
       if (ctype === 'チャージ式') {
@@ -3689,11 +3715,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       // チャージ式で引き落としのあるもの(オートチャージの Suica など):前の月に使った金額の合計を、この月の決めた日に引き落とす(見込み)
       (feat('pay') ? cardList() : []).forEach(function (c) {
         if (!isPrepaid(c) || !c.ppWd) return;
-        var pm = shiftMonth(wm, -1), used = ppUsed(c, pm), key = c.id + '|pp|' + wm, ov = billOverrides()[key];
+        var pm = shiftMonth(wm, -1), used = ppBasis(c, pm), key = c.id + '|pp|' + wm, ov = billOverrides()[key];
         if (!used.length && ov == null) return;
         var last = new Date(+wm.slice(0, 4), +wm.slice(5, 7), 0).getDate(), d = nextBizDay(wm + '-' + pad(c.ppWd == 99 ? last : Math.min(+c.ppWd, last)));
-        var est = used.reduce(function (a, l) { return a - l.change; }, 0);
-        rows.push({ date: d, name: c.name, sub: monthLabel(pm) + 'に使った分 ' + used.length + '件 ・ ' + (ov != null ? '✅ 請求額' : '見込み'), amount: ov != null ? ov : est,
+        var est = used.reduce(function (a, l) { return a + Math.abs(l.change); }, 0);
+        rows.push({ date: d, name: c.name, sub: monthLabel(pm) + (ppByCharge(c) ? 'のチャージ ' : 'に使った分 ') + used.length + (ppByCharge(c) ? '回' : '件') + ' ・ ' + (ov != null ? '✅ 請求額' : '見込み'), amount: ov != null ? ov : est,
           est: est, key: key, bank: (c.ppBank || '') + (c.ppAcct ? ' …' + c.ppAcct : ''), prepaidCharge: c, ppMonth: pm, real: ov != null });
       });
       (pay.list || []).forEach(function (p) {
