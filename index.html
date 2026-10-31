@@ -412,7 +412,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     </div>
     <div class="total-card">
       <div class="label" id="histTotalLabel">合計</div>
-      <div class="amount" id="histTotal">¥0</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-primary" id="histDetail" style="min-height:48px;padding:0 16px;font-size:18px;flex:none">詳細</button>
+        <button id="histTotal" class="amount" style="background:none;border:none;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">¥0</button>
+      </div>
       <div id="histIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
     <button class="btn btn-tonal btn-block" id="histIncomeBtn" style="min-height:48px;margin:0 0 10px">💰 収入を入れる・見る</button>
@@ -771,7 +774,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 13:20 版110';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 13:35 版111';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2179,6 +2182,32 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
   }
   $('histIncomeBtn').addEventListener('click', openIncomes);
+  // 買物の合計の明細:払い方ごと・何の支払いごと・お店ごと・日付の順(押すとそのレシート)
+  function openHistDetail() {
+    var rs = (state.receipts || []).filter(function (r) { return !state.filter || r.person === state.filter; });
+    var total = rs.reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0);
+    var by = function (keyOf) {
+      var m = {}; rs.forEach(function (r) { var k = keyOf(r); m[k] = m[k] || { n: 0, sum: 0 }; m[k].n++; m[k].sum += Number(r.total) || 0; });
+      return Object.keys(m).sort(function (a, b) { return m[b].sum - m[a].sum; }).map(function (k) {
+        return '<div class="in-line"><span>' + esc(k) + ' <span class="in-sub">' + m[k].n + '件</span></span><b>' + yen(m[k].sum) + '</b></div>'; }).join('');
+    };
+    var list = rs.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }).map(function (r) {
+      var its = (r.items || []).filter(function (it) { return it.price > 0; }).slice(0, 3).map(function (it) { return it.name; }).join('・');
+      return '<div class="in-line" data-hr="' + esc(r.id) + '" role="button" style="cursor:pointer"><span>' + esc(md(r.date)) + ' ' + esc(r.store || 'お店の名前なし') +
+        '<br><span class="in-sub">' + esc([r.purpose, r.payMethod, its].filter(Boolean).join(' ・ ')) + '</span></span><b style="white-space:nowrap">' + yen(r.total) + ' ›</b></div>';
+    }).join('');
+    openSheet('<div class="grip"></div><h2>🧾 ' + esc(monthLabel(state.month)) + 'の買物の明細' + (state.filter ? '(' + esc(state.filter) + ')' : '') + '</h2>' +
+      '<div class="total-card" style="margin-bottom:12px"><div class="label">合計(' + rs.length + '件)</div><div class="amount">' + yen(total) + '</div></div>' +
+      (rs.length ? '<div class="section-title">💳 払い方ごと</div><div class="card" style="margin-bottom:12px">' + by(function (r) { return r.payMethod || '払い方なし'; }) + '</div>' +
+        '<div class="section-title">🏷 何の支払いごと</div><div class="card" style="margin-bottom:12px">' + by(function (r) { return r.purpose || '分類なし'; }) + '</div>' +
+        '<div class="section-title">🏪 お店ごと</div><div class="card" style="margin-bottom:12px">' + by(function (r) { return r.store || 'お店の名前なし'; }) + '</div>' +
+        '<div class="section-title">日付の順(押すとレシート)</div><div class="card" style="margin-bottom:12px">' + list + '</div>' : '<div class="note" style="font-size:17px">この月の買物はありません。</div>') +
+      '<button class="btn btn-tonal btn-block" id="hdClose">閉じる</button>');
+    $('hdClose').addEventListener('click', closeSheet);
+    $('sheet').querySelectorAll('[data-hr]').forEach(function (x) { x.addEventListener('click', function () { openDetail(x.dataset.hr); }); });
+  }
+  $('histDetail').addEventListener('click', openHistDetail);
+  $('histTotal').addEventListener('click', openHistDetail);
   $('ptBtn').addEventListener('click', function () { openWallet('points'); });
   // 電子マネー(チャージ式)の残高をまとめて見る
   function openBalances() {
