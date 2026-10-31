@@ -102,7 +102,7 @@ input { font: inherit; color: var(--text); }
   padding: 8px 12px; font-size: 17px; line-height: 1.45; box-shadow: 0 4px 14px rgba(0,0,0,.18); pointer-events: none; transition: opacity .3s; }
 .fun-pop { position: fixed; left: 50%; bottom: 230px; z-index: 61; font-size: 64px; line-height: 1; transform: translateX(-50%); pointer-events: none;
   animation: funIn .5s cubic-bezier(.3,1.6,.5,1) both, funHop .5s .5s ease-in-out 4 alternate; }
-.pm-btn { flex-direction: column; align-items: flex-start; text-align: left; line-height: 1.35; padding: 10px 16px; min-height: 64px; margin-bottom: 10px; font-size: 18px; }
+.pm-btn { justify-content: flex-start !important; text-align: left; line-height: 1.35; padding: 10px 16px; min-height: 56px; margin-bottom: 10px; font-size: 18px; }
 .pm-btn span { font-size: 14px; font-weight: 400; opacity: .85; }
 .hop { display: inline-block; animation: hop .45s ease-in-out infinite alternate; }
 .hop-slow { display: inline-block; animation: hop .8s ease-in-out infinite alternate; }
@@ -587,20 +587,22 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           <span class="title" style="font-size:18px" id="pmLabel">今月の支払い額</span>
           <button class="icon-btn" id="pmNext" aria-label="次の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
         </div>
-        <button class="total-card" id="pmTotalBtn" style="display:block;width:100%;text-align:left;border:none;cursor:pointer;color:inherit;font:inherit">
-          <div class="amount" id="pmTotal">¥0</div>
-          <div style="font-size:16px" id="pmSub"></div>
-          <div style="font-size:14px;margin-top:4px;opacity:.8">金額を押すと、明細が見られます ›</div>
-        </button>
+        <div class="total-card">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn btn-primary" id="pmTotalBtn" style="min-height:48px;padding:0 16px;font-size:18px;flex:none">詳細</button>
+            <div class="amount" id="pmTotal">¥0</div>
+          </div>
+          <div style="font-size:16px;margin-top:4px" id="pmSub"></div>
+        </div>
         <button class="btn btn-primary btn-block" id="payInput" style="min-height:60px;font-size:21px;margin:0 0 10px">＋ 支払い入力</button>
         <button class="error hidden" id="cpNotice" style="display:block;width:100%;text-align:left;font-size:17px;margin:0 0 12px;border:2px solid var(--danger);cursor:pointer"></button>
         <div class="pm-menu">
-          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenList">📋 この月の支払いの一覧<br><span>日付の順。押すと中身を見たり直したり、「払った」を押せる</span></button>
-          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenGroups">🏦 カードごと・口座ごとの合計<br><span>どのカード・どの口座から、いくら引き落とされるか</span></button>
-          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenSlips">📄 登録した納付書・請求書<br><span>住民税・保険料など。期ごとの明細が見られる</span></button>
-          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenPaid">💰 払ったお金<br><span>今月・今年に払った合計と、全部の支払い</span></button>
-          <button class="btn btn-tonal btn-block pm-btn" id="payCard">💳 カード支払の一覧<br><span>スマホ代など、カードで払ったものと毎月くり返すもの</span></button>
-          <button class="btn btn-tonal btn-block pm-btn" id="payCardReg">👛 お財布<br><span>電子マネー・カード・ポイントの登録と残高</span></button>
+          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenList">📋 今月なにを払うのか見たい</button>
+          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenGroups">🏦 どの口座にいくら必要か知りたい</button>
+          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenSlips">📄 税金・保険料の明細を見たい</button>
+          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenPaid">💰 払ったお金を知りたい</button>
+          <button class="btn btn-tonal btn-block pm-btn" id="payCard">💳 カードで払った物を見たい・直したい</button>
+          <button class="btn btn-tonal btn-block pm-btn" id="payCardReg">👛 電子マネーやカードを登録したい</button>
         </div>
       </div>
       <div class="hidden" id="payHidden">
@@ -769,7 +771,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 10:45 版102';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 11:00 版102';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2390,7 +2392,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('payWd').addEventListener('click', function () { openWithdrawals(Math.max(0, Math.min(1, PM.off))); });
   $('payCard').addEventListener('click', openCardPays);
   $('payInput').addEventListener('click', openPayInput);
-  $('pmTotalBtn').addEventListener('click', function () { openPmDetail('', PM.rows); });
+  $('pmTotalBtn').addEventListener('click', openPmTable);
   $('pmOpenList').addEventListener('click', openPmList);
   $('pmOpenGroups').addEventListener('click', function () { openPmDetail('', PM.rows); });
   $('pmOpenSlips').addEventListener('click', openPmSlips);
@@ -3533,6 +3535,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!$('pmBox')) return;
     var wm = shiftMonth(thisMonth(), PM.off), my = ++PM.seq, t = today();
     $('pmLabel').textContent = (PM.off === 0 ? '今月' : PM.off === 1 ? '来月' : PM.off === -1 ? '先月' : monthLabel(wm)) + 'の支払い額(' + monthLabel(wm) + ')';
+    var mw = PM.off === 0 ? '今月' : PM.off === 1 ? '来月' : PM.off === -1 ? '先月' : monthLabel(wm);
+    if ($('pmOpenList')) $('pmOpenList').textContent = '📋 ' + mw + 'なにを払うのか見たい';
     $('pmList').innerHTML = '<div class="loading"><div class="spinner"></div>数えています…</div>';
     payMonthRows(wm).then(function (rows) {
       if (my !== PM.seq) return;
@@ -3610,6 +3614,69 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function pmRowLine(r) {
     var name = r.slip ? payName(r.slip) : r.name, st = r.slip ? (r.slip.status === '済み' ? '✅ 払った' : '期限') : (r.date < today() ? '引き落とし済み' : '引き落とし');
     return '<div class="in-line"><span>' + esc(name) + '<br><span class="in-sub">' + esc(md(r.date)) + ' ' + st + (r.bank ? ' ・ 🏦 ' + esc(r.bank) : '') + '</span></span><b>' + yen(r.amount) + '</b></div>';
+  }
+  // 「詳細」の明細表:引き落としごとに1行(同じカード・同じ日はまとめる)。押すと何を買ったかが出る
+  function pmEvents(rows) {
+    var ev = [], idx = {};
+    rows.forEach(function (r) {
+      if (r.slip) { ev.push({ kind: 'slip', title: payName(r.slip), date: r.date, amount: r.amount, bank: '', slip: r.slip }); return; }
+      var card = r.cardpay ? r.cardpay.card : cardLabel(r.card), k = card + '|' + r.date;
+      var e = idx[k]; if (!e) { e = idx[k] = { kind: 'card', title: card, date: r.date, amount: 0, bank: r.bank, cardRow: null, cps: [] }; ev.push(e); }
+      e.amount += r.amount; if (r.cardpay) e.cps.push(r.cardpay); else e.cardRow = r; if (!e.bank) e.bank = r.bank;
+    });
+    return ev.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  }
+  function openPmTable() {
+    var rows = PM.rows || [], ev = pmEvents(rows), t = today(), total = rows.reduce(function (a, r) { return a + r.amount; }, 0);
+    var wd = function (d) { return '日月火水木金土'.charAt(new Date(d + 'T00:00:00').getDay()); };
+    openSheet('<div class="grip"></div><h2>🧾 ' + esc(monthLabel(PM.wm || thisMonth())) + 'の支払いの明細</h2>' +
+      '<div class="total-card" style="margin-bottom:12px"><div class="label">合計</div><div class="amount">' + yen(total) + '</div></div>' +
+      '<div class="note" style="font-size:15px;margin-bottom:8px">押すと、いつ・何を・いくらで買ったかが見られます。</div>' +
+      (ev.map(function (e, i) {
+        var past = e.date < t || (e.slip && e.slip.status === '済み');
+        return '<button class="card" data-ev="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:10px;border:1px solid var(--line);color:var(--text);' + (past ? 'opacity:.65' : '') + '">' +
+          '<div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + (e.kind === 'slip' ? '📄 ' : '💳 ') + esc(e.title) + '</b><b style="font-size:19px;white-space:nowrap">' + yen(e.amount) + ' ›</b></div>' +
+          '<div class="in-sub" style="font-size:16px">' + esc(md(e.date)) + '(' + wd(e.date) + ') ' + (e.kind === 'slip' ? (e.slip.status === '済み' ? '✅ 払った' : '期限') : (e.date < t ? '引き落とし済み' : '引き落とし')) +
+          (e.bank ? ' ・ 🏦 ' + esc(e.bank) : e.kind === 'card' ? ' ・ 🏦 口座が未登録' : '') + '</div></button>';
+      }).join('') || '<div class="note" style="font-size:17px">この月の支払いはありません。</div>') +
+      '<button class="btn btn-tonal btn-block" id="ptbClose" style="margin-top:6px">閉じる</button>');
+    $('ptbClose').addEventListener('click', closeSheet);
+    $('sheet').querySelectorAll('[data-ev]').forEach(function (b) { b.addEventListener('click', function () {
+      var e = ev[+b.dataset.ev];
+      if (e.kind === 'slip') { pay.returnGroup = null; return openPayDetail(e.slip.id); }
+      openEventItems(e);
+    }); });
+  }
+  // 1つの引き落としの中身:締めの期間に使ったレシートと、カード支払で入れたもの
+  function openEventItems(e) {
+    var r = e.cardRow, b = r ? billFor(r.card, PM.wm) : null;
+    var months = b ? [b.start.slice(0, 7), b.end.slice(0, 7)].filter(function (m, i, a) { return a.indexOf(m) === i; }) : [];
+    rkLoad(months).then(function (all) {
+      var cpIds = {}; cpList().forEach(function (x) { cpIds[x.id] = 1; });
+      var rs = b ? all.filter(function (x) { return !cpIds[x.id] && x.payMethod === cardLabel(r.card) && x.date >= b.start && x.date <= b.end; }) : [];
+      var items = rs.map(function (x) { return { date: x.date, name: x.store || 'お店の名前なし', sub: (x.items || []).filter(function (it) { return it.price > 0; }).slice(0, 4).map(function (it) { return it.name; }).join('・'), amount: x.total }; })
+        .concat(e.cps.map(function (x) { return { date: x.used, name: x.name, sub: 'カード支払' + (x.unconfirmed ? ' ・ ⚠ 金額を確かめてください' : ''), amount: x.amount, cp: x }; }))
+        .sort(function (a, c) { return a.date < c.date ? -1 : 1; });
+      openSheet('<div class="grip"></div><h2>💳 ' + esc(e.title) + '</h2>' +
+        '<div class="total-card" style="margin-bottom:12px"><div class="label">' + esc(md(e.date)) + ' 引き落とし</div><div class="amount">' + yen(e.amount) + '</div>' +
+        '<div style="font-size:15px">' + (e.bank ? '🏦 ' + esc(e.bank) : '🏦 口座が未登録') + (b ? ' ・ 締めの期間 ' + esc(md(b.start)) + '〜' + esc(md(b.end)) : '') + '</div></div>' +
+        '<div class="section-title">使ったもの(' + items.length + '件)</div><div class="card" style="margin-bottom:12px">' +
+        (items.map(function (x, i) {
+          return '<div class="in-line"' + (x.cp ? ' data-ecp="' + i + '" role="button" style="cursor:pointer"' : '') + '><span>' + esc(md(x.date)) + ' ' + esc(x.name) + (x.sub ? '<br><span class="in-sub">' + esc(x.sub) + '</span>' : '') + '</span><b>' + yen(x.amount) + (x.cp ? ' ›' : '') + '</b></div>'; }).join('') ||
+          '<div class="note">この期間に、このカードで払ったレシートは入っていません。</div>') + '</div>' +
+        (r && !r.real ? '<div class="note" style="font-size:15px;margin-bottom:10px">レシートのない分(電車代など)は入っていません。カードの明細で請求額を見たら、下のボタンで入れてください。</div>' : '') +
+        (r ? '<button class="btn btn-tonal btn-block" id="eiAmt">✏ 請求額を入れる</button>' : '') +
+        '<button class="btn btn-tonal btn-block" id="eiBack" style="margin-top:10px">← 明細に戻る</button>');
+      $('eiBack').addEventListener('click', openPmTable);
+      $('sheet').querySelectorAll('[data-ecp]').forEach(function (x) { x.addEventListener('click', function () { openCardPay(items[+x.dataset.ecp].cp); }); });
+      if ($('eiAmt')) $('eiAmt').addEventListener('click', function () {
+        var v = prompt(e.title + ' の ' + monthLabel(PM.wm) + ' の請求額(円)を入れてください(カード支払の分は除いた金額)。\n空にすると、見込み(' + yen(r.est) + ')に戻ります。', r.real ? r.amount : '');
+        if (v === null) return;
+        var o = billOverrides(), n = Math.round(Number(String(v).replace(/[^0-9]/g, '')) || 0);
+        if (String(v).trim() === '') delete o[r.key]; else o[r.key] = n;
+        store.set('billAmt', JSON.stringify(o)); closeSheet(); renderPayMonth();
+      });
+    });
   }
   // 明細:その月の支払いを全部、またはカードごと・口座ごと
   function openPmDetail(title, items) {
