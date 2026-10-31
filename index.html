@@ -774,7 +774,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 13:30 版112';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 13:20 版113';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -3004,6 +3004,39 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
   /* ---------- レシートの払い方から登録する(まだ登録していないカード・電子マネーを見つける) ---------- */
   var EMONEY_FAMILY = ['Suica', 'PayPay', 'au PAY', 'イオンペイ'];
+  // 名前から、電子マネーらしいか(登録のボタンの順番を決めるだけ)
+  function looksEmoney(v) { return EMONEY_FAMILY.indexOf(normPayMethod(v)) >= 0 || /WAON|nanaco|Edy|PASMO|ICOCA|Kitaca|manaca|TOICA|SUGOCA|Suica|pay|ペイ|電子マネー|QUICPay|^iD$/i.test(String(v || '')); }
+  // レシートの払い方が、まだお財布に登録していないカード・電子マネーなら、その名前を返す
+  function regSkip() { try { return JSON.parse(store.get('regAskSkip') || '[]'); } catch (e) { return []; } }
+  function unregPay(v) {
+    v = String(v || '').trim();
+    if (!v || !feat('pay')) return '';
+    var k = normPayMethod(v);
+    if (k === '現金' || k === 'クレジットカード' || /^(その他|不明|なし)$/.test(v)) return '';   // 名前が分からないものは聞かない
+    if (cardList().some(function (c) { return payIs(v, c); })) return '';
+    if (regSkip().indexOf(v) >= 0) return '';
+    return v;
+  }
+  // 保存のあとに「まだ登録されていません。登録しますか?」と聞く
+  function askRegPay(v) {
+    var em = looksEmoney(v);
+    var reg = function (g) {
+      openCardEdit(g === 'emoney' ? { name: v, type: normPayMethod(v) === 'Suica' ? 'スマホ決済・電子マネー' : 'チャージ式' } : { name: v, type: 'クレジットカード' }, null, g);
+    };
+    openSheet('<div class="grip"></div><h2>' + (em ? '💴' : '💳') + ' 「' + esc(v) + '」は、まだ登録されていません</h2>' +
+      '<div class="note" style="font-size:17px;margin-bottom:12px">レシートの払い方が「' + esc(v) + '」でした。お財布に登録しますか?<br>登録すると、' +
+      (em ? '使った金額を残高から引けます。' : 'カードの引き落としの集計に入ります。') + '</div>' +
+      (em ? '<button class="btn btn-primary btn-block" data-ra="emoney">💴 電子マネーとして登録する</button><button class="btn btn-tonal btn-block" data-ra="card" style="margin-top:8px">💳 カードとして登録する</button>'
+          : '<button class="btn btn-primary btn-block" data-ra="card">💳 カードとして登録する</button><button class="btn btn-tonal btn-block" data-ra="emoney" style="margin-top:8px">💴 電子マネーとして登録する</button>') +
+      '<button class="btn btn-tonal btn-block" id="raLater" style="margin-top:8px">あとで(今はしない)</button>' +
+      '<button class="btn btn-tonal btn-block" id="raNever" style="margin-top:8px">「' + esc(v) + '」は、もう聞かない</button>');
+    $('sheet').querySelectorAll('[data-ra]').forEach(function (b) { b.addEventListener('click', function () { reg(b.dataset.ra); }); });
+    $('raLater').addEventListener('click', function () { closeSheet(); toast('あとで、お財布の「📥 レシートの払い方から登録する」からも登録できます'); });
+    $('raNever').addEventListener('click', function () {
+      var l = regSkip(); if (l.indexOf(v) < 0) l.push(v); store.set('regAskSkip', JSON.stringify(l));
+      closeSheet(); toast('「' + v + '」は、もう聞きません');
+    });
+  }
   function openFromReceipts(back) {
     var self = function () { openFromReceipts(back); };
     openSheet('<div class="grip"></div><h2>📥 レシートの払い方から登録</h2><div class="loading"><div class="spinner"></div>この半年のレシートを調べています…</div>');
@@ -3021,7 +3054,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       openSheet('<div class="grip"></div><h2>📥 レシートの払い方から登録</h2>' +
         '<div class="note" style="font-size:16px;margin-bottom:10px">この半年のレシートやカード支払に出てきた払い方のうち、まだ「お財布」に登録していないものです。押すと、名前が入った状態で登録の画面が開きます。</div>' +
         (names.map(function (v, i) {
-          var em = EMONEY_FAMILY.indexOf(normPayMethod(v)) >= 0, generic = normPayMethod(v) === 'クレジットカード';
+          var em = looksEmoney(v), generic = normPayMethod(v) === 'クレジットカード';
           return '<div class="card nt-card"><div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + (em ? '💴 ' : '💳 ') + esc(v) + '</b><span class="in-sub">' + m[v].n + '件' + (m[v].sum ? ' ・ ' + yen(m[v].sum) : '') + '</span></div>' +
             '<div class="in-sub">いちばん新しいのは ' + esc(md(m[v].last)) + '</div>' +
             (generic ? '<div class="in-sub" style="color:var(--on-warn)">「クレジットカード」としか書いていません。登録の画面で、カードの名前(例:楽天カード)に直してください。</div>' : '') +
@@ -3658,12 +3691,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (!editing && feat('memo')) tickShop(d);
       if (!editing && feat('points')) updatePointsFromReceipt(d);
       if (!editing && feat('pay')) prepaidFromReceipt(d);
-      if (!editing) setTimeout(function () { celebrateReceipt(d); }, 1800);
+      var ask = !editing && unregPay(d.payMethod);
+      if (!editing && !ask) setTimeout(function () { celebrateReceipt(d); }, 1800);
       toast(editing ? '変更を保存しました' : label(d.person) + 'の買い物を保存しました');
       state.editingId = null;
       state.month = d.date.slice(0, 7);
       state.loadedMonth = null;
       go('history');
+      if (ask) setTimeout(function () { askRegPay(ask); }, 700);
     }).catch(function (err) {
       btn.disabled = false; btn.textContent = '保存する';
       $('cfError').textContent = err.message; show('cfError', true);
