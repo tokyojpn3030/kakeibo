@@ -752,7 +752,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 09:30 版96';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 09:30 版97';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -4340,7 +4340,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         .catch(function (e) { $('hkErr').textContent = e.message; show('hkErr', true); });
     };
     $('hkSave').addEventListener('click', function () {
-      var k = $('hkKey').value.trim(), l = $('hkLimit').value.trim();
+      var k = $('hkKey').value.replace(/[\s"'「」]/g, ''), l = $('hkLimit').value.trim();
+      // 鍵は「AIza」で始まる39文字くらいの英数字。違うものを貼り付けたときは、保存する前に知らせる
+      if (k && !/^AIza[A-Za-z0-9_\-]{30,}$/.test(k)) {
+        $('hkErr').innerHTML = '貼り付けたものは、鍵ではないようです(' + k.length + '文字' + (/^AIza/.test(k) ? '' : '・「AIza」で始まっていません') + ')。<br>' +
+          'AI Studio の「API キー」の一覧で、kakeibo-shimai の行の <b>コピーの印</b> を押してから、もう一度貼り付けてください。鍵の名前(Gemini API Key など)や、「…」で隠された短い文字ではなく、AIza で始まる長い文字です。';
+        show('hkErr', true); return;
+      }
       var d = {}; if (k) d.key = k; if (l) d.limit = +l;
       send(d, '保存しました');
     });
