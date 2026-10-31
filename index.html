@@ -585,10 +585,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           <span class="title" style="font-size:18px" id="pmLabel">今月の支払い額</span>
           <button class="icon-btn" id="pmNext" aria-label="次の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
         </div>
-        <div class="total-card">
+        <button class="total-card" id="pmTotalBtn" style="display:block;width:100%;text-align:left;border:none;cursor:pointer;color:inherit;font:inherit">
           <div class="amount" id="pmTotal">¥0</div>
           <div style="font-size:16px" id="pmSub"></div>
-        </div>
+          <div style="font-size:14px;margin-top:4px;opacity:.8">金額を押すと、明細が見られます ›</div>
+        </button>
+        <div id="pmGroups"></div>
         <button class="btn btn-primary btn-block" id="payInput" style="min-height:60px;font-size:21px;margin:0 0 10px">＋ 支払い入力</button>
         <button class="error hidden" id="cpNotice" style="display:block;width:100%;text-align:left;font-size:17px;margin:0 0 12px;border:2px solid var(--danger);cursor:pointer"></button>
         <div class="section-title">日付の順(押すと中身・直す)</div>
@@ -762,7 +764,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 10:15 版100';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 10:30 版101';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2383,6 +2385,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('payWd').addEventListener('click', function () { openWithdrawals(Math.max(0, Math.min(1, PM.off))); });
   $('payCard').addEventListener('click', openCardPays);
   $('payInput').addEventListener('click', openPayInput);
+  $('pmTotalBtn').addEventListener('click', function () { openPmDetail('', PM.rows); });
   $('pmPrev').addEventListener('click', function () { PM.off--; renderPayMonth(); });
   $('pmNext').addEventListener('click', function () { PM.off++; renderPayMonth(); });
   $('payCardReg').addEventListener('click', function () { openWallet('emoney'); });
@@ -3527,6 +3530,18 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var done = function (r) { return r.slip ? r.slip.status === '済み' : r.date < t; };
       var total = rows.reduce(function (a, r) { return a + r.amount; }, 0), paid = rows.filter(done).reduce(function (a, r) { return a + r.amount; }, 0);
       $('pmTotal').textContent = yen(total);
+      PM.rows = rows; PM.wm = wm;
+      var g = pmGroup(rows);
+      $('pmGroups').innerHTML = rows.length && (g.cards.length > 1 || g.banks.length > 1 || g.cards.some(function (x) { return x.name !== '納付書・請求書'; })) ?
+        '<div class="card" style="margin-bottom:12px;padding:10px 14px">' +
+        '<div class="in-title" style="font-size:16px;margin-bottom:4px">💳 カード・払い方ごと</div>' + g.cards.map(function (x, i) {
+          return '<button class="in-line" data-pg="c' + i + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);color:var(--text);font:inherit;font-size:17px;cursor:pointer"><span>' + esc(x.name) + ' <span class="in-sub">' + x.items.length + '件</span></span><b>' + yen(x.sum) + ' ›</b></button>'; }).join('') +
+        '<div class="in-title" style="font-size:16px;margin:10px 0 4px">🏦 口座ごと</div>' + g.banks.map(function (x, i) {
+          return '<button class="in-line" data-pg="b' + i + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);color:var(--text);font:inherit;font-size:17px;cursor:pointer"><span>' + esc(x.name) + ' <span class="in-sub">' + x.items.length + '件</span></span><b>' + yen(x.sum) + ' ›</b></button>'; }).join('') +
+        '</div>' : '';
+      $('pmGroups').querySelectorAll('[data-pg]').forEach(function (b) { b.addEventListener('click', function () {
+        var k = b.dataset.pg, x = (k[0] === 'c' ? g.cards : g.banks)[+k.slice(1)]; openPmDetail(x.name, x.items);
+      }); });
       $('pmSub').textContent = rows.length ? '払った ' + yen(paid) + ' ・ これから ' + yen(total - paid) + '(' + rows.length + '件)' : 'この月の支払いはありません';
       $('pmList').innerHTML = rows.length ? rows.map(function (r, i) {
         if (r.slip) return payRowHtml(r.slip);
@@ -3540,13 +3555,66 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       $('pmList').querySelectorAll('[data-pm]').forEach(function (b) { b.addEventListener('click', function () {
         var r = rows[+b.dataset.pm];
         if (r.cardpay) return openCardPay(r.cardpay);
-        var v = prompt(r.name + ' の ' + monthLabel(wm) + ' の請求額(円)を入れてください。\n空にすると、見込み(' + yen(r.est) + ')に戻ります。', r.real ? r.amount : '');
+        openCardBill(r);
+      }); });
+    }).catch(function (e) { if (my === PM.seq) $('pmList').innerHTML = '<div class="error">' + esc(e.message) + '</div>'; });
+  }
+  // カード(払い方)ごと・口座ごとにまとめる
+  function pmGroup(rows) {
+    var by = function (keyOf) {
+      var m = {}, order = [];
+      rows.forEach(function (r) { var k = keyOf(r); if (!m[k]) { m[k] = { name: k, sum: 0, items: [] }; order.push(k); } m[k].sum += r.amount; m[k].items.push(r); });
+      return order.map(function (k) { return m[k]; }).sort(function (a, b) { return b.sum - a.sum; });
+    };
+    return {
+      cards: by(function (r) { return r.slip ? '納付書・請求書' : r.cardpay ? r.cardpay.card : r.name; }),
+      banks: by(function (r) { return r.slip ? '納付書(コンビニ・口座など)' : (r.bank || '口座が未登録'); })
+    };
+  }
+  function pmRowLine(r) {
+    var name = r.slip ? payName(r.slip) : r.name, st = r.slip ? (r.slip.status === '済み' ? '✅ 払った' : '期限') : (r.date < today() ? '引き落とし済み' : '引き落とし');
+    return '<div class="in-line"><span>' + esc(name) + '<br><span class="in-sub">' + esc(md(r.date)) + ' ' + st + (r.bank ? ' ・ 🏦 ' + esc(r.bank) : '') + '</span></span><b>' + yen(r.amount) + '</b></div>';
+  }
+  // 明細:その月の支払いを全部、またはカードごと・口座ごと
+  function openPmDetail(title, items) {
+    items = items || PM.rows || [];
+    var total = items.reduce(function (a, r) { return a + r.amount; }, 0), g = pmGroup(items);
+    openSheet('<div class="grip"></div><h2>🧾 ' + esc(title || monthLabel(PM.wm) + 'の支払いの明細') + '</h2>' +
+      '<div class="total-card" style="margin-bottom:12px"><div class="label">' + esc(monthLabel(PM.wm)) + '</div><div class="amount">' + yen(total) + '</div></div>' +
+      (title ? '' : '<div class="section-title">💳 カード・払い方ごと</div><div class="card" style="margin-bottom:12px">' + g.cards.map(function (x) {
+        return '<div class="in-line"><span>' + esc(x.name) + ' <span class="in-sub">' + x.items.length + '件</span></span><b>' + yen(x.sum) + '</b></div>'; }).join('') + '</div>' +
+        '<div class="section-title">🏦 口座ごと</div><div class="card" style="margin-bottom:12px">' + g.banks.map(function (x) {
+        return '<div class="in-line"><span>' + esc(x.name) + ' <span class="in-sub">' + x.items.length + '件</span></span><b>' + yen(x.sum) + '</b></div>'; }).join('') + '</div>') +
+      '<div class="section-title">日付の順</div><div class="card" style="margin-bottom:12px">' + (items.map(pmRowLine).join('') || '<div class="note">ありません</div>') + '</div>' +
+      '<button class="btn btn-tonal btn-block" id="pdClose">閉じる</button>');
+    $('pdClose').addEventListener('click', closeSheet);
+  }
+  // カード・電子マネーの引き落とし:締めの期間に使ったレシートの明細と、請求額の入力
+  function openCardBill(r) {
+    var b = billFor(r.card, PM.wm);
+    var months = [b.start.slice(0, 7)]; if (b.end.slice(0, 7) !== months[0]) months.push(b.end.slice(0, 7));
+    rkLoad(months).then(function (all) {
+      var cpIds = {}; cpList().forEach(function (x) { cpIds[x.id] = 1; });
+      var rs = all.filter(function (x) { return !cpIds[x.id] && x.payMethod === cardLabel(r.card) && x.date >= b.start && x.date <= b.end; })
+        .sort(function (a, c) { return a.date < c.date ? -1 : 1; });
+      openSheet('<div class="grip"></div><h2>' + (isPrepaid(r.card) ? '💴 ' : '💳 ') + esc(r.name) + '</h2>' +
+        '<div class="total-card" style="margin-bottom:12px"><div class="label">' + esc(md(r.date)) + ' 引き落とし(' + (r.real ? '✅ 請求額' : '見込み') + ')</div><div class="amount">' + yen(r.amount) + '</div>' +
+        '<div style="font-size:15px">締めの期間 ' + esc(md(b.start)) + '〜' + esc(md(b.end)) + (r.bank ? ' ・ 🏦 ' + esc(r.bank) : '') + '</div></div>' +
+        '<div class="section-title">この期間に使ったもの(' + rs.length + '件 ・ ' + yen(r.est) + ')</div><div class="card" style="margin-bottom:12px">' +
+        (rs.map(function (x) { return '<div class="in-line"><span>' + esc(x.store || 'お店の名前なし') + '<br><span class="in-sub">' + esc(md(x.date)) + (x.purpose ? ' ・ ' + esc(x.purpose) : '') + '</span></span><b>' + yen(x.total) + '</b></div>'; }).join('') ||
+          '<div class="note">払い方をこのカードにしたレシートは、ありません。</div>') + '</div>' +
+        '<div class="note" style="font-size:15px;margin-bottom:10px">電車代など、レシートのない分は入っていません。アプリやカードの明細で請求額を見たら、下のボタンで入れてください。</div>' +
+        '<button class="btn btn-primary btn-block" id="cbAmt">✏ 請求額を入れる</button>' +
+        '<button class="btn btn-tonal btn-block" id="cbClose" style="margin-top:10px">閉じる</button>');
+      $('cbClose').addEventListener('click', closeSheet);
+      $('cbAmt').addEventListener('click', function () {
+        var v = prompt(r.name + ' の ' + monthLabel(PM.wm) + ' の請求額(円)を入れてください。\n空にすると、見込み(' + yen(r.est) + ')に戻ります。', r.real ? r.amount : '');
         if (v === null) return;
         var o = billOverrides(), n = Math.round(Number(String(v).replace(/[^0-9]/g, '')) || 0);
         if (String(v).trim() === '') delete o[r.key]; else o[r.key] = n;
-        store.set('billAmt', JSON.stringify(o)); renderPayMonth();
-      }); });
-    }).catch(function (e) { if (my === PM.seq) $('pmList').innerHTML = '<div class="error">' + esc(e.message) + '</div>'; });
+        store.set('billAmt', JSON.stringify(o)); closeSheet(); renderPayMonth();
+      });
+    });
   }
   function openPayInput() {
     openSheet('<div class="grip"></div><h2>＋ 支払い入力</h2>' +
