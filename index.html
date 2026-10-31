@@ -771,7 +771,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 11:30 版103';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 11:40 版104';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1131,6 +1131,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (name !== 'history' && state.sel) { state.sel = null; show('selBar', false); }
     document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('active', s.id === 'screen-' + name); });
     document.querySelectorAll('.nav-item').forEach(function (b) { b.classList.toggle('on', b.dataset.screen === name); });
+    applyStripScreen();
     window.scrollTo(0, 0);
     if (name === 'history' || name === 'summary') loadMonth(false);
     if (name === 'capture' && !keep) resetCapture();
@@ -2192,6 +2193,25 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('sheet').querySelectorAll('[data-pb]').forEach(function (b) { b.addEventListener('click', function () { openPrepaid(l[+b.dataset.pb], openBalances); }); });
   }
   // どの画面でも一番上に、チャージ式の電子マネーの残高を出す(押すと記録・チャージ)
+  // いちばん上の残高・引き落としの札を出す画面(このスマホの設定。最初は全部の画面)
+  var STRIP = { has: false };
+  var STRIP_SCREENS = [['history', '買物'], ['capture', '撮影'], ['summary', '集計'], ['pay', '支払い'], ['notes', 'メモ']];
+  function stripScreens() { try { var v = JSON.parse(store.get('stripScreens') || 'null'); return v || STRIP_SCREENS.map(function (x) { return x[0]; }); } catch (e) { return STRIP_SCREENS.map(function (x) { return x[0]; }); } }
+  function curScreen() { var a = document.querySelector('.screen.active'); return a ? a.id.replace('screen-', '') : 'history'; }
+  function applyStripScreen() { if ($('balStrip')) $('balStrip').classList.toggle('hidden', !STRIP.has || stripScreens().indexOf(curScreen()) < 0); }
+  function openStripSettings(back) {
+    var cur = stripScreens();
+    openSheet('<div class="grip"></div><h2>📌 上に出す画面</h2>' +
+      '<div class="meta" style="font-size:17px">イオンペイの残高や Suica の引き落としの札を、どの画面のいちばん上に出すか選んでください。</div>' +
+      STRIP_SCREENS.map(function (x) { return '<label class="check" style="margin:10px 0;font-size:19px"><input type="checkbox" style="width:26px;height:26px;flex:none" data-ss="' + x[0] + '"' + (cur.indexOf(x[0]) >= 0 ? ' checked' : '') + '> <span>' + x[1] + '</span></label>'; }).join('') +
+      '<button class="btn btn-primary btn-block" id="ssSave" style="margin-top:8px">保存する</button>' +
+      '<button class="btn btn-tonal btn-block" id="ssBack" style="margin-top:10px">← 戻る</button>');
+    $('ssBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
+    $('ssSave').addEventListener('click', function () {
+      var v = []; $('sheet').querySelectorAll('[data-ss]').forEach(function (c) { if (c.checked) v.push(c.dataset.ss); });
+      store.set('stripScreens', JSON.stringify(v)); applyStripScreen(); toast('保存しました'); if (back) back(); else closeSheet();
+    });
+  }
   function renderBalStrip() {
     var l = feat('pay') ? cardList().filter(isPrepaid) : [];
     var em = feat('pay') ? cardList().filter(function (c) { return c.type === 'スマホ決済・電子マネー' && c.withdraw && c.commute; }) : [];
@@ -2200,7 +2220,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       return '<button class="chip" data-bs="' + i + '" style="' + chip + '">💴 ' + esc(cardLabel(c)) + ' <b style="margin-left:4px">' + yen(c.balance || 0) + '</b></button>';
     }).join('') + em.map(function (c, i) { return '<button class="chip" data-be="' + i + '" style="' + chip + '">🚃 ' + esc(cardLabel(c)) + ' <span class="be-amt">…</span></button>'; }).join('');
     $('balStrip').querySelectorAll('[data-bs]').forEach(function (b) { b.addEventListener('click', function () { openPrepaid(l[+b.dataset.bs], null); }); });
-    $('balStrip').classList.toggle('hidden', !l.length && !em.length);
+    STRIP.has = !!(l.length || em.length); applyStripScreen();
     // 次の引き落とし(今日より後でいちばん近いもの)の見込みを出す
     em.forEach(function (c, i) {
       var t = today(), m0 = thisMonth(), cand = [0, 1, 2].map(function (k) { var wm = shiftMonth(m0, k); return { wm: wm, b: billFor(c, wm) }; }).filter(function (x) { return x.b.date >= t; })[0];
@@ -2817,7 +2837,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="note" style="font-size:15px;margin-bottom:10px">電子マネー・カード・ポイントを、ここでまとめて登録・確認できます。このスマホの中だけに保存します(家族には見えません)。</div>' +
       '<div class="chips" id="wTabs" style="margin-bottom:12px">' + [['emoney', '💴 電子マネー'], ['card', '💳 カード'], ['points', '🎁 ポイント']].map(function (t) {
         return '<button class="chip' + (t[0] === tab ? ' on' : '') + '" data-t="' + t[0] + '" style="font-size:17px;min-height:46px">' + t[1] + '</button>'; }).join('') + '</div>' +
-      body + '<button class="btn btn-tonal btn-block" id="wClose" style="margin-top:10px">閉じる</button>');
+      body + (tab === 'emoney' ? '<button class="btn btn-tonal btn-block" id="wStrip" style="margin-top:10px">📌 いちばん上に出す画面を選ぶ</button>' : '') +
+      '<button class="btn btn-tonal btn-block" id="wClose" style="margin-top:10px">閉じる</button>');
+    if ($('wStrip')) $('wStrip').addEventListener('click', function () { openStripSettings(self); });
     $('wTabs').querySelectorAll('.chip').forEach(function (b) { b.addEventListener('click', function () { openWallet(b.dataset.t); }); });
     $('wClose').addEventListener('click', closeSheet);
     $('wNew').addEventListener('click', function () { if (tab === 'points') openPoints(self); else openCardEdit({}, self, tab); });
@@ -4393,6 +4415,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stMembers">🏠 家族のメンバーを編集</button>' +
       '<button class="btn btn-tonal btn-block" id="stPay">💴 支払いの設定・お知らせ</button>' +
       '<button class="btn btn-tonal btn-block" id="stFeat">🧩 使う機能を選ぶ</button>' +
+      (feat('pay') ? '<button class="btn btn-tonal btn-block" id="stStrip">📌 電子マネーの札を出す画面を選ぶ</button>' : '') +
       '<button class="btn btn-tonal btn-block" id="stReopen">🔁 アプリを開き直す(閉じて開くのと同じ)</button>' +
       (feat('pay') ? '<button class="btn btn-tonal btn-block" id="stCards">👛 お財布(電子マネー・カード・ポイント)</button>' : '') +
       '<button class="btn btn-tonal btn-block" id="stDelete">🗑 記録の削除とゴミ箱</button>' +
@@ -4413,6 +4436,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stPay').addEventListener('click', openPaySettings);
     if ($('stCards')) $('stCards').addEventListener('click', function () { openWallet('emoney'); });
     $('stFeat').addEventListener('click', openFeatures);
+    if ($('stStrip')) $('stStrip').addEventListener('click', function () { openStripSettings(openSettings); });
     $('stTalk').addEventListener('click', openTalkSettings);
     $('stReopen').addEventListener('click', function () { toast('開き直しています…'); window.kakeiboFix(); });
     $('stHomes').addEventListener('click', openHomes);
