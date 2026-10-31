@@ -774,7 +774,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 14:15 版116';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 17:20 版117';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版116';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -1001,7 +1001,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         }
         if (/^(incomes|saveIncome|deleteIncome)$/.test(action)) {
           var I; try { I = JSON.parse(store.get('demoIncome') || '[]'); } catch (e) { I = []; }
-          if (action === 'incomes') return resolve({ ok: true, incomes: I.filter(function (x) { return x.date.slice(0, 7) === data.month; }) });
+          if (action === 'incomes') return resolve({ ok: true, incomes: I.filter(function (x) { var m = x.date.slice(0, 7); return m >= (data.from || data.month) && m <= (data.to || data.month); }) });
           if (action === 'saveIncome') { var iv = Object.assign({}, data.income); if (iv.id) I = I.map(function (x) { return x.id === iv.id ? iv : x; }); else { iv.id = String(Date.now()); I.push(iv); } store.set('demoIncome', JSON.stringify(I)); return resolve({ ok: true, id: iv.id }); }
           if (action === 'deleteIncome') { I = I.filter(function (x) { return x.id !== data.id; }); store.set('demoIncome', JSON.stringify(I)); return resolve({ ok: true }); }
         }
@@ -2127,19 +2127,236 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '残り <b style="font-size:24px;color:' + (left < 0 ? 'var(--danger)' : 'inherit') + '">' + yen(left) + '</b>' + (left < 0 ? '(使いすぎ)' : '');
     show(id, true);
   }
+  /* ---------- 年金の決まり(このスマホに保存) ----------
+     年金は偶数月(2・4・6・8・10・12月)の15日に、2か月分が入る(15日が土日・祝日なら、その前の平日)。
+     mode 'ask':その日になったら、収入の画面で「入れますか?」と確かめる / 'auto':その日になったら自動で入れる */
+  function pensionRules() { try { return JSON.parse(store.get('pension') || '[]'); } catch (e) { return []; } }
+  function savePensionRules(l) { store.set('pension', JSON.stringify(l)); }
+  function prevBizDay(d) {
+    var x = new Date(d + 'T00:00:00');
+    while (x.getDay() === 0 || x.getDay() === 6 || BANK_HOLIDAYS.indexOf(ymd(x)) >= 0) x.setDate(x.getDate() - 1);
+    return ymd(x);
+  }
+  function pensionDate(m, r) { var last = new Date(+m.slice(0, 4), +m.slice(5, 7), 0).getDate(); return prevBizDay(m + '-' + pad(Math.min(+(r.day || 15), last))); }
+  // from〜to のあいだの、年金が入る日
+  function pensionDates(r, from, to) {
+    var out = [], m = from.slice(0, 7);
+    for (var n = 0; n < 40 && m <= to.slice(0, 7); n++, m = shiftMonth(m, 1)) {
+      if (+m.slice(5, 7) % 2) continue;
+      var d = pensionDate(m, r); if (d >= from && d <= to) out.push(d);
+    }
+    return out;
+  }
+  // 前回の年金の日(今日をふくむ)と、次回の年金の日
+  function pensionLast(r, t) { var l = pensionDates(r, shiftMonth(t.slice(0, 7), -3) + '-01', t); return l[l.length - 1] || ''; }
+  function pensionNext(r, t) { var d = new Date(t + 'T00:00:00'); d.setDate(d.getDate() + 1); return pensionDates(r, ymd(d), shiftMonth(t.slice(0, 7), 3) + '-28')[0] || ''; }
+  // まだ入れていない年金の日(決まりごと)
+  function pensionDue() {
+    if (!feat('income')) return [];
+    var t = today(), out = [];
+    pensionRules().forEach(function (r, ri) {
+      if (!r.person || !r.amount || !r.start) return;
+      pensionDates(r, r.start, t).forEach(function (d) {
+        if ((r.done || []).indexOf(d) >= 0 || (r.skip || []).indexOf(d) >= 0) return;
+        out.push({ ri: ri, r: r, date: d });
+      });
+    });
+    return out;
+  }
+  function markPension(ri, d, key) {
+    var l = pensionRules(), r = l[ri]; if (!r) return;
+    r[key] = (r[key] || []).filter(function (x) { return x >= shiftMonth(today().slice(0, 7), -14); }).concat([d]); savePensionRules(l);
+  }
+  // 1回分を入れる(もう入っていたら入れない)。split なら半分ずつ、入った月と次の月に
+  function addPension(r, d, amount) {
+    var HALF = '(2か月分の半分)', m0 = d.slice(0, 7);
+    return api('incomes', { from: m0, to: shiftMonth(m0, 1) }).then(function (res) {
+      var have = (res.incomes || []).some(function (x) { return x.person === r.person && x.kind === '年金' && x.date.slice(0, 7) === m0; });
+      if (have) return 'have';
+      var save1 = function (amt, dd, memo) { return api('saveIncome', { income: { id: '', person: r.person, kind: '年金', amount: amt, date: dd, memo: memo } }); };
+      var base = md(d) + 'の年金';
+      if (r.split === false) return save1(amount, d, base).then(function () { return 'ok'; });
+      var half = Math.floor(amount / 2), nm2 = shiftMonth(m0, 1), last = new Date(+nm2.slice(0, 4), +nm2.slice(5, 7), 0).getDate();
+      var d2 = nm2 + '-' + pad(Math.min(+d.slice(8, 10), last));
+      return save1(amount - half, d, base + ' ' + HALF).then(function () { return save1(half, d2, base + ' ' + HALF); }).then(function () { return 'ok'; });
+    });
+  }
+  function pensionCard(x, i) {
+    return '<div class="card nt-card" style="border:2px solid var(--primary);margin-bottom:12px">' +
+      '<div style="font-size:19px;font-weight:700">🗓 ' + esc(md(x.date)) + ' は年金の日です</div>' +
+      '<div class="note" style="font-size:16px;margin:4px 0 8px">' + nm(x.r.person) + 'の年金 ' + yen(x.r.amount) + '(2か月分)' + (x.r.split === false ? '' : '<br>半分ずつ、' + esc(monthLabel(x.date.slice(0, 7))) + 'と次の月に入れます') + '</div>' +
+      '<div class="field" style="margin-bottom:8px"><label for="pdAmt' + i + '">入った金額(通帳で確かめて、違ったら直してください)</label><input class="input" id="pdAmt' + i + '" type="number" inputmode="numeric" style="font-size:22px;font-weight:700" value="' + x.r.amount + '"></div>' +
+      '<div class="nt-btns"><button class="btn btn-primary" data-pdo="' + i + '">✅ この金額で入れる</button><button class="btn btn-tonal" data-pdk="' + i + '">今回は入れない</button></div></div>';
+  }
+  function bindPensionCards(due, after) {
+    $('sheet').querySelectorAll('[data-pdo]').forEach(function (b) { b.addEventListener('click', function () {
+      var x = due[+b.dataset.pdo], amt = Math.round(Number($('pdAmt' + b.dataset.pdo).value) || 0);
+      if (amt <= 0) { alert('金額を入れてください'); return; }
+      b.disabled = true; b.textContent = '入れています…';
+      addPension(x.r, x.date, amt).then(function (st) {
+        markPension(x.ri, x.date, 'done');
+        toast(st === 'have' ? md(x.date) + 'の年金は、もう入っていました(入れませんでした)' : md(x.date) + 'の年金 ' + yen(amt) + ' を入れました');
+        state.incomeMonth = null; state.month = x.date.slice(0, 7); loadMonth(true);
+        var w = function () { if (state.incomeMonth === state.month) after(); else setTimeout(w, 300); }; setTimeout(w, 300);
+      }).catch(function (e) { b.disabled = false; b.textContent = '✅ この金額で入れる'; alert(e.message); });
+    }); });
+    $('sheet').querySelectorAll('[data-pdk]').forEach(function (b) { b.addEventListener('click', function () {
+      var x = due[+b.dataset.pdk]; if (!confirm(md(x.date) + 'の年金は、入れないでおきますか?')) return;
+      markPension(x.ri, x.date, 'skip'); toast(md(x.date) + 'の年金は入れませんでした'); after();
+    }); });
+  }
+  // アプリを開いたとき:自動の決まりは入れる、確かめる決まりはお知らせする
+  function runPension() {
+    var due = pensionDue(); if (!due.length) return;
+    var auto = due.filter(function (x) { return x.r.mode === 'auto'; }), ask = due.length - auto.length;
+    auto.reduce(function (pr, x) {
+      return pr.then(function () { return addPension(x.r, x.date, x.r.amount).then(function (st) {
+        markPension(x.ri, x.date, 'done');
+        toast(st === 'have' ? md(x.date) + 'の年金は、もう入っていました' : '🗓 ' + md(x.date) + 'の年金 ' + yen(x.r.amount) + ' を自動で入れました');
+      }); });
+    }, Promise.resolve()).then(function () { if (auto.length) { state.incomeMonth = null; loadMonth(true); } }).catch(function () {});
+    if (ask) setTimeout(function () { toast('🗓 年金の日です。「💰 収入を入れる・見る」で金額を確かめて入れてください'); }, auto.length ? 3500 : 0);
+  }
+  function openPensionRules(back) {
+    var l = pensionRules(), t = today();
+    openSheet('<div class="grip"></div><h2>🗓 年金の決まり</h2>' +
+      '<div class="note" style="font-size:16px;margin-bottom:10px">年金は、偶数月(2・4・6・8・10・12月)の15日に2か月分が入ります。15日が土日・祝日のときは、その前の平日です。<br>決まりを入れておくと、その日になったら「入れますか?」と聞くか、自動で入れます。<br>(この決まりは、このスマホだけに入ります)</div>' +
+      (l.map(function (r, i) {
+        return '<button class="card" data-pr="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:10px;border:1px solid var(--line);color:var(--text)">' +
+          '<b style="font-size:18px">' + nm(r.person) + 'の年金 ' + yen(r.amount) + '</b>' +
+          '<div class="in-sub">' + (r.mode === 'auto' ? '🤖 自動で入れる' : '✋ 確かめてから入れる') + ' ・ ' + (r.split === false ? '入った月にまとめて' : '半分ずつ2か月に') + '</div>' +
+          '<div class="in-sub">次は ' + esc(md(pensionNext(r, t))) + ' ・ 押すと直す</div></button>';
+      }).join('') || '<div class="note" style="font-size:17px;margin-bottom:10px">まだ決まりがありません。</div>') +
+      '<button class="btn btn-primary btn-block" id="prAdd">＋ 年金の決まりを入れる</button>' +
+      '<button class="btn btn-tonal btn-block" id="prBack" style="margin-top:10px">← 戻る</button>');
+    $('prBack').addEventListener('click', back);
+    $('prAdd').addEventListener('click', function () { openPensionRule(-1, back); });
+    $('sheet').querySelectorAll('[data-pr]').forEach(function (b) { b.addEventListener('click', function () { openPensionRule(+b.dataset.pr, back); }); });
+  }
+  function openPensionRule(i, back) {
+    var l = pensionRules(), t = today();
+    var r = Object.assign({ person: state.filter || state.owner, amount: '', day: 15, split: true, mode: 'ask' }, l[i] || {});
+    var person = r.person, mode = r.mode, last = pensionLast(r, t), next = pensionNext(r, t);
+    var again = function () { openPensionRules(back); };
+    openSheet('<div class="grip"></div><h2>🗓 年金の決まり' + (i >= 0 ? 'を直す' : 'を入れる') + '</h2>' +
+      '<div class="rk-label">だれの</div><div class="chips" id="prWho">' + MEMBERS.map(function (m) {
+        return '<button type="button" class="chip' + (m.name === person ? ' on' : '') + '" data-v="' + esc(m.name) + '">' + esc((m.icon ? m.icon + ' ' : '') + m.name) + '</button>'; }).join('') + '</div>' +
+      '<div class="field" style="margin-top:12px"><label for="prAmt">1回に入る金額(2か月分・円)</label><input class="input" id="prAmt" type="number" inputmode="numeric" style="font-size:24px;font-weight:700" value="' + esc(r.amount) + '"></div>' +
+      '<label class="check"><input type="checkbox" id="prSplit"' + (r.split === false ? '' : ' checked') + '> <span>半分ずつ、入った月と次の月に分けて入れる</span></label>' +
+      '<div class="rk-label" style="margin-top:12px">その日になったら</div><div class="chips" id="prMode">' +
+        [['ask', '✋ 確かめてから入れる'], ['auto', '🤖 自動で入れる']].map(function (x) { return '<button type="button" class="chip' + (x[0] === mode ? ' on' : '') + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="note" style="font-size:15px;margin:6px 0 10px">「確かめてから」は、収入の画面に「年金の日です」と出るので、通帳の金額を見て入れます。6月などで金額が変わるときに安心です。</div>' +
+      (i < 0 ? '<div class="rk-label">どこから始める</div>' +
+        '<label class="check"><input type="radio" name="prStart" value="last" checked> <span>前回(' + esc(md(last)) + ')の分から(まだ入れていなければ、すぐに聞きます)</span></label>' +
+        '<label class="check"><input type="radio" name="prStart" value="next"> <span>次回(' + esc(md(next)) + ')から</span></label>' +
+        '<div class="note" style="font-size:15px;margin:4px 0 10px">前回の分を、もう手で入れてあるときは、二重には入れません(その月に年金が入っていたら、入れません)。</div>' : '') +
+      '<div class="error hidden" id="prErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-primary btn-block" id="prSave">保存する</button>' +
+      '<button class="btn btn-tonal btn-block" id="prCancel">やめる</button>' +
+      (i >= 0 ? '<button class="btn btn-danger btn-block" id="prDel">この決まりを消す(入れた収入は消えません)</button>' : '') + '</div>');
+    var pick = function (box, set) { $(box).querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
+      set(c.dataset.v); $(box).querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === c); }); }); }); };
+    pick('prWho', function (x) { person = x; }); pick('prMode', function (x) { mode = x; });
+    $('prCancel').addEventListener('click', again);
+    if ($('prDel')) $('prDel').addEventListener('click', function () { if (!confirm('この決まりを消しますか?')) return; l.splice(i, 1); savePensionRules(l); toast('決まりを消しました'); again(); });
+    $('prSave').addEventListener('click', function () {
+      var amt = Math.round(Number($('prAmt').value) || 0);
+      var err = function (m) { $('prErr').textContent = m; show('prErr', true); };
+      if (!person) return err('だれの年金かを選んでください');
+      if (amt <= 0) return err('1回に入る金額を入れてください');
+      var v = Object.assign({}, r, { person: person, amount: amt, split: $('prSplit').checked, mode: mode });
+      if (i < 0) { var st = document.querySelector('input[name="prStart"]:checked'); v.start = st && st.value === 'next' ? next : (last || next); v.done = []; v.skip = []; }
+      if (i >= 0) l[i] = v; else l.push(v);
+      savePensionRules(l); toast('年金の決まりを保存しました');
+      if (mode === 'auto') runPension();
+      if (back === openIncomes) openIncomes(); else again();
+    });
+  }
+  // 🔍 年金が決まりどおりに入っているか、月ごとに確かめて直す(足りない月は入れる・二重は消す)
+  function openPensionCheck(back) {
+    var rules = pensionRules(), HALF = '(2か月分の半分)';
+    var again = function () { openPensionCheck(back); };
+    if (!rules.length) {
+      openSheet('<div class="grip"></div><h2>🔍 年金を確かめる</h2><div class="note" style="font-size:17px;margin-bottom:12px">先に「年金の決まり」(だれの・いくら)を入れてください。決まりと見くらべて、足りない月や二重の月を探します。</div>' +
+        '<button class="btn btn-primary btn-block" id="pcRule">🗓 年金の決まりを入れる</button><button class="btn btn-tonal btn-block" id="pcBack" style="margin-top:10px">← 戻る</button>');
+      $('pcRule').addEventListener('click', function () { openPensionRule(-1, again); });
+      $('pcBack').addEventListener('click', back); return;
+    }
+    var m1 = shiftMonth(thisMonth(), 1), m0 = shiftMonth(thisMonth(), -6);
+    openSheet('<div class="grip"></div><h2>🔍 年金を確かめる</h2><div class="loading"><div class="spinner"></div>この半年の収入を調べています…</div>');
+    api('incomes', { from: m0, to: m1 }).then(function (res) {
+      var inc = res.incomes || [], t = today(), html = '', acts = [];
+      rules.forEach(function (r, ri) {
+        if (!r.person || !r.amount) return;
+        var half = Math.floor(r.amount / 2);
+        html += '<div class="section-title" style="margin-top:12px">' + nm(r.person) + 'の年金(1回 ' + yen(r.amount) + (r.split === false ? '・入った月にまとめて' : '・半分ずつ2か月に') + ')</div>';
+        for (var m = m1; m >= m0; m = shiftMonth(m, -1)) {
+          var even = +m.slice(5, 7) % 2 === 0;
+          // この月に入るはずのもの:偶数月は「その月の年金」(分けるときは前半)、奇数月は分けるときだけ「前の月の年金の後半」
+          var src = even ? m : (r.split === false ? '' : shiftMonth(m, -1));
+          var have = inc.filter(function (x) { return x.person === r.person && x.kind === '年金' && x.date.slice(0, 7) === m; });
+          if (!src && !have.length) continue;
+          var pd = src ? pensionDate(src, r) : '';
+          if (pd && pd > t && !have.length) { html += '<div class="in-line"><span>' + esc(monthLabel(m)) + ' <span class="in-sub">' + esc(md(pd)) + ' の年金' + (even ? '' : 'の後半') + ' ・ これから</span></span><span class="in-sub">まだ先</span></div>'; continue; }
+          var want = !src ? 0 : r.split === false ? r.amount : (even ? r.amount - half : half);
+          var before = r.start && pd && pd < r.start;
+          var st = !src ? '⚠ 決まりでは入らない月です' : have.length > 1 ? '⚠ ' + have.length + '件 入っています(二重かも)' : have.length ? '✅ 入っています' : before ? '— 入っていません(決まりを始める前)' : '⚠ 入っていません';
+          var col = /✅/.test(st) ? 'var(--primary)' : /⚠/.test(st) ? 'var(--on-warn)' : 'var(--muted, #888)';
+          html += '<div class="card nt-card" style="margin-bottom:8px"><div style="font-size:18px;font-weight:700">' + esc(monthLabel(m)) +
+            (src ? ' <span class="in-sub" style="font-weight:400">' + esc(md(pd)) + ' の年金' + (r.split === false ? '' : even ? 'の前半' : 'の後半') + ' ・ 決まりでは ' + yen(want) + '</span>' : '') + '</div>' +
+            '<div style="font-size:16px;color:' + col + ';margin:4px 0">' + st + '</div>' +
+            have.map(function (x) {
+              var k = acts.push({ t: 'edit', x: x }) - 1;
+              return '<button class="in-line" data-pca="' + k + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);text-align:left;color:var(--text);font:inherit;cursor:pointer"><span>' + esc(md(x.date)) + ' <span class="in-sub">' + esc(x.memo || '') + '</span></span><span style="white-space:nowrap"><b>' + yen(x.amount) + '</b>' + (want && x.amount !== want ? ' <span class="in-sub" style="color:var(--on-warn)">決まりと違う</span>' : '') + ' ›</span></button>';
+            }).join('') +
+            (src && !have.length ? (function () {
+              var k = acts.push({ t: 'add', r: r, ri: ri, m: m, pd: pd, even: even, before: before }) - 1;
+              return '<div class="field' + (before ? ' hidden' : '') + '" id="pcF' + k + '" style="margin:6px 0"><label for="pcAmt' + k + '">入れる金額(通帳で確かめて、違ったら直してください)</label><input class="input" id="pcAmt' + k + '" type="number" inputmode="numeric" style="font-size:20px;font-weight:700" value="' + want + '"></div>' +
+                '<div class="nt-btns"><button class="btn ' + (before ? 'btn-tonal' : 'btn-primary') + '" data-pca="' + k + '">' + (before ? '＋ この月も入れる(金額を確かめる)' : '＋ この月に入れる') + '</button></div>';
+            })() : '') + '</div>';
+        }
+      });
+      openSheet('<div class="grip"></div><h2>🔍 年金を確かめる</h2>' +
+        '<div class="note" style="font-size:16px;margin-bottom:6px">この半年の年金を、決まりと見くらべました。<br>✅ は決まりどおりです。⚠ のところは、通帳を見ながら「＋ この月に入れる」で入れるか、入っているものを押して直す・消すをしてください。<br>(自動では直しません。押したものだけ変わります)</div>' +
+        html + '<button class="btn btn-tonal btn-block" id="pcRule" style="margin-top:12px">🗓 年金の決まりを見る・直す</button>' +
+        '<button class="btn btn-tonal btn-block" id="pcBack" style="margin-top:10px">← 戻る</button>');
+      $('pcBack').addEventListener('click', back);
+      $('pcRule').addEventListener('click', function () { openPensionRules(again); });
+      $('sheet').querySelectorAll('[data-pca]').forEach(function (b) { b.addEventListener('click', function () {
+        var a = acts[+b.dataset.pca];
+        if (a.t === 'edit') { state.incBack = again; openIncome(a.x); return; }
+        if (a.before && $('pcF' + b.dataset.pca).classList.contains('hidden')) { show('pcF' + b.dataset.pca, true); b.textContent = '＋ この金額で入れる'; b.className = 'btn btn-primary'; return; }
+        var amt = Math.round(Number($('pcAmt' + b.dataset.pca).value) || 0); if (amt <= 0) { alert('金額を入れてください'); return; }
+        var d = a.even ? a.pd : a.m + '-' + pad(Math.min(+a.pd.slice(8, 10), new Date(+a.m.slice(0, 4), +a.m.slice(5, 7), 0).getDate()));
+        b.disabled = true; b.textContent = '入れています…';
+        api('saveIncome', { income: { id: '', person: a.r.person, kind: '年金', amount: amt, date: d, memo: md(a.pd) + 'の年金' + (a.r.split === false ? '' : ' ' + HALF) } }).then(function () {
+          if (a.even) markPension(a.ri, a.pd, 'done');
+          toast(monthLabel(a.m) + 'に ' + yen(amt) + ' を入れました'); state.incomeMonth = null; loadMonth(true); again();
+        }).catch(function (e) { b.disabled = false; b.textContent = '＋ この月に入れる'; alert(e.message); });
+      }); });
+    }).catch(function (e) { openSheet('<div class="grip"></div><div class="error">' + esc(e.message) + '</div><button class="btn btn-tonal btn-block" id="pcBack">← 戻る</button>'); $('pcBack').addEventListener('click', back); });
+  }
   function openIncomes() {
+    state.incBack = null;
     if (state.incomeOk === false) { alert('窓口(お家の家計簿 窓口)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください'); return; }
     var list = (state.incomeMonth === state.month ? state.incomes : []) || [];
     var rows = list.map(function (x, i) {
-      return '<div class="in-line"><span>' + esc(x.kind) + ' <span class="in-sub">' + esc(md(x.date)) + ' ・ ' + nm(x.person) + (x.memo ? ' ・ ' + esc(x.memo) : '') + '</span></span>' +
-        '<span style="white-space:nowrap"><b>' + yen(x.amount) + '</b> <button class="btn btn-text" data-inc="' + i + '" style="min-height:40px;padding:0 6px">✏</button></span></div>';
+      return '<button class="in-line" data-inc="' + i + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);text-align:left;color:var(--text);font:inherit;cursor:pointer"><span>' + esc(x.kind) + ' <span class="in-sub">' + esc(md(x.date)) + ' ・ ' + nm(x.person) + (x.memo ? ' ・ ' + esc(x.memo) : '') + '</span></span>' +
+        '<span style="white-space:nowrap"><b>' + yen(x.amount) + '</b> ›</span></button>';
     }).join('');
+    var due = pensionDue();
     openSheet('<div class="grip"></div><h2>💰 ' + esc(monthLabel(state.month)) + 'の収入</h2>' +
-      '<div class="card" style="margin-bottom:12px">' + (rows || '<div class="note">この月の収入は、まだ入っていません。</div>') +
+      due.map(function (d, i) { return pensionCard(d, i); }).join('') +
+      '<div class="card" style="margin-bottom:12px">' + (rows ? '<div class="in-sub" style="margin-bottom:4px">押すと、直す・取り消すができます</div>' + rows : '<div class="note">この月の収入は、まだ入っていません。</div>') +
       (list.length ? '<div class="in-line" style="font-size:19px"><b>合計</b><b>' + yen(monthIncome('')) + '</b></div>' : '') + '</div>' +
       '<button class="btn btn-primary btn-block" id="incAdd">＋ 収入を入れる</button>' +
+      '<button class="btn btn-tonal btn-block" id="incRule" style="margin-top:10px">🗓 年金の決まり(入る日と金額・自動で入れる)</button>' +
+      '<button class="btn btn-tonal btn-block" id="incCheck" style="margin-top:10px">🔍 年金が決まりどおりに入っているか確かめる</button>' +
       '<button class="btn btn-tonal btn-block" id="incClose" style="margin-top:10px">閉じる</button>');
     $('incClose').addEventListener('click', closeSheet);
+    $('incRule').addEventListener('click', function () { openPensionRules(openIncomes); });
+    $('incCheck').addEventListener('click', function () { openPensionCheck(openIncomes); });
+    bindPensionCards(due, openIncomes);
     $('incAdd').addEventListener('click', function () { openIncome({}); });
     $('sheet').querySelectorAll('[data-inc]').forEach(function (b) { b.addEventListener('click', function () { openIncome(list[+b.dataset.inc]); }); });
   }
@@ -2152,24 +2369,47 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         return '<button type="button" class="chip' + (m.name === person ? ' on' : '') + '" data-v="' + esc(m.name) + '">' + esc((m.icon ? m.icon + ' ' : '') + m.name) + '</button>'; }).join('') + '</div>' +
       '<div class="rk-label">種類</div><div class="chips" id="icKind">' + INCOME_KINDS.map(function (k) {
         return '<button type="button" class="chip' + (k === kind ? ' on' : '') + '" data-v="' + k + '">' + k + '</button>'; }).join('') + '</div>' +
-      (v.id ? '' : '<label class="check hidden" id="icSplitBox" style="margin-top:10px"><input type="checkbox" id="icSplit" checked> <span>年金は2か月分なので、<b>半分ずつ、この月と次の月</b>に分けて入れる</span></label>') +
+      (v.id ? '<div id="icPair"></div>' : '<label class="check hidden" id="icSplitBox" style="margin-top:10px"><input type="checkbox" id="icSplit" checked> <span>年金は2か月分なので、<b>半分ずつ、この月と次の月</b>に分けて入れる</span></label>') +
       '<div class="field" style="margin-top:12px"><label for="icAmount">金額(円)</label><input class="input" id="icAmount" type="number" inputmode="numeric" style="font-size:24px;font-weight:700" value="' + esc(v.amount) + '"></div>' +
       '<div class="field"><label for="icDate">日付(入った日)</label><input class="input" id="icDate" type="date" value="' + esc(v.date) + '"></div>' +
       '<div class="field"><label for="icMemo">メモ(なくてもよい)</label><input class="input" id="icMemo" placeholder="例:10月分" value="' + esc(v.memo) + '"></div>' +
       '<div class="error hidden" id="icErr"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-primary btn-block" id="icSave">保存する</button>' +
       '<button class="btn btn-tonal btn-block" id="icBack">やめる</button>' +
-      (v.id ? '<button class="btn btn-danger btn-block" id="icDel">この収入を消す</button>' : '') + '</div>');
+      (v.id ? '<button class="btn btn-danger btn-block" id="icDel">🗑 この収入を取り消す(消す)</button>' : '') + '</div>');
     var pick = function (box, set) { $(box).querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
       set(c.dataset.v); $(box).querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === c); }); }); }); };
     var syncSplit = function () { if ($('icSplitBox')) show('icSplitBox', kind === '年金'); };
     pick('icWho', function (x) { person = x; }); pick('icKind', function (x) { kind = x; syncSplit(); }); syncSplit();
     var done = function (msg) { toast(msg); var d = $('icDate') ? $('icDate').value : ''; if (d && d.slice(0, 7) !== state.month) { state.month = d.slice(0, 7); } state.incomeMonth = null; loadMonth(true); setTimeout(openIncomesWhenReady, 300); };
-    var openIncomesWhenReady = function () { if (state.incomeMonth === state.month) openIncomes(); else setTimeout(openIncomesWhenReady, 300); };
-    $('icBack').addEventListener('click', openIncomes);
+    var ib = state.incBack;
+    var openIncomesWhenReady = function () { if (ib) { ib(); return; } if (state.incomeMonth === state.month) openIncomes(); else setTimeout(openIncomesWhenReady, 300); };
+    $('icBack').addEventListener('click', function () { if (ib) ib(); else openIncomes(); });
+    // 年金を半分ずつ分けたもの:もう半分(前の月か次の月)をさがす
+    var pair = null, HALF = '(2か月分の半分)';
+    if (v.id) {
+      if (String(v.memo || '').indexOf(HALF) >= 0) {
+        $('icPair').innerHTML = '<div class="in-sub" style="margin-top:8px">もう半分をさがしています…</div>';
+        var m0 = v.date.slice(0, 7);
+        api('incomes', { from: shiftMonth(m0, -1), to: shiftMonth(m0, 1) }).then(function (res) {
+          pair = (res.incomes || []).filter(function (x) {
+            return x.id !== v.id && x.person === v.person && x.kind === v.kind && String(x.memo || '').indexOf(HALF) >= 0 &&
+              x.date.slice(0, 7) !== m0 && Math.abs(x.amount - v.amount) <= 1;
+          }).sort(function (a, b) { return Math.abs(new Date(a.date) - new Date(v.date)) - Math.abs(new Date(b.date) - new Date(v.date)); })[0] || null;
+          if (!$('icPair')) return;
+          $('icPair').innerHTML = pair ? '<div class="note" style="font-size:16px;margin-top:10px">この年金は2か月に分けて入れています。もう半分:<b>' + esc(md(pair.date)) + ' ' + yen(pair.amount) + '</b></div>' +
+            '<label class="check" style="margin-top:6px"><input type="checkbox" id="icPairOn" checked> <span>もう半分(' + esc(md(pair.date)) + ')も、<b>一緒に直す・消す</b></span></label>' : '';
+        }).catch(function () { if ($('icPair')) $('icPair').innerHTML = ''; });
+      } else if (v.kind === '年金') {
+        $('icPair').innerHTML = '<label class="check" style="margin-top:10px"><input type="checkbox" id="icSplitLater"> <span>2か月分なので、<b>半分ずつ、この月と次の月</b>に分け直す</span></label>';
+      }
+    }
+    var withPair = function () { return pair && $('icPairOn') && $('icPairOn').checked; };
     if ($('icDel')) $('icDel').addEventListener('click', function () {
-      if (!confirm('この収入を消しますか?')) return;
-      api('deleteIncome', { id: v.id }).then(function () { done('消しました'); }).catch(function (e) { alert(e.message); });
+      var both = withPair();
+      if (!confirm(both ? 'この収入と、もう半分(' + md(pair.date) + ')の2つを取り消しますか?' : 'この収入を取り消しますか?')) return;
+      api('deleteIncome', { id: v.id }).then(function () { return both ? api('deleteIncome', { id: pair.id }) : null; })
+        .then(function () { done(both ? '2か月分とも取り消しました' : '取り消しました'); }).catch(function (e) { alert(e.message); });
     });
     $('icSave').addEventListener('click', function () {
       var b = this, amount = Math.round(Number($('icAmount').value) || 0);
@@ -2179,15 +2419,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (!$('icDate').value) return err('日付を入れてください');
       b.disabled = true; b.textContent = '保存中…';
       var date = $('icDate').value, memo = $('icMemo').value.trim();
-      var split = !v.id && kind === '年金' && $('icSplit') && $('icSplit').checked;
-      var save1 = function (amt, d, m) { return api('saveIncome', { income: { id: v.id || '', person: person, kind: kind, amount: amt, date: d, memo: m } }); };
+      var split = kind === '年金' && ((!v.id && $('icSplit') && $('icSplit').checked) || (v.id && $('icSplitLater') && $('icSplitLater').checked));
+      var save1 = function (amt, d, m, id) { return api('saveIncome', { income: { id: id === undefined ? (v.id || '') : id, person: person, kind: kind, amount: amt, date: d, memo: m } }); };
       var job;
-      if (split) {   // 2か月分の年金:半分ずつ、入った月と次の月に分ける(割り切れない1円は入った月に)
+      if (v.id && withPair()) {   // もう半分も同じ金額・同じ人・同じメモに
+        job = save1(amount, date, memo).then(function () { return save1(amount, pair.date, memo, pair.id); });
+      } else if (split) {   // 2か月分の年金:半分ずつ、入った月と次の月に分ける(割り切れない1円は入った月に)
         var half = Math.floor(amount / 2), nm2 = shiftMonth(date.slice(0, 7), 1);
         var lastDay = new Date(+nm2.slice(0, 4), +nm2.slice(5, 7), 0).getDate();
         var d2 = nm2 + '-' + pad(Math.min(+date.slice(8, 10), lastDay));
         var note = (memo ? memo + ' ' : '') + '(2か月分の半分)';
-        job = save1(amount - half, date, note).then(function () { return save1(half, d2, note); });
+        job = save1(amount - half, date, note).then(function () { return save1(half, d2, note, ''); });
       } else job = save1(amount, date, memo);
       job.then(function () { done(split ? '年金を、この月と次の月に半分ずつ入れました' : '収入を保存しました'); setTimeout(function () { celebrate('💰', kind === '給料' ? pickOne(['お給料日だね。いつもおつかれさま!', 'お給料日だ!ぼくにもおこづかい、ある?', 'がんばったごほうび、何か買う?']) : kind === '年金' ? pickOne(['年金が入ったね。大事に使おうね', '年金の日だね。おいしい物、ひとつだけ買っちゃう?']) : pickOne(['収入を入れたよ。ありがとう', 'やったね!ちょっとうれしい日だね'])); }, 900); })
         .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
@@ -5995,7 +6237,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   scheduleWalk(5000 + Math.random() * 20000);   // 開いてから少しして(その日の回数が残っていれば)
   setTimeout(refreshTalkPlans, 2500);
   setTimeout(function () { try { runCardRepeats(); renderCpNotice(); } catch (e) {} }, 3000);
-  setTimeout(function () { try { runPrepaidCommute(); } catch (e) {} }, 1500);   // 毎月くり返すカード支払   // ふきだしで予定を言えるように、先に読んでおく
+  setTimeout(function () { try { runPrepaidCommute(); } catch (e) {} }, 1500);
+  setTimeout(function () { try { runPension(); } catch (e) {} }, 2500);   // 毎月くり返すカード支払   // ふきだしで予定を言えるように、先に読んでおく
 
   /* ---------- 起動 ---------- */
   show('lineBanner', /\bLine\//i.test(navigator.userAgent) && !STANDALONE);
