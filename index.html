@@ -752,7 +752,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 09:30 版97';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 09:35 版98';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -4325,7 +4325,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="meta">今は「' + (h.ownKey ? 'この家だけの鍵' : '共通の鍵(ほかの家と回数を分け合う)') + '」を使っています。今日の読み取り ' + (h.usage || 0) + '回。</div>' +
       '<div class="note" style="margin-bottom:10px">家ごとに回数を分けるには、Google AI Studio で <b>家ごとに別のプロジェクト</b> を作り、そのプロジェクトで鍵を作ってください(同じプロジェクトの鍵は回数が共通です)。鍵は人に見せないでください。</div>' +
       '<div class="field"><label for="hkKey">この家だけの鍵(変えないときは空のまま)</label>' +
-      '<input class="input" id="hkKey" type="password" autocomplete="off" placeholder="AIza…"></div>' +
+      '<input class="input" id="hkKey" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" placeholder="AIza…" style="font-family:monospace;font-size:15px"></div>' +
+      '<div class="in-sub" style="margin:-6px 0 10px">欄を長押しして「貼り付け」を押してください。画面の下にパスワードの候補が出ても、押さないでください。</div>' +
       '<div class="note" style="margin-bottom:8px">' + RESET_NOTE + '</div>' +
       '<div class="field"><label for="hkLimit">1日の回数の目安</label>' +
       '<input class="input" id="hkLimit" type="number" inputmode="numeric" value="' + esc(h.limit || '') + '"></div>' +
