@@ -774,7 +774,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 13:35 版111';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 13:30 版112';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1054,6 +1054,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         }
         if (action === 'setPasscode') return resolve({ ok: true });
         if (action === 'setHomeName') return resolve({ ok: true, name: String(data.name || '').trim() });
+        if (action === 'clearRecords') {
+          if (data.confirm !== '消す') return resolve({ ok: false, error: '確認の言葉が違います' });
+          var ps = data.parts || [];
+          if (ps.indexOf('receipts') >= 0) { demoSave([]); store.set('demoSeeded', '1'); }
+          if (ps.indexOf('payments') >= 0) store.del('demoPay');
+          if (ps.indexOf('income') >= 0) store.del('demoIncome');
+          if (ps.indexOf('trash') >= 0) store.del('demoTrash');
+          if (ps.indexOf('notes') >= 0) store.del('demoNotes');
+          if (ps.indexOf('plans') >= 0) { var PL0 = []; try { PL0 = JSON.parse(store.get('demoPlans') || '[]'); } catch (e) {} store.set('demoPlans', JSON.stringify(PL0.filter(function (x) { return x.person !== data.person; }))); }
+          return resolve({ ok: true, result: { counts: {}, backup: '' } });
+        }
         if (action === 'resetHome') {
           if (data.confirm !== '初期化') return resolve({ ok: false, error: '確認の言葉が違います' });
           demoSave([]); store.del('demoTrash'); store.del('demoMembers'); store.del('demoPay'); store.set('demoSeeded', '1');
@@ -2182,7 +2193,43 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
   }
   $('histIncomeBtn').addEventListener('click', openIncomes);
-  // 買物の合計の明細:払い方ごと・何の支払いごと・お店ごと・日付の順(押すとそのレシート)
+
+  /* ---------- 明細:古い順・新しい順を切り替えて、1件ごとに「そこまでの合計」や「そのあとの残高」を出す ----------
+     rows: [{ date, label(html), sub(文字), amount(数), attrs(文字), tail(html) }]
+     mode 'sum':古い順に足していった合計 / 'bal':その記録のあとの残高(endBal = 今の残高。tieDesc:同じ日は新しいものが先に並んでいる) */
+  function ledgerDesc() { return store.get('ledgerOrder') === 'desc'; }
+  function ledgerHtml(rows, mode, endBal, tieDesc) {
+    var idx = rows.map(function (r, i) { return i; });
+    idx.sort(function (a, b) { return rows[a].date < rows[b].date ? -1 : rows[a].date > rows[b].date ? 1 : (tieDesc ? b - a : a - b); });   // 古い順
+    var run = {}, acc = 0;
+    if (mode === 'bal') { var after = endBal || 0; for (var k = idx.length - 1; k >= 0; k--) { run[idx[k]] = after; after -= rows[idx[k]].amount || 0; } }
+    else idx.forEach(function (i) { acc += rows[i].amount || 0; run[i] = acc; });
+    if (ledgerDesc()) idx.reverse();
+    var head = '<div style="display:flex;justify-content:flex-end;margin:-2px 0 6px"><button type="button" class="btn btn-tonal lg-sort" style="min-height:42px;padding:0 14px;font-size:16px">↕ ' +
+      (ledgerDesc() ? '新しい順' : '古い順') + ' ・ 押すと' + (ledgerDesc() ? '古い順' : '新しい順') + 'に</button></div>';
+    return head + '<div class="card" style="margin-bottom:12px">' + (idx.map(function (i) {
+      var r = rows[i], a = r.amount || 0;
+      var amt = mode === 'bal' ? '<b class="' + (a > 0 ? 'in-down' : '') + '">' + (a > 0 ? '+' : '−') + yen(Math.abs(a)) + '</b>' : '<b>' + yen(a) + '</b>';
+      return '<div class="in-line"' + (r.attrs || '') + '><span>' + esc(md(r.date)) + (r.date ? '(' + '日月火水木金土'.charAt(new Date(r.date + 'T00:00:00').getDay()) + ')' : '') + ' ' + (r.label || '') + (r.sub ? '<br><span class="in-sub">' + esc(r.sub) + '</span>' : '') + '</span>' +
+        '<span style="white-space:nowrap;display:flex;align-items:center;gap:6px"><span style="text-align:right">' + amt +
+        '<br><span class="in-sub">' + (mode === 'bal' ? '残高 ' : '合計 ') + yen(run[i]) + '</span></span>' + (r.tail || '') + '</span></div>';
+    }).join('') || '<div class="note">ありません</div>') + '</div>';
+  }
+  function bindLedger(rerender) {
+    document.querySelectorAll('#sheet .lg-sort').forEach(function (b) { b.addEventListener('click', function () {
+      store.set('ledgerOrder', ledgerDesc() ? 'asc' : 'desc');
+      var y = $('sheet').scrollTop; rerender(); $('sheet').scrollTop = y; setTimeout(function () { $('sheet').scrollTop = y; }, 500);
+    }); });
+  }
+  // レシートの払い方が、登録したカード・電子マネーのものか(「楽天カード」と「楽天カード …1234」、「AEON Pay」と「イオンペイ」なども同じとみる)
+  function payIs(v, c) {
+    if (!v || !c) return false;
+    if (v === cardLabel(c) || v === c.name) return true;
+    var k = normPayMethod(v);
+    return k !== 'クレジットカード' && k !== '現金' && k === normPayMethod(c.name);
+  }
+
+  // 買物の合計の明細:日付の順(1件ごとにそこまでの合計)・払い方ごと・何の支払いごと・お店ごと
   function openHistDetail() {
     var rs = (state.receipts || []).filter(function (r) { return !state.filter || r.person === state.filter; });
     var total = rs.reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0);
@@ -2191,19 +2238,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       return Object.keys(m).sort(function (a, b) { return m[b].sum - m[a].sum; }).map(function (k) {
         return '<div class="in-line"><span>' + esc(k) + ' <span class="in-sub">' + m[k].n + '件</span></span><b>' + yen(m[k].sum) + '</b></div>'; }).join('');
     };
-    var list = rs.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }).map(function (r) {
+    var list = ledgerHtml(rs.map(function (r) {
       var its = (r.items || []).filter(function (it) { return it.price > 0; }).slice(0, 3).map(function (it) { return it.name; }).join('・');
-      return '<div class="in-line" data-hr="' + esc(r.id) + '" role="button" style="cursor:pointer"><span>' + esc(md(r.date)) + ' ' + esc(r.store || 'お店の名前なし') +
-        '<br><span class="in-sub">' + esc([r.purpose, r.payMethod, its].filter(Boolean).join(' ・ ')) + '</span></span><b style="white-space:nowrap">' + yen(r.total) + ' ›</b></div>';
-    }).join('');
+      return { date: r.date, label: esc(r.store || 'お店の名前なし'), sub: [r.purpose, r.payMethod, its].filter(Boolean).join(' ・ '), amount: Number(r.total) || 0,
+        attrs: ' data-hr="' + esc(r.id) + '" role="button" style="cursor:pointer"', tail: '<span style="font-size:20px">›</span>' };
+    }), 'sum');
     openSheet('<div class="grip"></div><h2>🧾 ' + esc(monthLabel(state.month)) + 'の買物の明細' + (state.filter ? '(' + esc(state.filter) + ')' : '') + '</h2>' +
       '<div class="total-card" style="margin-bottom:12px"><div class="label">合計(' + rs.length + '件)</div><div class="amount">' + yen(total) + '</div></div>' +
-      (rs.length ? '<div class="section-title">💳 払い方ごと</div><div class="card" style="margin-bottom:12px">' + by(function (r) { return r.payMethod || '払い方なし'; }) + '</div>' +
+      (rs.length ? '<div class="section-title">日付の順(右下の数は、そこまでの合計 ・ 押すとレシート)</div>' + list +
+        '<div class="section-title">💳 払い方ごと</div><div class="card" style="margin-bottom:12px">' + by(function (r) { return r.payMethod || '払い方なし'; }) + '</div>' +
         '<div class="section-title">🏷 何の支払いごと</div><div class="card" style="margin-bottom:12px">' + by(function (r) { return r.purpose || '分類なし'; }) + '</div>' +
-        '<div class="section-title">🏪 お店ごと</div><div class="card" style="margin-bottom:12px">' + by(function (r) { return r.store || 'お店の名前なし'; }) + '</div>' +
-        '<div class="section-title">日付の順(押すとレシート)</div><div class="card" style="margin-bottom:12px">' + list + '</div>' : '<div class="note" style="font-size:17px">この月の買物はありません。</div>') +
+        '<div class="section-title">🏪 お店ごと</div><div class="card" style="margin-bottom:12px">' + by(function (r) { return r.store || 'お店の名前なし'; }) + '</div>' : '<div class="note" style="font-size:17px">この月の買物はありません。</div>') +
       '<button class="btn btn-tonal btn-block" id="hdClose">閉じる</button>');
     $('hdClose').addEventListener('click', closeSheet);
+    bindLedger(openHistDetail);
     $('sheet').querySelectorAll('[data-hr]').forEach(function (x) { x.addEventListener('click', function () { openDetail(x.dataset.hr); }); });
   }
   $('histDetail').addEventListener('click', openHistDetail);
@@ -2273,7 +2321,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var b = cand.b, ms = [b.start.slice(0, 7), b.end.slice(0, 7)].filter(function (m, j, a) { return a.indexOf(m) === j; });
       rkLoad(ms).then(function (all) {
         var cpIds = {}; cpList().forEach(function (x) { cpIds[x.id] = 1; });
-        var rs = all.filter(function (x) { return !cpIds[x.id] && x.payMethod === cardLabel(c) && x.date >= b.start && x.date <= b.end; });
+        var rs = all.filter(function (x) { return !cpIds[x.id] && payIs(x.payMethod, c) && x.date >= b.start && x.date <= b.end; });
         var ov = billOverrides()[c.id + '|' + cand.wm], est = rs.reduce(function (a, x) { return a + (Number(x.total) || 0); }, 0) + commuteSum(c, b) + linkedSum(c, b);
         var el = $('balStrip').querySelector('[data-be="' + i + '"]'); if (!el) return;
         el.innerHTML = '🚃 ' + esc(cardLabel(c)) + ' <b>' + yen(ov != null ? ov : est) + '</b><br><span style="font-size:14px;font-weight:400">' + esc(md(b.date)) + ' ' + esc(c.bank || '') + ' から' + (ov != null ? '' : '(見込み)') + '</span>';
@@ -2750,15 +2798,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>💴 ' + esc(c.name) + '</h2>' +
       '<div class="total-card" style="margin-bottom:12px"><div class="label">' + esc(md(d)) + ' 引き落とし(' + (ov != null ? '✅ 請求額' : '見込み') + ')</div><div class="amount">' + yen(ov != null ? ov : est) + '</div>' +
       '<div style="font-size:15px">🏦 ' + esc(c.ppBank || '口座が未登録') + (c.ppAcct ? ' …' + esc(c.ppAcct) : '') + ' ・ ' + esc(monthLabel(pm)) + (byCh ? 'のチャージ' + (c.auto.src ? '(' + esc(c.auto.src) + ')' : '') : 'に使った分') + '</div></div>' +
-      '<div class="section-title">' + (byCh ? 'チャージ(' + used.length + '回 ・ ' : '使ったもの(' + used.length + '件 ・ ') + yen(est) + ')</div><div class="card" style="margin-bottom:12px">' +
-      (used.map(function (l) { return '<div class="in-line"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><b>' + yen(Math.abs(l.change)) + '</b></div>'; }).join('') || '<div class="note">記録がありません</div>') + '</div>' +
-      (byCh ? '<div class="section-title">この月に使ったもの(参考 ・ ' + yen(ppUsed(c, pm).reduce(function (a, l) { return a - l.change; }, 0)) + ')</div><div class="card" style="margin-bottom:12px">' +
-        (ppUsed(c, pm).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).map(function (l) { return '<div class="in-line" style="font-size:16px"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><span>' + yen(-l.change) + '</span></div>'; }).join('') || '<div class="note">記録がありません</div>') + '</div>' : '') +
+      '<div class="section-title">' + (byCh ? 'チャージ(' + used.length + '回 ・ ' : '使ったもの(' + used.length + '件 ・ ') + yen(est) + ' ・ 右下は、そこまでの合計)</div>' +
+      ledgerHtml(used.map(function (l) { return { date: l.date, label: esc(l.note || ''), amount: Math.abs(l.change) }; }), 'sum') +
+      (byCh ? '<div class="section-title">この月に使ったもの(参考 ・ ' + yen(ppUsed(c, pm).reduce(function (a, l) { return a - l.change; }, 0)) + ')</div>' +
+        ledgerHtml(ppUsed(c, pm).map(function (l) { return { date: l.date, label: esc(l.note || ''), amount: -l.change }; }), 'sum') : '') +
       '<div class="note" style="font-size:15px;margin-bottom:10px">本当の引き落とし額(オートチャージの合計)が分かったら、下のボタンで入れてください。</div>' +
       '<button class="btn btn-primary btn-block" id="pbAmt">✏ 請求額を入れる</button>' +
       '<button class="btn btn-tonal btn-block" id="pbRec" style="margin-top:10px">💴 ' + esc(c.name) + ' の記録・使った金額を入れる</button>' +
       '<button class="btn btn-tonal btn-block" id="pbBack" style="margin-top:10px">' + (back ? '← 戻る' : '閉じる') + '</button>');
     $('pbBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
+    bindLedger(function () { openPpBill(c, wm, back); });
     $('pbRec').addEventListener('click', function () { openPrepaid(c, function () { openPpBill(c, wm, back); }); });
     $('pbAmt').addEventListener('click', function () {
       var v = prompt(c.name + ' の ' + monthLabel(wm) + ' の引き落とし額(円)を入れてください。\n空にすると、見込み(' + yen(est) + ')に戻ります。', ov != null ? ov : '');
@@ -2859,13 +2908,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('ciBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
     var months = [p.start.slice(0, 7)]; if (p.end.slice(0, 7) !== months[0]) months.push(p.end.slice(0, 7));
     rkLoad(months).then(function (all) {
-      var rs = all.filter(function (r) { return r.payMethod === cardLabel(c) && r.date >= p.start && r.date <= p.end; });
+      var rs = all.filter(function (r) { return payIs(r.payMethod, c) && r.date >= p.start && r.date <= p.end; });
       var sum = rs.reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0);
       if (!$('ciUse')) return;
       $('ciUse').innerHTML = '<div class="in-line" style="font-size:19px"><b>使った金額</b><b>' + yen(sum) + '</b></div>' +
-        rs.slice(0, 10).map(function (r) { return '<div class="in-line"><span>' + esc(r.store || 'お店の名前なし') + '<br><span class="in-sub">' + esc(md(r.date)) + '</span></span><span>' + yen(r.total) + '</span></div>'; }).join('') +
-        (rs.length > 10 ? '<div class="in-sub">ほか ' + (rs.length - 10) + '件</div>' : '') +
-        (rs.length ? '' : '<div class="in-sub">このカードで払ったレシートは、まだありません</div>');
+        (rs.length ? ledgerHtml(rs.map(function (r) { return { date: r.date, label: esc(r.store || 'お店の名前なし'), sub: r.purpose || '', amount: Number(r.total) || 0 }; }), 'sum') :
+          '<div class="in-sub">このカードで払ったレシートは、まだありません</div>');
+      bindLedger(function () { openCardInfo(c, back); });
     }).catch(function () { if ($('ciUse')) $('ciUse').innerHTML = '<div class="in-sub">数えられませんでした</div>'; });
   }
   function openPrepaid(c, back) {
@@ -2882,20 +2931,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       (c.auto && c.auto.on ? '<div class="note" style="font-size:15px;margin-bottom:10px">🔁 オートチャージ:残高が ' + yen(c.auto.under) + ' より少なくなったら、' + yen(c.auto.amt) + ' を自動でチャージしたことにします' + (c.auto.src ? '(' + esc(c.auto.src) + ')' : '') + '。</div>' : '') +
       (c.payCardId ? '<div class="note" style="font-size:15px;margin-bottom:10px">💳 チャージは「' + esc((cardList().filter(function (x) { return x.id === c.payCardId; })[0] || {}).name || 'カード') + '」で払います。チャージの合計は、そのカードの引き落としに入ります(「支払い」に出ます)。今月のチャージ:' + yen(ppCharges(c, thisMonth()).reduce(function (a, l) { return a + l.change; }, 0)) + '</div>' : '') +
       (c.ppWd && !c.payCardId ? '<div class="note" style="font-size:15px;margin-bottom:10px">🏦 ' + (ppByCharge(c) ? 'チャージした分' : '使った分') + 'は、次の月の' + dayText(c.ppWd) + 'に ' + esc(c.ppBank || '口座') + (c.ppAcct ? ' …' + esc(c.ppAcct) : '') + ' から引き落とされる見込みとして「支払い」に出ます。今月の分:' + yen(ppBasis(c, thisMonth()).reduce(function (a, l) { return a + Math.abs(l.change); }, 0)) + '</div>' : '') +
-      '<div class="section-title">記録</div><div class="card" style="margin-bottom:12px">' + ((function () {
-        // 日付の順に並べて、今の残高からさかのぼって、そのときの残高を出す。✕ で記録を消せる
-        var run = c.balance || 0;
-        return (c.log || []).map(function (l, i) {
-          var h = '<div class="in-line" style="font-size:16px"><span>' + esc(md(l.date)) + ' ' + esc(l.note || '') + '</span><span style="white-space:nowrap;display:flex;align-items:center;gap:6px"><span style="text-align:right"><b class="' + (l.change > 0 ? 'in-down' : '') + '">' + (l.change > 0 ? '+' : '') + yen(l.change || 0) + '</b><br><span class="in-sub">残高 ' + yen(run) + '</span></span>' +
-            '<button class="btn btn-text" data-pdel="' + i + '" aria-label="この記録を消す" style="min-height:40px;min-width:40px;padding:0;font-size:20px">✕</button></span></div>';
-          run -= (l.change || 0); return h;
-        }).join('');
-      })() || '<div class="note">まだ記録がありません</div>') + '</div>' +
+      '<div class="section-title">記録(＋は入ったお金、−は使ったお金。右下は、そのあとの残高 ・ ✕ で消せる)</div>' +
+      ledgerHtml((c.log || []).map(function (l, i) {
+        return { date: l.date, label: esc(l.note || ''), amount: l.change || 0,
+          tail: '<button class="btn btn-text" data-pdel="' + i + '" aria-label="この記録を消す" style="min-height:40px;min-width:40px;padding:0;font-size:20px">✕</button>' };
+      }), 'bal', c.balance || 0, true) +
       '<div class="note" style="font-size:15px;margin-bottom:10px">チャージは、お金の置き場所を移すだけなので、出費には数えません。買い物は、レシートの払い方で「' + esc(cardLabel(c)) + '」を選ぶと、出費として記録して残高から引きます。</div>' +
       '<button class="btn btn-tonal btn-block" id="ppEdit">✏ 登録を直す</button>' +
       '<button class="btn btn-tonal btn-block" id="ppBack" style="margin-top:10px">' + (back ? '← 戻る' : '閉じる') + '</button>');
     $('ppBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
     $('ppEdit').addEventListener('click', function () { openCardEdit(c, back); });
+    bindLedger(re);
     $('sheet').querySelectorAll('[data-pdel]').forEach(function (btn) { btn.addEventListener('click', function () {
       var l = cardList(), x = l.filter(function (y) { return y.id === c.id; })[0], i = +btn.dataset.pdel, e = (x.log || [])[i];
       if (!e) return;
@@ -2955,6 +3001,42 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       prepaidLog(l, x, n, n - (x.balance || 0), '残高を直した'); re();
     });
   }
+
+  /* ---------- レシートの払い方から登録する(まだ登録していないカード・電子マネーを見つける) ---------- */
+  var EMONEY_FAMILY = ['Suica', 'PayPay', 'au PAY', 'イオンペイ'];
+  function openFromReceipts(back) {
+    var self = function () { openFromReceipts(back); };
+    openSheet('<div class="grip"></div><h2>📥 レシートの払い方から登録</h2><div class="loading"><div class="spinner"></div>この半年のレシートを調べています…</div>');
+    var months = []; for (var i = 5; i >= 0; i--) months.push(shiftMonth(thisMonth(), -i));
+    rkLoad(months).then(function (all) {
+      var m = {}, cards = cardList();
+      var add = function (v, date, amt) {
+        v = String(v || '').trim(); if (!v || normPayMethod(v) === '現金') return;
+        if (cards.some(function (c) { return payIs(v, c); })) return;
+        m[v] = m[v] || { n: 0, sum: 0, last: '' }; m[v].n++; m[v].sum += Number(amt) || 0; if ((date || '') > m[v].last) m[v].last = date || '';
+      };
+      all.forEach(function (r) { add(r.payMethod, r.date, r.total); });
+      cpList().forEach(function (x) { add(x.card, x.used, 0); });
+      var names = Object.keys(m).sort(function (a, b) { return m[b].n - m[a].n; });
+      openSheet('<div class="grip"></div><h2>📥 レシートの払い方から登録</h2>' +
+        '<div class="note" style="font-size:16px;margin-bottom:10px">この半年のレシートやカード支払に出てきた払い方のうち、まだ「お財布」に登録していないものです。押すと、名前が入った状態で登録の画面が開きます。</div>' +
+        (names.map(function (v, i) {
+          var em = EMONEY_FAMILY.indexOf(normPayMethod(v)) >= 0, generic = normPayMethod(v) === 'クレジットカード';
+          return '<div class="card nt-card"><div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + (em ? '💴 ' : '💳 ') + esc(v) + '</b><span class="in-sub">' + m[v].n + '件' + (m[v].sum ? ' ・ ' + yen(m[v].sum) : '') + '</span></div>' +
+            '<div class="in-sub">いちばん新しいのは ' + esc(md(m[v].last)) + '</div>' +
+            (generic ? '<div class="in-sub" style="color:var(--on-warn)">「クレジットカード」としか書いていません。登録の画面で、カードの名前(例:楽天カード)に直してください。</div>' : '') +
+            '<div class="nt-btns">' + (em ? '<button class="btn btn-primary" data-rv="' + i + '" data-g="emoney">💴 電子マネーとして登録</button><button class="btn btn-tonal" data-rv="' + i + '" data-g="card">💳 カードとして登録</button>'
+              : '<button class="btn btn-primary" data-rv="' + i + '" data-g="card">💳 カードとして登録</button><button class="btn btn-tonal" data-rv="' + i + '" data-g="emoney">💴 電子マネーとして登録</button>') + '</div></div>';
+        }).join('') || '<div class="note" style="font-size:17px;margin-bottom:10px">まだ登録していない払い方は、ありません。</div>') +
+        '<button class="btn btn-tonal btn-block" id="frBack" style="margin-top:6px">' + (back ? '← 戻る' : '閉じる') + '</button>');
+      $('frBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
+      $('sheet').querySelectorAll('[data-rv]').forEach(function (b) { b.addEventListener('click', function () {
+        var v = names[+b.dataset.rv], g = b.dataset.g;
+        openCardEdit(g === 'emoney' ? { name: v, type: normPayMethod(v) === 'Suica' ? 'スマホ決済・電子マネー' : 'チャージ式' } : { name: normPayMethod(v) === 'クレジットカード' ? '' : v, type: 'クレジットカード' }, self, g);
+      }); });
+    }).catch(function (e) { openSheet('<div class="grip"></div><div class="error">' + esc(e.message) + '</div><button class="btn btn-tonal btn-block" id="frBack">閉じる</button>'); $('frBack').addEventListener('click', closeSheet); });
+  }
+
   // 👛 お財布:電子マネー・カード・ポイントを1か所で
   function openWallet(tab) {
     tab = tab || 'emoney';
@@ -2984,9 +3066,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="note" style="font-size:15px;margin-bottom:10px">電子マネー・カード・ポイントを、ここでまとめて登録・確認できます。このスマホの中だけに保存します(家族には見えません)。</div>' +
       '<div class="chips" id="wTabs" style="margin-bottom:12px">' + [['emoney', '💴 電子マネー'], ['card', '💳 カード'], ['points', '🎁 ポイント']].map(function (t) {
         return '<button class="chip' + (t[0] === tab ? ' on' : '') + '" data-t="' + t[0] + '" style="font-size:17px;min-height:46px">' + t[1] + '</button>'; }).join('') + '</div>' +
-      body + (tab === 'emoney' ? '<button class="btn btn-tonal btn-block" id="wStrip" style="margin-top:10px">📌 いちばん上に出すもの・画面を選ぶ</button>' : '') +
+      body + (tab !== 'points' ? '<button class="btn btn-tonal btn-block" id="wFromRc" style="margin-top:10px;line-height:1.35">📥 レシートの払い方から登録する<br><span style="font-size:14px;font-weight:400">まだ登録していないカード・電子マネーを見つけます</span></button>' : '') +
+      (tab === 'emoney' ? '<button class="btn btn-tonal btn-block" id="wStrip" style="margin-top:10px">📌 いちばん上に出すもの・画面を選ぶ</button>' : '') +
       '<button class="btn btn-tonal btn-block" id="wClose" style="margin-top:10px">閉じる</button>');
     if ($('wStrip')) $('wStrip').addEventListener('click', function () { openStripSettings(self); });
+    if ($('wFromRc')) $('wFromRc').addEventListener('click', function () { openFromReceipts(self); });
     $('wTabs').querySelectorAll('.chip').forEach(function (b) { b.addEventListener('click', function () { openWallet(b.dataset.t); }); });
     $('wClose').addEventListener('click', closeSheet);
     $('wNew').addEventListener('click', function () { if (tab === 'points') openPoints(self); else openCardEdit({}, self, tab); });
@@ -3347,7 +3431,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       cards.forEach(function (c) {
         if (!c.withdraw) return;
         var b = billFor(c, wm), key = c.id + '|' + wm;
-        var rs = all.filter(function (r) { return !cpIds[r.id] && r.payMethod === cardLabel(c) && r.date >= b.start && r.date <= b.end; });
+        var rs = all.filter(function (r) { return !cpIds[r.id] && payIs(r.payMethod, c) && r.date >= b.start && r.date <= b.end; });
         var est = rs.reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0) + commuteSum(c, b) + linkedSum(c, b);
         rows.push({ date: b.date, name: cardLabel(c), sub: '締めの期間 ' + md(b.start) + '〜' + md(b.end) + '(レシート ' + rs.length + '件)', amount: ov[key] != null ? ov[key] : est,
           real: ov[key] != null, est: est, bank: (c.bank || '口座が未登録') + (c.acct4 ? ' …' + c.acct4 : ''), key: key, card: c });
@@ -3783,7 +3867,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       cards.forEach(function (c) {
         if (!c.withdraw) return;
         var b = billFor(c, wm), key = c.id + '|' + wm;
-        var rs = (all || []).filter(function (r) { return !cpIds[r.id] && r.payMethod === cardLabel(c) && r.date >= b.start && r.date <= b.end; });
+        var rs = (all || []).filter(function (r) { return !cpIds[r.id] && payIs(r.payMethod, c) && r.date >= b.start && r.date <= b.end; });
         var fares = commuteSum(c, b), chg = linkedSum(c, b), est = rs.reduce(function (a, r) { return a + (Number(r.total) || 0); }, 0) + fares + chg;
         if (!est && ov[key] == null) return;   // 使っていない月は出さない
         rows.push({ date: b.date, name: cardLabel(c), sub: (isPrepaid(c) ? '' : '引き落とし ・ ') + (ov[key] != null ? '✅ 請求額' : '見込み(レシート ' + rs.length + '件' + (fares ? '・電車賃 ' + yen(fares) : '') + (chg ? '・チャージ ' + yen(chg) : '') + ')'),
@@ -3916,16 +4000,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var wd = function (d) { return '日月火水木金土'.charAt(new Date(d + 'T00:00:00').getDay()); };
     openSheet('<div class="grip"></div><h2>🧾 ' + esc(monthLabel(PM.wm || thisMonth())) + 'の支払いの明細</h2>' +
       '<div class="total-card" style="margin-bottom:12px"><div class="label">合計</div><div class="amount">' + yen(total) + '</div></div>' +
-      '<div class="note" style="font-size:15px;margin-bottom:8px">押すと、いつ・何を・いくらで買ったかが見られます。</div>' +
-      (ev.map(function (e, i) {
-        var past = e.date < t || (e.slip && e.slip.status === '済み');
-        return '<button class="card" data-ev="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:10px;border:1px solid var(--line);color:var(--text);' + (past ? 'opacity:.65' : '') + '">' +
-          '<div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + (e.kind === 'slip' ? '📄 ' : e.kind === 'charge' ? '💴 ' : '💳 ') + esc(e.title) + '</b><b style="font-size:19px;white-space:nowrap">' + yen(e.amount) + ' ›</b></div>' +
-          '<div class="in-sub" style="font-size:16px">' + esc(md(e.date)) + '(' + wd(e.date) + ') ' + (e.kind === 'slip' ? (e.slip.status === '済み' ? '✅ 払った' : '期限') : (e.date < t ? '引き落とし済み' : '引き落とし')) +
-          (e.bank ? ' ・ 🏦 ' + esc(e.bank) : e.kind === 'card' ? ' ・ 🏦 口座が未登録' : '') + '</div></button>';
-      }).join('') || '<div class="note" style="font-size:17px">この月の支払いはありません。</div>') +
+      '<div class="note" style="font-size:15px;margin-bottom:8px">押すと、いつ・何を・いくらで買ったかが見られます。右下は、そこまでの合計です。</div>' +
+      ledgerHtml(ev.map(function (e, i) {
+        var done = e.date < t || (e.slip && e.slip.status === '済み');
+        return { date: e.date, label: '<b>' + (e.kind === 'slip' ? '📄 ' : e.kind === 'charge' ? '💴 ' : '💳 ') + esc(e.title) + '</b>',
+          sub: (e.kind === 'slip' ? (e.slip.status === '済み' ? '✅ 払った' : '期限') : (done ? '引き落とし済み' : '引き落とし')) + (e.bank ? ' ・ 🏦 ' + e.bank : e.kind === 'card' ? ' ・ 🏦 口座が未登録' : ''),
+          amount: e.amount, attrs: ' data-ev="' + i + '" role="button" style="cursor:pointer;' + (done ? 'opacity:.65' : '') + '"', tail: '<span style="font-size:20px">›</span>' };
+      }), 'sum') +
       '<button class="btn btn-tonal btn-block" id="ptbClose" style="margin-top:6px">閉じる</button>');
     $('ptbClose').addEventListener('click', closeSheet);
+    bindLedger(openPmTable);
     $('sheet').querySelectorAll('[data-ev]').forEach(function (b) { b.addEventListener('click', function () {
       var e = ev[+b.dataset.ev];
       if (e.kind === 'slip') { pay.returnGroup = null; return openPayDetail(e.slip.id); }
@@ -3939,7 +4023,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var months = b ? [b.start.slice(0, 7), b.end.slice(0, 7)].filter(function (m, i, a) { return a.indexOf(m) === i; }) : [];
     rkLoad(months).then(function (all) {
       var cpIds = {}; cpList().forEach(function (x) { cpIds[x.id] = 1; });
-      var rs = b ? all.filter(function (x) { return !cpIds[x.id] && x.payMethod === cardLabel(r.card) && x.date >= b.start && x.date <= b.end; }) : [];
+      var rs = b ? all.filter(function (x) { return !cpIds[x.id] && payIs(x.payMethod, r.card) && x.date >= b.start && x.date <= b.end; }) : [];
       var items = rs.map(function (x) { return { date: x.date, name: x.store || 'お店の名前なし', sub: (x.items || []).filter(function (it) { return it.price > 0; }).slice(0, 4).map(function (it) { return it.name; }).join('・'), amount: x.total }; })
         .concat(e.cps.map(function (x) { return { date: x.used, name: x.name, sub: 'カード支払' + (x.shop ? ' ・ 🏪 ' + x.shop : '') + ((x.items || []).length ? ' ・ ' + x.items.map(function (it) { return it.name; }).join('・') : '') + (x.memo ? ' ・ 📝 ' + x.memo : '') + (x.unconfirmed ? ' ・ ⚠ 金額を確かめてください' : ''), amount: x.amount, cp: x }; }))
         .concat(r && b ? linkedCharges(r.card, b).map(function (x) { return { date: x.date, name: x.note, sub: 'チャージ', amount: x.amount }; }) : [])
@@ -3948,14 +4032,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       openSheet('<div class="grip"></div><h2>💳 ' + esc(e.title) + '</h2>' +
         '<div class="total-card" style="margin-bottom:12px"><div class="label">' + esc(md(e.date)) + ' 引き落とし</div><div class="amount">' + yen(e.amount) + '</div>' +
         '<div style="font-size:15px">' + (e.bank ? '🏦 ' + esc(e.bank) : '🏦 口座が未登録') + (b ? ' ・ 締めの期間 ' + esc(md(b.start)) + '〜' + esc(md(b.end)) : '') + '</div></div>' +
-        '<div class="section-title">使ったもの(' + items.length + '件)</div><div class="card" style="margin-bottom:12px">' +
-        (items.map(function (x, i) {
-          return '<div class="in-line"' + (x.cp ? ' data-ecp="' + i + '" role="button" style="cursor:pointer"' : x.fare ? ' data-efare="' + x.fare + '" role="button" style="cursor:pointer"' : '') + '><span>' + esc(md(x.date)) + ' ' + esc(x.name) + (x.sub ? '<br><span class="in-sub">' + esc(x.sub) + '</span>' : '') + '</span><b>' + yen(x.amount) + (x.cp ? ' ›' : '') + '</b></div>'; }).join('') ||
-          '<div class="note">この期間に、このカードで払ったレシートは入っていません。</div>') + '</div>' +
+        '<div class="section-title">使ったもの(' + items.length + '件 ・ 右下は、そこまでの合計)</div>' +
+        (items.length ? ledgerHtml(items.map(function (x, i) {
+          return { date: x.date, label: esc(x.name), sub: x.sub, amount: x.amount,
+            attrs: x.cp ? ' data-ecp="' + i + '" role="button" style="cursor:pointer"' : x.fare ? ' data-efare="' + x.fare + '" role="button" style="cursor:pointer"' : '', tail: x.cp ? '<span style="font-size:20px">›</span>' : '' };
+        }), 'sum') : '<div class="card" style="margin-bottom:12px"><div class="note">この期間に、このカードで払ったレシートは入っていません。</div></div>') +
         (r && !r.real ? '<div class="note" style="font-size:15px;margin-bottom:10px">レシートのない分(電車代など)は入っていません。カードの明細で請求額を見たら、下のボタンで入れてください。</div>' : '') +
         (r ? '<button class="btn btn-tonal btn-block" id="eiAmt">✏ 請求額を入れる</button>' : '') +
         '<button class="btn btn-tonal btn-block" id="eiBack" style="margin-top:10px">← 明細に戻る</button>');
       $('eiBack').addEventListener('click', openPmTable);
+      bindLedger(function () { openEventItems(e); });
       $('sheet').querySelectorAll('[data-ecp]').forEach(function (x) { x.addEventListener('click', function () { openCardPay(items[+x.dataset.ecp].cp); }); });
       $('sheet').querySelectorAll('[data-efare]').forEach(function (x) { x.addEventListener('click', function () {
         var d = x.dataset.efare; if (!confirm(md(d) + ' は電車に乗らなかった(通勤しなかった)ことにしますか?')) return;
@@ -3992,19 +4078,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var months = [b.start.slice(0, 7)]; if (b.end.slice(0, 7) !== months[0]) months.push(b.end.slice(0, 7));
     rkLoad(months).then(function (all) {
       var cpIds = {}; cpList().forEach(function (x) { cpIds[x.id] = 1; });
-      var rs = all.filter(function (x) { return !cpIds[x.id] && x.payMethod === cardLabel(r.card) && x.date >= b.start && x.date <= b.end; })
+      var rs = all.filter(function (x) { return !cpIds[x.id] && payIs(x.payMethod, r.card) && x.date >= b.start && x.date <= b.end; })
         .concat(linkedCharges(r.card, b).map(function (x) { return { date: x.date, store: x.note, total: x.amount, purpose: 'チャージ' }; }))
         .sort(function (a, c) { return a.date < c.date ? -1 : 1; });
       openSheet('<div class="grip"></div><h2>' + (isPrepaid(r.card) ? '💴 ' : '💳 ') + esc(r.name) + '</h2>' +
         '<div class="total-card" style="margin-bottom:12px"><div class="label">' + esc(md(r.date)) + ' 引き落とし(' + (r.real ? '✅ 請求額' : '見込み') + ')</div><div class="amount">' + yen(r.amount) + '</div>' +
         '<div style="font-size:15px">締めの期間 ' + esc(md(b.start)) + '〜' + esc(md(b.end)) + (r.bank ? ' ・ 🏦 ' + esc(r.bank) : '') + '</div></div>' +
-        '<div class="section-title">この期間に使ったもの(' + rs.length + '件 ・ ' + yen(r.est) + ')</div><div class="card" style="margin-bottom:12px">' +
-        (rs.map(function (x) { return '<div class="in-line"><span>' + esc(x.store || 'お店の名前なし') + '<br><span class="in-sub">' + esc(md(x.date)) + (x.purpose ? ' ・ ' + esc(x.purpose) : '') + '</span></span><b>' + yen(x.total) + '</b></div>'; }).join('') ||
-          '<div class="note">払い方をこのカードにしたレシートは、ありません。</div>') + '</div>' +
+        '<div class="section-title">この期間に使ったもの(' + rs.length + '件 ・ ' + yen(r.est) + ' ・ 右下は、そこまでの合計)</div>' +
+        (rs.length ? ledgerHtml(rs.map(function (x) { return { date: x.date, label: esc(x.store || 'お店の名前なし'), sub: x.purpose || '', amount: Number(x.total) || 0 }; }), 'sum') :
+          '<div class="card" style="margin-bottom:12px"><div class="note">払い方をこのカードにしたレシートは、ありません。</div></div>') +
         '<div class="note" style="font-size:15px;margin-bottom:10px">電車代など、レシートのない分は入っていません。アプリやカードの明細で請求額を見たら、下のボタンで入れてください。</div>' +
         '<button class="btn btn-primary btn-block" id="cbAmt">✏ 請求額を入れる</button>' +
         '<button class="btn btn-tonal btn-block" id="cbClose" style="margin-top:10px">閉じる</button>');
       $('cbClose').addEventListener('click', closeSheet);
+      bindLedger(function () { openCardBill(r); });
       $('cbAmt').addEventListener('click', function () {
         var v = prompt(r.name + ' の ' + monthLabel(PM.wm) + ' の請求額(円)を入れてください。\n空にすると、見込み(' + yen(r.est) + ')に戻ります。', r.real ? r.amount : '');
         if (v === null) return;
@@ -4636,7 +4723,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       (feat('pay') ? '<button class="btn btn-tonal btn-block" id="stStrip">📌 いちばん上に出すもの・画面を選ぶ</button>' : '') +
       '<button class="btn btn-tonal btn-block" id="stReopen">🔁 アプリを開き直す(閉じて開くのと同じ)</button>' +
       (feat('pay') ? '<button class="btn btn-tonal btn-block" id="stCards">👛 お財布(電子マネー・カード・ポイント)</button>' : '') +
-      '<button class="btn btn-tonal btn-block" id="stDelete">🗑 記録の削除とゴミ箱</button>' +
+      '<button class="btn btn-tonal btn-block" id="stDelete">🗑 記録の削除・はじめからにする・ゴミ箱</button>' +
       '<button class="btn btn-tonal btn-block" id="stHomes">🔁 家の切り替え・追加</button>' +
       '<button class="btn btn-tonal btn-block" id="stPass">🔑 家のパスワードを変える</button>' +
       '<button class="btn btn-tonal btn-block" id="stOwner">使う人を変える・パスワードを入れ直す</button>' +
@@ -5250,6 +5337,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="dlCheck">件数を確認する</button>' +
       '<button class="btn btn-danger btn-block hidden" id="dlGo">削除する</button>' +
       '<button class="btn btn-tonal btn-block" id="dlTrash">♻ ゴミ箱を見る</button>' +
+      '<button class="btn btn-tonal btn-block" id="dlClear" style="min-height:56px;line-height:1.35">🧹 記録を消して、はじめからにする<br><span style="font-size:14px;font-weight:400">消すものを選べます(カード・電子マネーの登録は残せる)</span></button>' +
       '<button class="btn btn-tonal btn-block" id="dlReset">🔄 家を初期化する(テストのあと)</button>' +
       backButton('dlBack') + '</div>');
     $('sheet').querySelectorAll('.chip[data-k]').forEach(function (c) {
@@ -5288,7 +5376,78 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
     $('dlTrash').addEventListener('click', openTrash);
     $('dlReset').addEventListener('click', openReset);
+    $('dlClear').addEventListener('click', function () { openClearRecords(null); });
     $('dlBack').addEventListener('click', openSettings);
+  }
+
+
+  /* ---------- 記録を消して、はじめからにする(消すものを選ぶ。カード・電子マネーの登録などは残せる) ---------- */
+  var CLEAR_PARTS = [
+    ['receipts', '🧾 買物(レシート)', 'srv', true], ['payments', '📄 支払い(納付書・請求書)', 'srv', true], ['income', '💰 収入', 'srv', true],
+    ['trash', '🗑 ゴミ箱', 'srv', true], ['plans', '📅 自分の予定', 'srv', false], ['notes', '😋 評価・お店の情報・買い物メモ', 'srv', false],
+    ['cardPays', '💳 カード支払の記録', 'loc', true], ['ppLogs', '💴 電子マネーの残高と記録(登録は残します)', 'loc', true], ['billAmt', '✏ 入れた請求額', 'loc', true],
+    ['repeats', '🔁 毎月くり返すカード支払の設定', 'loc', false], ['points', '🎁 ポイントの残り', 'loc', false], ['cards', '👛 カード・電子マネーの登録そのもの', 'loc', false]
+  ];
+  function openClearRecords(sel) {
+    sel = sel || CLEAR_PARTS.reduce(function (o, x) { o[x[0]] = x[3]; return o; }, {});
+    var box = function (kind) { return CLEAR_PARTS.filter(function (x) { return x[2] === kind; }).map(function (x) {
+      return '<label class="check" style="margin:8px 0;font-size:18px"><input type="checkbox" style="width:26px;height:26px;flex:none" data-cl="' + x[0] + '"' + (sel[x[0]] ? ' checked' : '') + '> <span>' + x[1] + '</span></label>'; }).join(''); };
+    openSheet('<div class="grip"></div><h2>🧹 記録を消して、はじめからにする</h2>' +
+      '<div class="meta" style="font-size:17px">消すものを選んでください。家の名前・パスワード・家族の名前は、そのまま残ります。</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">' +
+      '<button type="button" class="btn btn-tonal" id="clRec" style="flex:1;min-width:150px;min-height:48px;line-height:1.3">おすすめ<br><span style="font-size:13px;font-weight:400">記録だけ消す・カードは残す</span></button>' +
+      '<button type="button" class="btn btn-tonal" id="clAll" style="flex:1;min-width:150px;min-height:48px">全部を選ぶ</button></div>' +
+      '<div class="section-title">家計簿の記録(家族みんなで使っているもの)</div>' +
+      '<div class="note" style="font-size:15px;margin:-4px 0 4px;color:var(--danger)">ここで消すと、<b>家族みんなのスマホからも</b>消えます。消す前に、Google ドライブに控え(コピー)を作ります。</div>' + box('srv') +
+      '<div class="section-title" style="margin-top:12px">このスマホだけのもの</div>' + box('loc') +
+      '<label class="check" style="margin:14px 0 6px;font-size:18px"><input type="checkbox" id="clOk" style="width:26px;height:26px;flex:none"> <span>選んだものが消えることを分かったうえで消します</span></label>' +
+      '<div class="error hidden" id="clErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px"><button class="btn btn-danger btn-block" id="clGo" disabled>選んだものを消す</button>' +
+      '<button class="btn btn-tonal btn-block" id="clBack">やめる</button></div>');
+    var cur = function () { var o = {}; $('sheet').querySelectorAll('[data-cl]').forEach(function (c) { o[c.dataset.cl] = c.checked; }); return o; };
+    $('clRec').addEventListener('click', function () { openClearRecords(null); });
+    $('clAll').addEventListener('click', function () { openClearRecords(CLEAR_PARTS.reduce(function (o, x) { o[x[0]] = true; return o; }, {})); });
+    $('clOk').addEventListener('change', function () { $('clGo').disabled = !this.checked; });
+    $('clBack').addEventListener('click', closeSheet);
+    $('clGo').addEventListener('click', function () {
+      var o = cur(), srv = CLEAR_PARTS.filter(function (x) { return x[2] === 'srv' && o[x[0]]; }).map(function (x) { return x[0]; });
+      var loc = CLEAR_PARTS.filter(function (x) { return x[2] === 'loc' && o[x[0]]; }).map(function (x) { return x[0]; });
+      if (!srv.length && !loc.length) { $('clErr').textContent = '消すものを選んでください'; show('clErr', true); return; }
+      var names = CLEAR_PARTS.filter(function (x) { return o[x[0]]; }).map(function (x) { return '・' + x[1].replace(/^\S+ /, ''); }).join('\n');
+      if (!confirm('次のものを消します。よろしいですか?\n\n' + names)) return;
+      var b = this; b.disabled = true; b.textContent = '消しています…';
+      (srv.length ? api('clearRecords', { parts: srv, confirm: '消す', person: state.owner }) : Promise.resolve({ result: {} })).then(function (res) {
+        clearLocal(loc, srv);
+        state.loadedMonth = null; RK.cache = {}; NT.data = null; pay.loaded = false; pay.list = []; state.incomeMonth = null;
+        loadMonth(true); renderBalStrip(); renderCpNotice(); if (document.querySelector('#screen-pay.active')) loadPayments(true);
+        var bk = res.result && res.result.backup;
+        openSheet('<div class="grip"></div><h2>✅ 消しました</h2>' +
+          '<div class="meta" style="font-size:17px">選んだものを消しました。これから入れる記録は、はじめからになります。</div>' +
+          (bk ? '<div class="note" style="font-size:16px;margin:8px 0">消す前の控えを、管理人の Google ドライブに「' + esc(bk) + '」として作りました。戻したいときは、管理人に頼んでください。</div>' : '') +
+          (loc.indexOf('ppLogs') >= 0 ? '<div class="note" style="font-size:16px;margin:8px 0">💴 電子マネーの残高は 0円 になっています。いちばん上の札を押して、「✏ 残高を直す」で今の残高を入れてください。</div>' : '') +
+          '<button class="btn btn-primary btn-block" id="cdDone" style="margin-top:10px">閉じる</button>');
+        $('cdDone').addEventListener('click', closeSheet);
+      }).catch(function (e) {
+        b.disabled = false; b.textContent = '選んだものを消す';
+        $('clErr').textContent = /不明な依頼/.test(e.message) ? '窓口(お家の家計簿 窓口)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください' : e.message; show('clErr', true);
+      });
+    });
+  }
+  function clearLocal(loc, srv) {
+    if (loc.indexOf('cardPays') >= 0) store.set('cardPays', '[]');
+    if (loc.indexOf('repeats') >= 0) store.set('cardRepeats', '[]');
+    if (loc.indexOf('billAmt') >= 0) store.del('billAmt');
+    if (loc.indexOf('points') >= 0) store.del('points');
+    if (srv.indexOf('receipts') >= 0) store.del('shots');   // 同じ写真の見分け用の控えも消す(撮り直せるように)
+    if (loc.indexOf('cards') >= 0) { store.del('cards'); store.del('stripHide'); return; }
+    if (loc.indexOf('ppLogs') >= 0) {
+      var l = cardList();
+      l.forEach(function (c) {
+        if (isPrepaid(c)) { c.log = []; c.balance = 0; c.at = today(); }
+        if (c.commute) { c.commute.skip = []; c.commute.done = today(); }
+      });
+      saveCards(l);
+    }
   }
 
   /* ---------- 家の初期化 ---------- */
