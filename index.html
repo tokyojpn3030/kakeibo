@@ -675,7 +675,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
 <nav class="bottom-nav">
   <button class="nav-item on" data-screen="history">
-    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/></svg></span>履歴
+    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/></svg></span>買物
   </button>
   <button class="nav-item" data-screen="capture">
     <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h1a2 2 0 0 0 2-2 1 1 0 0 1 1-1h6a1 1 0 0 1 1 1 2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2"/><circle cx="12" cy="13" r="3"/></svg></span>撮影
@@ -762,7 +762,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 10:10 版99';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 10:15 版100';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1658,7 +1658,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       return true;
     });
     html += '<div class="section-title">記録(' + list.length + '件)</div>' + (list.map(reviewCard).join('') ||
-      '<div class="note" style="font-size:17px">' + (rs.length ? '当てはまる記録はありません。' : 'まだ記録がありません。<br>履歴のレシートを開いて、品物の横の「😋」を押すと記録できます。') + '</div>');
+      '<div class="note" style="font-size:17px">' + (rs.length ? '当てはまる記録はありません。' : 'まだ記録がありません。<br>「買物」のレシートを開いて、品物の横の「😋」を押すと記録できます。') + '</div>');
     $('ntBody').innerHTML = html;
     $('ntNew').addEventListener('click', function () { openReview({}); });
     var t; $('ntQ').addEventListener('input', function () { var v = this.value; clearTimeout(t); t = setTimeout(function () { NT.q = v; ntList(); $('ntQ').focus(); var e = $('ntQ'); e.setSelectionRange(v.length, v.length); }, 400); });
@@ -1987,7 +1987,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   function openFeatures() {
     openSheet('<div class="grip"></div><h2>🧩 使う機能を選ぶ</h2>' +
-      '<div class="meta" style="font-size:17px">レシートの読み取り・履歴・集計・支払いは、いつも使えます。ほかの機能は、使うものだけ選んでください。</div>' +
+      '<div class="meta" style="font-size:17px">レシートの読み取り・買物・集計・支払いは、いつも使えます。ほかの機能は、使うものだけ選んでください。</div>' +
       FEATURES.map(function (f) { return '<label class="check" style="margin:10px 0;font-size:18px"><input type="checkbox" style="width:26px;height:26px;flex:none" data-f="' + f[0] + '"' + (feat(f[0]) ? ' checked' : '') + '> <span>' + f[1] + '</span></label>'; }).join('') +
       '<div class="note" style="font-size:15px;margin:6px 0 12px">このスマホだけの設定です。オフにしても、入れた記録は消えません。</div>' +
       '<button class="btn btn-primary btn-block" id="ftSave">保存する</button>' +
@@ -2913,7 +2913,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>💳 カード支払</h2>' +
       '<button class="btn btn-primary btn-block" id="cpNew" style="margin-bottom:10px">＋ カード支払を入れる</button>' +
       '<button class="btn btn-tonal btn-block" id="cpReg" style="margin-bottom:10px">👛 カードを登録する・直す(お財布)</button>' +
-      '<div class="note" style="font-size:15px;margin-bottom:10px">レシートのないカードの支払い(スマホ代・Claude 代・ネットの買い物など)を入れます。出費として履歴・集計に入り、「🏦 引き落とし予定」にも出ます。</div>' +
+      '<div class="note" style="font-size:15px;margin-bottom:10px">レシートのないカードの支払い(スマホ代・Claude 代・ネットの買い物など)を入れます。出費として買物・集計に入り、「🏦 引き落とし予定」にも出ます。</div>' +
       (reps.length ? '<div class="section-title">🔁 毎月くり返す支払い</div><div class="card" style="margin-bottom:12px">' + reps.map(function (r, i) {
         return '<div class="in-line"><span>' + esc(r.name) + '<br><span class="in-sub">' + esc(r.card) + ' ・ 毎月' + r.day + '日 ・ ' + (r.mode === 'same' ? '同じ金額' : '金額が変わる') + '</span></span>' +
           '<span style="white-space:nowrap"><b>' + yen(r.amount) + '</b> <button class="btn btn-text" data-rstop="' + r.id + '" style="min-height:40px;padding:0 6px">やめる</button></span></div>'; }).join('') + '</div>' : '') +
