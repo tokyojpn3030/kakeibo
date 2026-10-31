@@ -784,7 +784,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 23:50 版118';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 00:10 版119';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版116';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -969,14 +969,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   /* 🤝 割り勘:レシートの合計(お店の金額)はそのまま。もらった分は「🤝割り勘:だれ」のマイナスの品目として保存し、
      家計簿の合計には「レシートの合計 − もらった分」を入れる。品目に「割り勘」と書いたマイナスの行も同じに扱う */
   var SHARE_TAG = '🤝割り勘';
-  function adjName(n) { return String(n || '').replace(/^🤝割り勘[::]\s*(.+)$/, '$1 割り勘').replace(/^🤝/, '').trim() || '割り勘'; }
+  function adjName(n) { return String(n || '').replace(/^🤝\[[^\]]*\]/, '🤝').replace(/^🤝割り勘[::]\s*(.+)$/, '$1 割り勘').replace(/^🤝/, '').trim() || '割り勘'; }
+  function adjWho(n) { var m = String(n || '').match(/^🤝\[([^\]]+)\]/); return m ? m[1] : ''; }
   function isShareItem(it) { return it && Number(it.price) < 0 && /^🤝|割り勘|わりかん/.test(String(it.name || '')); }
   function normRc(r) {
     if (!r || !r.items || r.share != null) return r;
     var sh = r.items.filter(isShareItem);
     r.share = sh.reduce(function (a, it) { return a - (Number(it.price) || 0); }, 0);
-    r.adj = sh.map(function (it) { return { name: adjName(it.name), amount: -(Number(it.price) || 0) }; });
+    r.adj = sh.map(function (it) { return { name: adjName(it.name), amount: -(Number(it.price) || 0), who: adjWho(it.name) }; });
     r.items = r.items.filter(function (it) { return !isShareItem(it); });
+    // 家族のレシートの割り勘分として入ったもの(🔗元のレシートのID)
+    r.items.forEach(function (it) { var m = String(it.name || '').match(/^🔗(\S+)\s*(.*)$/); if (m) { it.link = m[1]; it.name = m[2] || '割り勘分'; r.linkFrom = m[1]; } });
     return r;
   }
   function normRes(res) { if (res && Array.isArray(res.receipts)) res.receipts.forEach(normRc); return res; }
@@ -2641,7 +2644,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       (r.payMethod ? '<div class="kv" style="margin-top:4px"><span>払い方</span><b>' + esc(r.payMethod) + (cardByLabel(r.payMethod) ? ' <button class="btn btn-text" id="dtCard" style="min-height:36px;padding:0 6px">💳 詳しく</button>' : '') + '</b></div>' : '') +
       '<div style="margin-top:12px">' + (items ? (feat('memo') ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' : '') + items : '<div class="note">品目の記録はありません</div>') +
       '<div class="line-item total"><span>' + (r.share ? 'レシートの合計(お店の金額)' : '合計') + '</span><span>' + yen(r.total) + '</span></div>' +
-      (r.share ? (r.adj || []).map(function (a) { return '<div class="line-item"><span>🤝 ' + esc(a.name) + '</span><span class="minus">−' + yen(a.amount) + '</span></div>'; }).join('') +
+      (r.share ? (r.adj || []).map(function (a) { return '<div class="line-item"><span>🤝 ' + esc(a.name) + (a.who ? ' <span class="in-sub">(' + esc(a.who) + 'の買い物にも入っています)</span>' : '') + '</span><span class="minus">−' + yen(a.amount) + '</span></div>'; }).join('') +
         '<div class="line-item total"><span>家計簿に入る金額</span><span>' + yen(spentOf(r)) + '</span></div>' : '') + '</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
       '<button class="btn btn-primary btn-block" id="dtEdit">✏ 編集する</button>' +
@@ -2656,9 +2659,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }); });
     $('dtEdit').addEventListener('click', function () { closeSheet(); startEdit(r); });
     $('dtDelete').addEventListener('click', function () {
-      if (!confirm('このレシートを削除しますか?\n(30日間はゴミ箱から戻せます)')) return;
+      var fam = (r.adj || []).filter(function (a) { return a.who; });
+      if (!confirm('このレシートを削除しますか?\n(30日間はゴミ箱から戻せます)' + (fam.length ? '\n割り勘で入れた ' + fam.map(function (a) { return a.who; }).join('・') + ' の分も一緒に消します。' : ''))) return;
       this.disabled = true;
-      api('delete', { id: id }).then(function () {
+      (fam.length ? famShareReceipts(id, [r.date.slice(0, 7)]).then(function (l) { return l.reduce(function (pr, x) { return pr.then(function () { return api('delete', { id: x.id }); }); }, Promise.resolve()); }) : Promise.resolve()).then(function () { return api('delete', { id: id }); }).then(function () {
         closeSheet(); toast('ゴミ箱に移しました'); loadMonth(true);
       }).catch(function (err) { alert(err.message); });
     });
@@ -2995,9 +2999,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   /* ---------- 確認フォーム ---------- */
   function openConfirm(r) {
     state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', payMethod: r.payMethod || '', payBalance: r.payBalance || 0, date: r.date || today(),
-      total: r.total || 0, items: (r.items || []).filter(function (it) { return !isShareItem(it); }).map(function (it) { return { name: it.name, price: it.price }; }) };
+      total: r.total || 0, items: (r.items || []).filter(function (it) { return !isShareItem(it); }).map(function (it) { return it.link ? { name: it.name, price: it.price, link: it.link } : { name: it.name, price: it.price }; }) };
+    state.editOrigDate = r.date || '';
     var rsh = r.share != null ? r : normRc({ items: (r.items || []).slice() });
-    state.draft.adj = (rsh.adj || []).map(function (a) { return { name: a.name, amount: a.amount }; });
+    state.draft.adj = (rsh.adj || []).map(function (a) { return { name: a.name, amount: a.amount, who: a.who || '' }; });
     show('cfShareBox', state.draft.adj.length > 0); show('cfShareBtn', !state.draft.adj.length); drawAdj();
     show('capStart', false); show('capLoading', false); show('capError', false); show('capConfirm', true);
     show('cfError', false); show('cfSame', false); show('cfReadBy', false); show('cfRated', false);
@@ -3872,7 +3877,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       return '<button class="chip' + (x.name === state.draft.person ? ' on' : '') + '" data-p="' + esc(x.name) + '">' + nm(x.name) + '</button>';
     }).join('');
     $('cfPerson').querySelectorAll('.chip').forEach(function (c) {
-      c.addEventListener('click', function () { state.draft.person = c.dataset.p; renderConfirmPerson(); });
+      c.addEventListener('click', function () { state.draft.person = c.dataset.p; renderConfirmPerson(); if (state.draft.adj && state.draft.adj.length) drawAdj(); });
     });
   }
   function renderItems() {
@@ -3901,15 +3906,25 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('cfShareTot').textContent = yen(t); $('cfShareSum').textContent = '−' + yen(sh); $('cfShareNet').textContent = yen(t - sh);
   }
   function drawAdj() {
-    var l = state.draft.adj || [];
+    var l = state.draft.adj || [], me = state.draft.person;
+    var fam = MEMBERS.map(function (m) { return m.name; }).filter(function (n) { return n && n !== me; });
     $('cfAdjRows').innerHTML = l.map(function (a, i) {
       return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">' +
         '<input class="input" data-an="' + i + '" placeholder="項目(例:池水さん 割り勘)" value="' + esc(a.name || '') + '" style="flex:1;min-width:0">' +
         '<input class="input" data-aa="' + i + '" type="number" inputmode="numeric" placeholder="金額" value="' + esc(a.amount || '') + '" style="width:110px;font-weight:700">' +
-        '<button class="btn btn-text" data-ad="' + i + '" aria-label="この行を消す" style="min-width:40px;padding:0;font-size:20px">✕</button></div>';
+        '<button class="btn btn-text" data-ad="' + i + '" aria-label="この行を消す" style="min-width:40px;padding:0;font-size:20px">✕</button></div>' +
+        (fam.length ? '<div style="display:flex;gap:6px;align-items:center;margin:-2px 0 10px"><span class="in-sub">家族なら:</span><select class="input" data-aw="' + i + '" style="flex:1;min-height:44px;font-size:16px">' +
+          '<option value="">家族ではない(引くだけ)</option>' + fam.map(function (m) { return '<option value="' + esc(m) + '"' + (a.who === m ? ' selected' : '') + '>' + esc(m) + 'が出した</option>'; }).join('') + '</select></div>' +
+          (a.who ? '<div class="in-sub" style="margin:-6px 0 10px;color:var(--primary)">→ ' + esc(a.who) + 'の買い物にも、この金額が入ります</div>' : '') : '');
     }).join('');
     $('cfAdjRows').querySelectorAll('[data-an]').forEach(function (x) { x.addEventListener('input', function () { l[+x.dataset.an].name = x.value; }); });
     $('cfAdjRows').querySelectorAll('[data-aa]').forEach(function (x) { x.addEventListener('input', function () { l[+x.dataset.aa].amount = x.value; drawShareNet(); }); });
+    $('cfAdjRows').querySelectorAll('[data-aw]').forEach(function (x) { x.addEventListener('change', function () {
+      var a = l[+x.dataset.aw], old = a.who; a.who = x.value;
+      if (a.who && (!a.name || a.name === '割り勘' || (old && a.name === old + 'から'))) a.name = a.who + 'から';
+      if (!a.who && old && a.name === old + 'から') a.name = '割り勘';
+      drawAdj();
+    }); });
     $('cfAdjRows').querySelectorAll('[data-ad]').forEach(function (x) { x.addEventListener('click', function () {
       l.splice(+x.dataset.ad, 1); drawAdj(); if (!l.length) { show('cfShareBox', false); show('cfShareBtn', true); } }); });
     drawShareNet();
@@ -3958,12 +3973,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     d.total = Math.round(Number($('cfTotal').value) || 0);
     if (!d.total) d.total = itemsSum();
     d.items = d.items.filter(function (it) { return ((it.name || '').trim() || it.price) && !isShareItem(it); });
-    var adj = (d.adj || []).map(function (a) { return { name: String(a.name || '').trim().slice(0, 30) || '割り勘', amount: Math.round(Number(a.amount) || 0) }; }).filter(function (a) { return a.amount; });
+    var adj = (d.adj || []).map(function (a) { return { name: String(a.name || '').trim().slice(0, 30) || '割り勘', amount: Math.round(Number(a.amount) || 0), who: a.who && a.who !== d.person ? a.who : '' }; }).filter(function (a) { return a.amount; });
+    d.items = d.items.map(function (it) { return it.link ? { name: '🔗' + it.link + ' ' + String(it.name || '').replace(/^🔗\S+\s*/, ''), price: it.price } : it; });
     var share = adj.reduce(function (a, x) { return a + x.amount; }, 0);
     show('cfError', false);
     if (adj.some(function (a) { return a.amount < 0; })) { $('cfError').textContent = '合計のあとに引く分は、プラスの数で入れてください'; show('cfError', true); return; }
     if (share && share >= d.total) { $('cfError').textContent = '引く分の合計は、レシートの合計より少ない数にしてください'; show('cfError', true); return; }
-    d.items = d.items.concat(adj.map(function (a) { return { name: '🤝' + a.name, price: -a.amount }; }));
+    d.items = d.items.concat(adj.map(function (a) { return { name: '🤝' + (a.who ? '[' + a.who + ']' : '') + a.name, price: -a.amount }; }));
+    d.famAdj = adj.filter(function (a) { return a.who; });
     if (!d.date) { $('cfError').textContent = '買った日を入れてください'; show('cfError', true); return; }
     if (!d.total) { $('cfError').textContent = '合計金額を入れてください'; show('cfError', true); return; }
     var btn = this, editing = state.editingId;
@@ -4018,11 +4035,42 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     };
     main();
   }
+  // 割り勘で家族が出した分を、その人の買い物としても入れる(元のレシートを直したら、こちらも直す・消す)
+  function famShareReceipts(srcId, months) {
+    return Promise.all(months.map(function (m) { return api('list', { month: m }); })).then(function (rs) {
+      var out = [], seen = {};
+      rs.forEach(function (res) { (res.receipts || []).forEach(function (r) { if (r.linkFrom === srcId && !seen[r.id]) { seen[r.id] = 1; out.push(r); } }); });
+      return out;
+    });
+  }
+  function syncFamShare(srcId, d, origDate) {
+    var months = [d.date.slice(0, 7)]; if (origDate && months.indexOf(origDate.slice(0, 7)) < 0) months.push(origDate.slice(0, 7));
+    var want = d.famAdj || [];
+    return famShareReceipts(srcId, months).then(function (have) {
+      var jobs = [];
+      want.forEach(function (a) {
+        var p = { person: a.who, date: d.date, store: d.store || '', purpose: d.purpose || '', payMethod: '現金', total: a.amount,
+          items: [{ name: '🔗' + srcId + ' ' + d.person + 'のレシートの割り勘分', price: a.amount }] };
+        var ex = have.filter(function (x) { return x.person === a.who; })[0];
+        if (ex) { have.splice(have.indexOf(ex), 1); if (ex.total !== a.amount || ex.date !== d.date || ex.store !== p.store) jobs.push(function () { return api('update', { id: ex.id, receipt: p }); }); }
+        else jobs.push(function () { return api('save', { receipt: p }); });
+      });
+      have.forEach(function (x) { jobs.push(function () { return api('delete', { id: x.id }); }); });
+      if (!jobs.length) return;
+      return jobs.reduce(function (pr, f) { return pr.then(f); }, Promise.resolve()).then(function () {
+        if (want.length) toast('🤝 ' + want.map(function (a) { return a.who; }).join('・') + 'の買い物にも、割り勘の分を入れました');
+        state.loadedMonth = null; loadMonth(true);
+      });
+    }).catch(function (e) { alert('家族の割り勘の分を入れられませんでした:' + e.message); });
+  }
   function doSaveReceipt(btn, d) {
     btn.disabled = true; btn.textContent = '保存中…';
     var editing = state.editingId;
-    (editing ? api('update', { id: editing, receipt: d }) : api('save', { receipt: d })).then(function () {
+    var origDate = editing ? state.editOrigDate : '';
+    (editing ? api('update', { id: editing, receipt: d }) : api('save', { receipt: d })).then(function (res) {
       btn.disabled = false; btn.textContent = '保存する';
+      var srcId = editing || (res && res.id);
+      if (srcId && (editing || (d.famAdj && d.famAdj.length))) syncFamShare(srcId, d, origDate);
       rememberShot('レシート');
       learnStores([d]);
       if (!editing && feat('memo')) tickShop(d);
