@@ -774,7 +774,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 13:20 版113';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 13:45 版114';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -2264,7 +2264,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>💴 電子マネーの残高</h2>' + l.map(function (c, i) {
       return '<button class="card" data-pb="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:10px;border:1px solid var(--line);color:var(--text)">' +
         '<div class="in-line" style="border:none;padding:0"><b style="font-size:20px">💴 ' + esc(cardLabel(c)) + '</b><b style="font-size:22px">' + yen(c.balance || 0) + '</b></div>' +
-        '<div class="in-sub">' + (c.at ? esc(md(c.at)) + 'に更新' : '') + ' ・ 押すと記録とチャージ</div></button>';
+        '<div class="in-sub">' + (c.at ? '残高が変わった日 ' + esc(md(c.at)) : '') + ' ・ 押すと記録とチャージ</div></button>';
     }).join('') + '<button class="btn btn-tonal btn-block" id="pbClose">閉じる</button>');
     $('pbClose').addEventListener('click', closeSheet);
     $('sheet').querySelectorAll('[data-pb]').forEach(function (b) { b.addEventListener('click', function () { openPrepaid(l[+b.dataset.pb], openBalances); }); });
@@ -2921,7 +2921,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var re = function () { var x = cardList().filter(function (y) { return y.id === c.id; })[0]; if (x) openPrepaid(x, back); };
     openSheet('<div class="grip"></div><h2>💴 ' + esc(c.name) + '(チャージ式)</h2>' +
       '<div class="total-card" style="margin-bottom:12px"><div class="label">今の残高</div><div class="amount">' + yen(c.balance || 0) + '</div>' +
-      '<div style="font-size:15px">' + (c.at ? esc(md(c.at)) + 'に更新' : '') + '</div></div>' +
+      '<div style="font-size:15px">' + (c.at ? '残高が最後に変わった日:' + esc(md(c.at)) + (c.log && c.log[0] && c.log[0].note && c.log[0].date === c.at ? '(' + esc(c.log[0].note) + ')' : '') : '') + '</div></div>' +
       (c.loginMemo ? '<div class="note" style="font-size:16px;margin-bottom:10px">🔑 ' + esc(c.loginMemo) + '</div>' : '') +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">' +
       '<button class="btn btn-primary btn-block" id="ppUse" style="min-height:56px;font-size:19px">✍ 使った金額を入れる</button>' +
@@ -3083,7 +3083,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     };
     var body = '';
     if (tab === 'emoney') body = (em.map(function (c, i) {
-        return row((isPrepaid(c) ? '💴 ' : '🏦 ') + cardLabel(c), i, isPrepaid(c) ? '現金でチャージ' + (c.at ? ' ・ ' + esc(md(c.at)) + 'に更新' : '') :
+        return row((isPrepaid(c) ? '💴 ' : '🏦 ') + cardLabel(c), i, isPrepaid(c) ? '現金でチャージ' + (c.at ? ' ・ 残高が変わった日 ' + esc(md(c.at)) : '') :
           '毎月' + dayText(c.withdraw) + 'に引き落とし ・ ' + esc(c.bank || '口座が未登録') + (c.acct4 ? ' …' + esc(c.acct4) : ''), isPrepaid(c) ? yen(c.balance || 0) : '');
       }).join('') || '<div class="note" style="font-size:17px;margin-bottom:10px">まだ電子マネーが登録されていません。</div>') +
       '<button class="btn btn-primary btn-block" id="wNew">＋ 電子マネーを登録する</button>';
@@ -3092,7 +3092,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }).join('') || '<div class="note" style="font-size:17px;margin-bottom:10px">まだカードが登録されていません。</div>') +
       '<button class="btn btn-primary btn-block" id="wNew">＋ カードを登録する</button>' +
       '<button class="btn btn-tonal btn-block" id="wView" style="margin-top:10px;flex-direction:column;line-height:1.35">＋ VIEW カード(JRE CARD など)のひな形で登録<br><span style="font-size:14px;font-weight:400">5日締め・翌月4日払いが入った状態で開きます</span></button>';
-    else body = (pn.map(function (n, i) { return row('🎁 ' + n, i, pb[n].at ? esc(md(pb[n].at)) + 'に更新' : '', (pb[n].balance || 0).toLocaleString('ja-JP') + 'P'); }).join('') ||
+    else body = (pn.map(function (n, i) { return row('🎁 ' + n, i, pb[n].at ? '変わった日 ' + esc(md(pb[n].at)) : '', (pb[n].balance || 0).toLocaleString('ja-JP') + 'P'); }).join('') ||
       '<div class="note" style="font-size:17px;margin-bottom:10px">まだポイントが登録されていません。</div>') +
       '<button class="btn btn-primary btn-block" id="wNew">🎁 ポイントを足す・残りを直す</button>';
     openSheet('<div class="grip"></div><h2>👛 お財布</h2>' +
