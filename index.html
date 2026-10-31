@@ -774,7 +774,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-10-31 14:05 版115';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-10-31 14:15 版116';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版116';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -4801,7 +4802,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-text btn-block" id="stHelp">❓ 読み取りの回数について</button>' +
       '<button class="btn btn-text btn-block" id="stAdmin">🛠 管理人(新しい家計簿を作る・引っ越し)</button>' +
       '<button class="btn btn-text btn-block" id="stClose">閉じる</button></div>' +
-      '<div class="note" style="text-align:center;margin-top:8px">アプリの版:' + APP_VERSION + '</div>');
+      '<div class="note" style="text-align:center;margin-top:8px">アプリの版:' + APP_VERSION + '</div>' +
+      '<div class="note" id="svVer" style="text-align:center;margin-top:4px;font-size:16px">窓口(Apps Script)の版:確かめています…</div>');
+    api('ping').then(function (res) {
+      if (!$('svVer')) return;
+      var sv = res && res.sv;
+      $('svVer').innerHTML = sv === EXPECT_SV ? '窓口(Apps Script)の版:' + esc(sv) + ' ✅ デプロイできています'
+        : '窓口(Apps Script)の版:' + esc(sv || '版115より前') + '<br><b style="color:var(--on-warn)">⚠ 窓口のデプロイがまだのようです(' + esc(EXPECT_SV) + ' にしてください)</b>';
+    }).catch(function () { if ($('svVer')) $('svVer').textContent = '窓口(Apps Script)の版:確かめられませんでした(通信を確認してください)'; });
     $('stInvite').addEventListener('click', function () { openInvite(); });
     $('stMembers').addEventListener('click', openMemberEditor);
     $('stDelete').addEventListener('click', openDelete);
