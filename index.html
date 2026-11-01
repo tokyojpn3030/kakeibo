@@ -791,8 +791,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 16:35 版122';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版116';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-01 16:50 版123';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版123';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1023,6 +1023,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           items: [{ name: '牛乳 1L', price: 238 }, { name: '食パン 6枚', price: 178 },
                   { name: 'たまご 10個', price: 298 }, { name: '豚こま切れ', price: 498 },
                   { name: 'バナナ', price: 158 }, { name: '値引', price: -82 }] } });
+        if (action === 'analyzePlan') return resolve({ ok: true, plan: { title: '(仮)新宿内科耳鼻科クリニック 内科の定期受診', place: '新宿内科耳鼻科クリニック', date: '2026-11-10', time: '09:30', endTime: '10:00', kind: '病院・予約', memo: '問診票を先に入力する' } });
         if (action === 'save') {
           var r = Object.assign({ id: String(Date.now()) }, data.receipt);
           list.push(r); demoSave(list); return resolve({ ok: true, id: r.id });
@@ -1869,6 +1870,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     v = Object.assign({ kind: '病院・予約', date: today(), time: '', title: '', place: '', memo: '', notify: [1, 0], done: false }, v || {});
     var kind = v.kind, notify = v.notify.slice();
     openSheet('<div class="grip"></div><h2>📅 ' + esc(title || (v.id ? '予定を直す' : '予定を入れる')) + '</h2>' +
+      (v.id ? '' : '<button class="btn btn-tonal btn-block" id="plScan" style="min-height:60px;font-size:18px;flex-direction:column;line-height:1.35;margin-bottom:10px">📷 予約の画面・予約票から読み込む<br><span style="font-size:14px;font-weight:400">スクリーンショットや写真を選ぶと、日付・時刻・場所を入れます</span></button>' +
+        '<input type="file" accept="image/*" id="plFile" class="vh"><div class="note hidden" id="plScanMsg" style="font-size:16px;margin-bottom:10px"></div>') +
       '<div class="rk-label">種類</div><div class="chips" id="plKind">' + PLAN_KINDS.map(function (k) {
         return '<button type="button" class="chip' + (k[0] === kind ? ' on' : '') + '" data-v="' + k[0] + '">' + k[1] + ' ' + k[0] + '</button>'; }).join('') + '</div>' +
       '<div class="field" style="margin-top:12px"><label for="plTitle">内容</label><input class="input" id="plTitle" placeholder="例:○○クリニック、△△さんに聞くこと" value="' + esc(v.title) + '"></div>' +
@@ -1888,6 +1891,29 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('plNotify').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
       var d = +c.dataset.v, i = notify.indexOf(d); if (i >= 0) notify.splice(i, 1); else notify.push(d); c.classList.toggle('on', i < 0); }); });
     $('plBack').addEventListener('click', closeSheet);
+    // 📷 予約の画面を読み込む(名前・会員番号などは読まない)
+    if ($('plScan')) {
+      $('plScan').addEventListener('click', function () { $('plFile').value = ''; $('plFile').click(); });
+      $('plFile').addEventListener('change', function () {
+        var file = this.files && this.files[0]; if (!file) return;
+        var b = $('plScan'), msg = $('plScanMsg'); b.disabled = true; b.innerHTML = '読み取り中…(少しかかります)'; show('plScanMsg', false);
+        shrinkImage(URL.createObjectURL(file)).then(function (b64) { return api('analyzePlan', { image: b64, mimeType: 'image/jpeg', today: today() }); }).then(function (res) {
+          var r = res.plan || {};
+          if (r.title) $('plTitle').value = r.title;
+          if (r.date) $('plDate').value = r.date;
+          if (r.time) $('plTime').value = r.time;
+          if (r.place) $('plPlace').value = r.place;
+          var memo = [r.endTime ? r.time + '〜' + r.endTime : '', r.memo].filter(Boolean).join('\n');
+          if (memo) $('plMemo').value = ($('plMemo').value ? $('plMemo').value + '\n' : '') + memo;
+          if (r.kind) { kind = r.kind; $('plKind').querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x.dataset.v === kind); }); }
+          msg.textContent = '✅ 読み込みました。日付・時刻・内容が合っているか確かめて、「保存する」を押してください。(名前や会員番号は読み取っていません)';
+          show('plScanMsg', true); b.disabled = false; b.innerHTML = '📷 別の画面を読み込み直す';
+        }).catch(function (e) {
+          var m = /不明な依頼/.test(e.message) ? '窓口(Apps Script)が古い版です。窓口を入れ替えてデプロイしてください。' : e.message;
+          msg.textContent = '⚠ ' + m; show('plScanMsg', true); b.disabled = false; b.innerHTML = '📷 予約の画面・予約票から読み込む';
+        });
+      });
+    }
     var after = function (msg) { closeSheet(); toast(msg); if ($('screen-notes').classList.contains('active') && NT.tab === 'plans') ntPlans(); };
     if ($('plDel')) $('plDel').addEventListener('click', function () {
       if (!confirm('この予定を消しますか?')) return;
