@@ -807,8 +807,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 21:30 版132';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版130';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-01 21:50 版133';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -4772,9 +4772,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       renderPay(); if (msg) toast(msg);
     });
   }
-  function markPaid(id, date, place) {
+  function markPaid(id, date, place, memo) {
     var p = findPay(id); if (!p) return Promise.resolve();
-    var n = Object.assign({}, p, { status: '済み', paidDate: date || today(), place: place || '' });
+    var n = Object.assign({}, p, { status: '済み', paidDate: date || today(), place: place || '' }, memo != null ? { memo: memo } : {});
     return savePay(n, '「' + p.title + (p.label ? ' ' + p.label : '') + '」を支払い済みにしました').then(afterPayChange);
   }
 
@@ -4797,36 +4797,46 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $(id).querySelectorAll('[data-pm]').forEach(function (c) { c.addEventListener('change', f); });
     return f;
   }
-  // 🏦 振り込みの準備:何か月分をまとめるかを選んで、その前に「お金を移す」を予定に入れる
+  // 🏦 振り込みの準備:何か月分をまとめるかを選んで、振り込む日を予定に入れる(前にお金を移すときは、その日も)
+  function payMoveSet() {
+    var mv = {}; try { mv = JSON.parse(store.get('pay.move') || '{}'); } catch (e) {}
+    if (mv.payFrom == null) { mv.payFrom = mv.moveOn === false ? (mv.from || 'ゆうちょ') : 'ゆうちょ'; }
+    return Object.assign({ payFrom: 'ゆうちょ', moveOn: false, from: '', dest: '', before: 3 }, mv);
+  }
   function openTransferPrep(id) {
     var p = findPay(id); if (!p) return;
     var l = openSiblings(p), i = l.map(function (x) { return x.id; }).indexOf(id);
     var sel = l.slice(Math.max(0, i), Math.max(0, i) + 2).map(function (x) { return x.id; });
-    var mv = {}; try { mv = JSON.parse(store.get('pay.move') || '{}'); } catch (e) {}
-    mv = Object.assign({ from: 'ゆうちょ', to: '三菱UFJ', dest: '', before: 3 }, mv);
+    var mv = payMoveSet();
     openSheet('<div class="grip"></div><h2>🏦 振り込みの準備</h2>' +
       '<div class="meta">' + payName(p) + '</div>' +
-      '<div class="note" style="font-size:16px;margin-bottom:10px">今回いっしょに振り込む分を選ぶと、振り込む日の前に「お金を移す」ことを予定に入れて、お知らせメールとテロップで知らせます。</div>' +
+      '<div class="note" style="font-size:16px;margin-bottom:10px">今回いっしょに振り込む分を選ぶと、振り込む日を予定に入れて、お知らせメールとテロップで知らせます。</div>' +
       pickMonthsHtml(p, sel, 'tpPick') +
       '<div class="field" style="margin-top:12px"><label for="tpDate">振り込む日</label><input class="input" id="tpDate" type="date" value="' + esc(p.due) + '"></div>' +
-      '<div style="display:flex;gap:8px;align-items:flex-end"><div class="field" style="flex:1"><label for="tpFrom">お金を移す元</label><input class="input" id="tpFrom" value="' + esc(mv.from) + '"></div>' +
-      '<div style="padding-bottom:22px;font-size:20px">→</div><div class="field" style="flex:1"><label for="tpTo">移す先(振り込む口座)</label><input class="input" id="tpTo" value="' + esc(mv.to) + '"></div></div>' +
-      '<div class="field"><label for="tpDest">振り込む先(なくてもよい)</label><input class="input" id="tpDest" placeholder="例:東京都医業健康保険組合" value="' + esc(mv.dest) + '"></div>' +
-      '<div class="rk-label">お金を移すのは、振り込む日の</div><div class="chips" id="tpBefore">' + [[1, '1日前'], [2, '2日前'], [3, '3日前'], [5, '5日前'], [7, '1週間前']].map(function (x) {
+      '<div class="field"><label for="tpPayFrom">振り込む口座(お金を出す口座)</label><input class="input" id="tpPayFrom" placeholder="例:ゆうちょ" value="' + esc(mv.payFrom) + '"></div>' +
+      '<div class="field"><label for="tpDest">振り込む先(なくてもよい)</label><input class="input" id="tpDest" placeholder="例:東京都医業健康保険組合(三菱UFJ 四谷三丁目支店)" value="' + esc(mv.dest) + '"></div>' +
+      '<label class="check" style="font-size:17px"><input type="checkbox" id="tpMoveOn"' + (mv.moveOn ? ' checked' : '') + '> <span>振り込む前に、ほかの口座からお金を移す</span></label>' +
+      '<div class="field' + (mv.moveOn ? '' : ' hidden') + '" id="tpMoveBox" style="margin-top:6px"><label for="tpFrom">お金を移す元</label><input class="input" id="tpFrom" placeholder="例:三菱UFJ" value="' + esc(mv.from) + '"></div>' +
+      '<div class="rk-label" id="tpBeforeLbl">' + (mv.moveOn ? 'お金を移すのは、振り込む日の' : '知らせるのは、振り込む日の') + '</div><div class="chips" id="tpBefore">' + [[1, '1日前'], [2, '2日前'], [3, '3日前'], [5, '5日前'], [7, '1週間前']].map(function (x) {
         return '<button type="button" class="chip' + (x[0] === mv.before ? ' on' : '') + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div class="note" style="font-size:16px;margin-top:8px" id="tpPreview"></div>' +
       '<div class="error hidden" id="tpErr"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button class="btn btn-primary btn-block" id="tpSave">📅 予定に入れる</button>' +
       '<button class="btn btn-tonal btn-block" id="tpBack">← 戻る</button></div>');
     var before = mv.before, ids = sel, sum = 0;
+    var moveOn = function () { return $('tpMoveOn').checked; };
     var moveDate = function () { var d = new Date($('tpDate').value + 'T00:00:00'); d.setDate(d.getDate() - before); return ymd(d); };
     var labels = function () { return ids.map(function (k) { var x = findPay(k); return x ? (x.label || shortDate(x.due)) : ''; }).join('・'); };
     var prev = function () {
       if (!$('tpDate').value) { $('tpPreview').textContent = ''; return; }
-      $('tpPreview').innerHTML = '📅 ' + esc(md(moveDate())) + ':「' + esc($('tpFrom').value.trim() || '元の口座') + ' → ' + esc($('tpTo').value.trim() || '振り込む口座') + ' へ ' + yen(sum) + ' 移す」<br>📅 ' + esc(md($('tpDate').value)) + ':「' + esc(p.title) + ' ' + esc(labels()) + ' を振り込む」';
+      var pf = $('tpPayFrom').value.trim() || '振り込む口座', dest = $('tpDest').value.trim();
+      $('tpPreview').innerHTML = (moveOn() ? '📅 ' + esc(md(moveDate())) + ':「' + esc($('tpFrom').value.trim() || '元の口座') + ' → ' + esc(pf) + ' へ ' + yen(sum) + ' 移す」<br>' : '') +
+        '📅 ' + esc(md($('tpDate').value)) + ':「' + esc(p.title) + ' ' + esc(labels()) + ' を振り込む ' + yen(sum) + '」(' + esc(pf) + 'から' + (dest ? esc(dest) + 'へ' : '') + ')' +
+        (moveOn() ? '' : '<br>お知らせ:' + esc(md(moveDate())) + '・前の日・当日の朝');
     };
     bindPickMonths('tpPick', function (a, s2) { ids = a; sum = s2; prev(); })();
-    ['tpDate', 'tpFrom', 'tpTo'].forEach(function (k) { $(k).addEventListener('input', prev); });
+    ['tpDate', 'tpFrom', 'tpPayFrom', 'tpDest'].forEach(function (k) { $(k).addEventListener('input', prev); });
+    $('tpMoveOn').addEventListener('change', function () { show('tpMoveBox', moveOn()); $('tpBeforeLbl').textContent = moveOn() ? 'お金を移すのは、振り込む日の' : '知らせるのは、振り込む日の'; prev(); });
     $('tpBefore').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
       before = +c.dataset.v; $('tpBefore').querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === c); }); prev(); }); });
     $('tpBack').addEventListener('click', function () { openPayDetail(id); });
@@ -4834,17 +4844,19 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var err = function (m) { $('tpErr').textContent = m; show('tpErr', true); };
       if (!ids.length) return err('振り込む分を1つ以上選んでください');
       if (!$('tpDate').value) return err('振り込む日を入れてください');
-      var from = $('tpFrom').value.trim(), to = $('tpTo').value.trim(), dest = $('tpDest').value.trim();
-      store.set('pay.move', JSON.stringify({ from: from, to: to, dest: dest, before: before }));
+      var on = moveOn(), from = $('tpFrom').value.trim(), pf = $('tpPayFrom').value.trim(), dest = $('tpDest').value.trim();
+      if (on && !from) return err('お金を移す元を入れてください');
+      store.set('pay.move', JSON.stringify({ payFrom: pf, moveOn: on, from: from, dest: dest, before: before }));
       var what = p.title + ' ' + labels();
       var b = this; b.disabled = true; b.textContent = '入れています…';
-      api('savePlan', { plan: { id: '', person: state.owner, kind: 'やること', title: (from || '元の口座') + ' → ' + (to || '振り込む口座') + ' へ ' + yen(sum) + ' 移す', date: moveDate(), time: '', place: from,
-        memo: what + ' の振り込みのため(' + md($('tpDate').value) + 'に振り込む)', notify: [1, 0], done: false } }).then(function () {
-        return api('savePlan', { plan: { id: '', person: state.owner, kind: 'やること', title: what + ' を振り込む ' + yen(sum), date: $('tpDate').value, time: '', place: to,
-          memo: (dest ? '振込先:' + dest + '\n' : '') + (to ? to + 'から振り込む\n' : '') + '振り込んだら、支払いの「払った」で' + ids.length + '件まとめて「済み」にしてください', notify: [1, 0], done: false } });
+      var notify = on ? [1, 0] : [before, 1, 0].filter(function (x, j, a) { return a.indexOf(x) === j; });
+      (on ? api('savePlan', { plan: { id: '', person: state.owner, kind: 'やること', title: from + ' → ' + (pf || '振り込む口座') + ' へ ' + yen(sum) + ' 移す', date: moveDate(), time: '', place: from,
+        memo: what + ' の振り込みのため(' + md($('tpDate').value) + 'に振り込む)', notify: [1, 0], done: false } }) : Promise.resolve()).then(function () {
+        return api('savePlan', { plan: { id: '', person: state.owner, kind: 'やること', title: what + ' を振り込む ' + yen(sum), date: $('tpDate').value, time: '', place: pf,
+          memo: (dest ? '振込先:' + dest + '\n' : '') + (pf ? pf + 'から振り込む(振込手数料も)\n' : '') + '振り込んだら、支払いの「払った」で' + ids.length + '件まとめて「済み」にしてください', notify: notify, done: false } });
       }).then(function () {
         if (typeof TALK !== 'undefined') TALK.plansAt = 0;
-        toast('📅 お金を移す日(' + md(moveDate()) + ')と、振り込む日(' + md($('tpDate').value) + ')を予定に入れました');
+        toast(on ? '📅 お金を移す日(' + md(moveDate()) + ')と、振り込む日(' + md($('tpDate').value) + ')を予定に入れました' : '📅 振り込む日(' + md($('tpDate').value) + ')を予定に入れました');
         openPayDetail(id);
       }).catch(function (e) { b.disabled = false; b.textContent = '📅 予定に入れる'; err(e.message); });
     });
@@ -4863,9 +4875,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="field"><label>どこで払いましたか</label><div class="chips" id="pfPlaces" style="margin:0 0 8px"></div>' +
       '<input class="input" id="pfPlace" placeholder="ほかの場所はここに書く(例:○○銀行)" value="' + esc(place) + '"></div>' +
       (openSiblings(p).length > 1 ? pickMonthsHtml(p, [p.id], 'pfPick') : '') +
+      '<div class="field" style="margin-top:10px"><label for="pfFee">振込手数料(円・なくてもよい)</label><input class="input" id="pfFee" type="number" inputmode="numeric" placeholder="0" value="' + esc(store.get('pay.lastFee') || '') + '"></div>' +
+      '<div class="note" style="font-size:15px;margin:-6px 0 10px">手数料を入れると、「振込手数料」として別の支払い(払った)で記録し、収入の残りからも引きます。</div>' +
+      '<div class="field"><label for="pfMemo">コメント(なくてもよい)</label><textarea class="input" id="pfMemo" rows="2" placeholder="例:ゆうちょから東京都医業健康保険組合へ振込"></textarea>' +
+      (store.get('pay.memo.' + p.title) || store.get('pay.lastMemo') ? '<button type="button" class="btn btn-text" id="pfMemoCopy" style="padding:0 6px;min-height:40px">📋 前回のコメントを写す</button>' : '') + '</div>' +
       (bankList().length ? (function () {
-        var mv = {}; try { mv = JSON.parse(store.get('pay.move') || '{}'); } catch (e) {}
-        var payB = (bankByName(mv.to) || {}).id || store.get('pay.lastBank') || '', fromB = (bankByName(mv.from) || {}).id || '';
+        var mv = payMoveSet();
+        var lastB = store.get('pay.lastBank'), lastF = store.get('pay.lastMoveFrom');
+        var payB = (bankByName(mv.payFrom) || {}).id || lastB || '', fromB = mv.moveOn ? ((bankByName(mv.from) || {}).id || lastF || '') : '';
         return '<div class="card" style="margin:10px 0;padding:10px 14px"><div class="rk-label" style="margin-top:0">🏦 口座の残高から引く(なくてもよい)</div>' +
           '<div class="field"><label for="pfBank">払った(振り込んだ)口座</label><select class="input" id="pfBank">' + bankOptions(payB, '(口座からは引かない)') + '</select></div>' +
           '<div class="field" style="margin-bottom:0"><label for="pfMoveFrom">その前にお金を移した元(なくてもよい)</label><select class="input" id="pfMoveFrom">' + bankOptions(fromB, '(移していない)') + '</select></div>' +
@@ -4885,6 +4902,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       });
     };
     drawPlaces();
+    if ($('pfMemoCopy')) $('pfMemoCopy').addEventListener('click', function () { $('pfMemo').value = store.get('pay.memo.' + p.title) || store.get('pay.lastMemo') || ''; });
     var pickIds = $('pfPick') ? bindPickMonths('pfPick') : null; if (pickIds) pickIds();
     $('pfPlace').addEventListener('input', drawPlaces);
     $('pfToday').addEventListener('click', function () { $('pfDate').value = today(); });
@@ -4896,21 +4914,29 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var b = this; b.disabled = true; b.textContent = '保存中…';
       if (pl) store.set('pay.lastPlace', pl);
       var many = pickIds ? pickIds() : [id];
+      if (!many.length) { b.disabled = false; b.textContent = '支払い済みにする'; $('pfErr').textContent = '払った分を1つ以上選んでください'; show('pfErr', true); return; }
+      var fee = Math.round(Number($('pfFee').value) || 0); store.set('pay.lastFee', fee ? String(fee) : '');
+      var memo = $('pfMemo').value.trim().slice(0, 200);
+      if (memo) { store.set('pay.lastMemo', memo); store.set('pay.memo.' + p.title, memo); }
       var payB = $('pfBank') ? $('pfBank').value : '', fromB = $('pfMoveFrom') ? $('pfMoveFrom').value : '';
+      var whatAll = p.title + ' ' + many.map(function (k) { var x = findPay(k); return x ? (x.label || shortDate(x.due)) : ''; }).join('・');
       if (many.length && payB) {
         var tot = many.reduce(function (a, k) { var x = findPay(k); return a + (x ? Number(x.amount) || 0 : 0); }, 0);
         var what = p.title + ' ' + many.map(function (k) { var x = findPay(k); return x ? (x.label || shortDate(x.due)) : ''; }).join('・');
         var pb = bankList().filter(function (x) { return x.id === payB; })[0], fb = bankList().filter(function (x) { return x.id === fromB; })[0];
         if (fb && fb.id !== payB) { bankMove(fb.id, -tot, (pb ? pb.name : '') + ' へ移した(' + what + 'のため)', d); bankMove(payB, tot, fb.name + ' から移した', d); }
         bankMove(payB, -tot, what + (pl ? '(' + pl + ')' : ''), d);
-        store.set('pay.lastBank', payB);
-        setTimeout(function () { toast('🏦 ' + (fb && fb.id !== payB ? fb.name + ' から ' : (pb ? pb.name + ' から ' : '')) + yen(tot) + ' を引きました'); }, 2500);
+        if (fee) bankMove(payB, -fee, '振込手数料(' + what + ')', d);
+        store.set('pay.lastBank', payB); store.set('pay.lastMoveFrom', fromB || '');
+        setTimeout(function () { toast('🏦 ' + (pb ? pb.name + ' から ' : '') + yen(tot + fee) + (fee ? '(手数料 ' + yen(fee) + ' をふくむ)' : '') + ' を引きました'); }, 2500);
       }
-      if (!many.length) { b.disabled = false; b.textContent = '支払い済みにする'; $('pfErr').textContent = '払った分を1つ以上選んでください'; show('pfErr', true); return; }
+      // 振込手数料は、別の支払い(払った)として記録する
+      var feeJob = fee ? api('savePayments', { person: state.owner, title: '振込手数料', annual: 0, category: '手数料',
+        rows: [{ label: whatAll.slice(0, 20), due: d, amount: fee, status: '済み', paidDate: d, place: pl, memo: memo }] }).then(function () { return loadPayments(true); }) : Promise.resolve();
       (many.length > 1 ? many.reduce(function (pr, k) {
-        return pr.then(function () { var x = findPay(k); return x ? api('updatePayment', { id: k, payment: Object.assign({}, x, { status: '済み', paidDate: d, place: pl }) }).then(function () {
-          pay.list = pay.list.map(function (y) { return y.id === k ? Object.assign({}, x, { status: '済み', paidDate: d, place: pl }) : y; }); }) : null; });
-      }, Promise.resolve()).then(function () { renderPay(); toast(many.length + '件を、まとめて支払い済みにしました'); afterPayChange(); }) : markPaid(id, d, pl)).catch(function (e) {
+        return pr.then(function () { var x = findPay(k); return x ? api('updatePayment', { id: k, payment: Object.assign({}, x, { status: '済み', paidDate: d, place: pl, memo: memo }) }).then(function () {
+          pay.list = pay.list.map(function (y) { return y.id === k ? Object.assign({}, x, { status: '済み', paidDate: d, place: pl, memo: memo }) : y; }); }) : null; });
+      }, Promise.resolve()).then(function () { renderPay(); toast(many.length + '件を、まとめて支払い済みにしました'); }) : markPaid(id, d, pl, memo)).then(function () { return feeJob; }).then(function () { if (many.length > 1 || fee) afterPayChange(); }).catch(function (e) {
         b.disabled = false; b.textContent = '支払い済みにする'; $('pfErr').textContent = e.message; show('pfErr', true);
       });
     });
@@ -4937,6 +4963,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="kv"><span>金額</span><b>' + yen(p.amount) + '</b></div>' +
       (p.status === '済み' ? '<div class="kv"><span>払った日</span><b>' + shortDate(p.paidDate || p.due) + '</b></div>' +
         '<div class="kv"><span>払った場所</span><b>' + esc(p.place || '(入れていません)') + '</b></div>' : '') +
+      (p.memo ? '<div class="kv"><span>コメント</span><b style="white-space:pre-wrap;text-align:right">' + esc(p.memo) + '</b></div>' : '') +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
       (p.status === 'これから'
         ? '<button class="btn btn-primary btn-block" id="pdPaid">✅ 払った(いつ・どこで)</button>' +
