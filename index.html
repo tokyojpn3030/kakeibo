@@ -807,7 +807,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 21:50 版133';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 22:30 版134';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -4372,14 +4372,23 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     // 払ったお金
     var ym = t.slice(0, 7), y = t.slice(0, 4);
     var paid = pay.list.filter(function (p) { return p.status === '済み'; });
-    var inMonth = paid.filter(function (p) { return (p.paidDate || p.due).slice(0, 7) === ym; });
-    var inYear = paid.filter(function (p) { return (p.paidDate || p.due).slice(0, 4) === y; });
-    var allOpen = open.reduce(function (s, p) { return s + p.amount; }, 0);
+    var pd = function (p) { return p.paidDate || p.due; };
+    var inMonth = paid.filter(function (p) { return pd(p).slice(0, 7) === ym && !beforeStart(pd(p)); });
+    var inYear = paid.filter(function (p) { return pd(p).slice(0, 4) === y && !beforeStart(pd(p)); });
+    var preYear = paid.filter(function (p) { return pd(p).slice(0, 4) === y && beforeStart(pd(p)); });
     var sumOf = function (l) { return l.reduce(function (s, p) { return s + p.amount; }, 0); };
+    PAIDL = { month: inMonth, year: inYear, pre: preYear, open: open.slice() };
+    var kv = function (k, label, l) {
+      return '<button class="kv" data-pk="' + k + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);color:var(--text);font:inherit;cursor:pointer;text-align:left">' +
+        '<span>' + label + ' <span class="in-sub">' + l.length + '件</span></span><b style="white-space:nowrap">' + yen(sumOf(l)) + ' ›</b></button>';
+    };
     $('payPaid').innerHTML =
-      '<div class="kv"><span>今月払った合計</span><b>' + yen(sumOf(inMonth)) + '</b></div>' +
-      '<div class="kv"><span>今年(' + y + '年)払った合計</span><b>' + yen(sumOf(inYear)) + '</b></div>' +
-      '<div class="kv"><span>これから払う合計(全部)</span><b>' + yen(allOpen) + '</b></div>';
+      '<div class="in-sub" style="margin-bottom:2px">押すと、何をいくら払ったかが見られます</div>' +
+      kv('month', '今月(' + (+ym.slice(5, 7)) + '月)払った合計', inMonth) +
+      kv('year', '今年(' + y + '年' + (startDay() && startDay().slice(0, 4) === y ? '・' + md(startDay()) + 'から' : '') + ')払った合計', inYear) +
+      (preYear.length ? kv('pre', '家計簿を始める前に払った分(数えない)', preYear) : '') +
+      kv('open', 'これから払う合計(全部)', open);
+    bindPaidKv($('payPaid'));
 
     $('payAheadTitle').textContent = 'これから' + months + 'か月の支払い';
     // 登録した支払い(納付書・請求書ごと)。新しく取り込んだ順
@@ -4589,10 +4598,30 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('slSheet').querySelectorAll('[data-group]').forEach(function (b) { b.addEventListener('click', function () { openGroup(b.dataset.group); }); });
     $('slClose').addEventListener('click', closeSheet);
   }
+  // 払ったお金の行を押すと、中身(何を・いつ・いくら)を日付の順に出す
+  var PAIDL = { month: [], year: [], pre: [], open: [] };
+  function bindPaidKv(root) { root.querySelectorAll('[data-pk]').forEach(function (b) { b.addEventListener('click', function () { openPaidList(b.dataset.pk); }); }); }
+  function openPaidList(k) {
+    var l = PAIDL[k] || [], isOpen = k === 'open';
+    var title = { month: '今月払ったもの', year: '今年払ったもの', pre: '家計簿を始める前に払ったもの(数えない)', open: 'これから払うもの' }[k];
+    var dt = function (p) { return isOpen ? p.due : (p.paidDate || p.due); };
+    var rows = l.slice().sort(function (a, b) { return dt(a) < dt(b) ? -1 : dt(a) > dt(b) ? 1 : 0; }).map(function (p) {
+      return { date: dt(p), label: payName(p), sub: [isOpen ? '期限' : (p.place ? p.place + 'で' : ''), p.category || '', p.memo || ''].filter(Boolean).join(' ・ '), amount: Number(p.amount) || 0, attrs: ' data-pid="' + esc(p.id) + '" role="button" style="cursor:pointer"' };
+    });
+    var again = function () { openPaidList(k); };
+    openSheet('<div class="grip"></div><h2>💰 ' + esc(title) + '</h2>' +
+      '<div class="note" style="font-size:15px;margin-bottom:6px">' + (isOpen ? '期限' : '払った日') + 'の順です。右下は、そこまでの合計です。押すと詳しく見られます。</div>' +
+      (rows.length ? ledgerHtml(rows, 'sum') : '<div class="note" style="font-size:17px">ありません</div>') +
+      '<button class="btn btn-tonal btn-block" id="plBack2" style="margin-top:10px">← 戻る</button>');
+    bindLedger(again);
+    $('sheet').querySelectorAll('[data-pid]').forEach(function (r) { r.addEventListener('click', function () { pay.returnGroup = null; openPayDetail(r.dataset.pid); }); });
+    $('plBack2').addEventListener('click', openPmPaid);
+  }
   function openPmPaid() {
-    openSheet('<div class="grip"></div><h2>💰 払ったお金</h2><div class="card" style="margin-bottom:12px">' + $('payPaid').innerHTML + '</div>' +
+    openSheet('<div class="grip"></div><h2>💰 払ったお金</h2><div class="card" style="margin-bottom:12px" id="pmPaidBox">' + $('payPaid').innerHTML + '</div>' +
       '<button class="btn btn-tonal btn-block" id="ppAll">すべての支払いを見る(済み・天引きも)</button>' +
       '<button class="btn btn-tonal btn-block" id="ppClose2" style="margin-top:10px">閉じる</button>');
+    bindPaidKv($('pmPaidBox'));
     $('ppAll').addEventListener('click', function () { $('payAll').click(); });
     $('ppClose2').addEventListener('click', closeSheet);
   }
