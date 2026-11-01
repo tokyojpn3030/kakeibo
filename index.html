@@ -671,6 +671,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="section-title">💴 自分で払う分</div>
       <div class="note" style="margin:-4px 0 8px">ここでは全部「支払い」として保存します。もう払った期は、保存したあとで一覧の「払った」を押し、いつ・どこで払ったかを入れてください。</div>
       <div id="pcRows"></div>
+      <label class="check hidden" id="pcPastBox" style="margin:4px 0 8px;font-size:17px"><input type="checkbox" id="pcPastPaid" checked> <span id="pcPastTxt"></span></label>
       <button class="btn btn-text" id="pcAdd" style="padding:0 8px">+ 自分で払う分を追加</button>
       <button class="btn btn-tonal btn-block" id="pcMore" style="margin:6px 0">📷 別のページ・用紙を撮って足す</button>
       <div class="note hidden" id="pcMoreMsg"></div>
@@ -793,8 +794,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 17:00 版124';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版123';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-01 17:15 版125';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版125';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -4869,13 +4870,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<div class="two"><div><label class="note">' + (w ? '何月分' : '期') + '</label><input class="input" data-i="' + i + '" data-k="label" value="' + esc(x.label) + '" placeholder="' + (w ? '10月分' : '第1期') + '"></div>' +
         '<div><label class="note">金額(円)</label><input class="input" data-i="' + i + '" data-k="amount" type="number" inputmode="numeric" value="' + (x.amount || '') + '"></div></div>' +
         '<div style="margin-top:6px"><label class="note">' + (w ? '天引きの月' : '期限') + '</label><input class="input" data-i="' + i + '" data-k="due" type="date" value="' + esc(x.due) + '"></div>' +
-        (!w && x.past ? '<div class="ask">期限が過ぎています。払っていれば、保存したあとで「払った」を押してください。</div>' : '') +
+        (!w && x.due && x.due < today() ? '<div class="ask">期限が過ぎています' + ($('pcPastPaid').checked ? '(払ったことにして保存します)' : '(保存したあとで、払っていれば「払った」を押してください)') + '</div>' : '') +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">' +
         '<span></span>' +
         '<button class="icon-btn" data-del="' + i + '" aria-label="これを消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div>';
     };
     var mine = [], withheld = [];
     pay.draft.rows.forEach(function (x, i) { (x.status === '天引き' ? withheld : mine).push(rowHtml(x, i)); });
+    var past = pay.draft.rows.filter(function (x) { return x.status !== '天引き' && x.due && x.due < today(); }).length;
+    show('pcPastBox', past > 0); $('pcPastTxt').textContent = '期限が過ぎた分(' + past + '件)は、もう払ったことにして保存する';
     var wSum = pay.draft.rows.reduce(function (a, x) { return a + (x.status === '天引き' ? (Number(x.amount) || 0) : 0); }, 0);
     $('pcRows').innerHTML = mine.join('') || ('<div class="warn" style="margin-bottom:8px">自分で払う分(第1期〜第4期など)が読み取れませんでした。' +
 
@@ -4916,6 +4919,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!confirm('入れたものを消して、はじめから入れ直しますか?')) return;
     openSlip({ title: '', annual: 0, installments: [{ label: '', due: '', amount: 0 }], withheld: [] }); window.scrollTo(0, 0);
   });
+  $('pcPastPaid').addEventListener('change', renderSlipRows);
   $('pcAdd').addEventListener('click', function () {
     pay.draft.rows.push({ label: '', due: '', amount: 0, status: 'これから', past: false }); renderSlipRows();
   });
@@ -4959,10 +4963,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     for (var i = 0; i < rows.length; i++) if (!rows[i].due) return err('「' + (rows[i].label || (i + 1) + '番目') + '」の日付を入れてください');
     var b = this; b.disabled = true; b.textContent = '保存中…';
     api('savePayments', { person: state.owner, title: d.title, annual: d.annual, category: d.category,
-      rows: rows.map(function (x) { return { label: x.label, due: x.due, amount: x.amount, status: x.status === '天引き' ? '天引き' : 'これから', paidDate: '' }; }) })
+      rows: rows.map(function (x) {
+        var paid = x.status !== '天引き' && x.due < t && $('pcPastPaid').checked;
+        return { label: x.label, due: x.due, amount: x.amount, status: x.status === '天引き' ? '天引き' : paid ? '済み' : 'これから', paidDate: paid ? x.due : '' }; }) })
       .then(function () {
         rememberShot('納付書');
-        toast('「' + d.title + '」を ' + rows.length + '件 保存しました。払った期は、一覧を押して「状態」を「済み」にしてください');
+        var np = rows.filter(function (x) { return x.status !== '天引き' && x.due < t && $('pcPastPaid').checked; }).length;
+        toast('「' + d.title + '」を ' + rows.length + '件 保存しました' + (np ? '(期限が過ぎた ' + np + '件は「払った」にしました)' : '。払った期は、一覧を押して「状態」を「済み」にしてください'));
         payView('main'); return loadPayments(true);
       }).catch(function (e) { err(e.message); })
       .then(function () { b.disabled = false; b.textContent = '保存する'; });
