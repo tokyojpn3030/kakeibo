@@ -266,6 +266,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto; background: var(--surface);
   border-radius: 28px 28px 0 0; padding: 12px 20px calc(20px + var(--safe-b)); }
+.sheet-top { position: sticky; top: -12px; z-index: 6; display: flex; justify-content: flex-end; gap: 8px; margin: -12px -20px 0; padding: 8px 12px 4px; background: var(--surface); border-radius: 28px 28px 0 0; }
+.sheet-x { min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1.5px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
 .sheet .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
 .sheet h2 { font-size: 22px; margin: 4px 0 2px; }
 .sheet .meta { color: var(--text-2); font-size: 16px; margin-bottom: 12px; }
@@ -791,7 +793,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 16:50 版123';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 17:00 版124';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版123';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2720,7 +2722,21 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   addEyes();
   new MutationObserver(function () { addEyes(); }).observe(document.body, { childList: true, subtree: true });
-  function openSheet(html) { $('sheet').innerHTML = html; show('sheetBack', true); }
+  // どの画面にも、いちばん上に「✕ 閉じる」(下に動かしても、上に残る)
+  function openSheet(html) {
+    $('sheet').innerHTML = '<div class="sheet-top"><button type="button" class="sheet-x" id="sheetX" aria-label="この画面を閉じる">✕ 閉じる</button></div>' + html;
+    $('sheetX').addEventListener('click', closeSheet);
+    // 下の「← 戻る」と同じものを、いちばん上にも出す(押すと下のボタンを押したのと同じ)
+    var bk = Array.prototype.filter.call($('sheet').querySelectorAll('button'), function (b) {
+      return b.id !== 'sheetX' && /^\s*(←\s*)?戻る\s*$/.test(b.textContent) && !b.classList.contains('hidden');
+    }).pop();
+    if (bk) {
+      var t = document.createElement('button'); t.type = 'button'; t.className = 'sheet-x'; t.textContent = '← 戻る'; t.style.marginRight = 'auto';
+      t.setAttribute('aria-label', '前の画面に戻る'); t.addEventListener('click', function () { bk.click(); });
+      $('sheet').querySelector('.sheet-top').insertBefore(t, $('sheetX'));
+    }
+    show('sheetBack', true); $('sheet').scrollTop = 0;
+  }
   function closeSheet() { show('sheetBack', false); }
   $('sheetBack').addEventListener('click', function (e) { if (e.target === this) closeSheet(); });
 
