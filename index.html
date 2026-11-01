@@ -807,7 +807,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 22:30 版134';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 22:35 版135';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -4890,6 +4890,34 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       }).catch(function (e) { b.disabled = false; b.textContent = '📅 予定に入れる'; err(e.message); });
     });
   }
+  // 払ったあとから、振込手数料を足す(別の支払い「振込手数料」として、払った日に済みで入れる。口座からも引ける)
+  function openFeeForm(id) {
+    var p = findPay(id); if (!p) return;
+    var d0 = p.paidDate || p.due, mates = sameGroup(p).filter(function (x) { return x.status === '済み' && (x.paidDate || x.due) === d0; });
+    var what = p.title + ' ' + mates.map(function (x) { return x.label || shortDate(x.due); }).join('・');
+    openSheet('<div class="grip"></div><h2>＋ 振込手数料を足す</h2>' +
+      '<div class="meta">' + esc(what) + '(' + esc(md(d0)) + 'に払った分)</div>' +
+      '<div class="field"><label for="ffAmt">振込手数料(円)</label><input class="input" id="ffAmt" type="number" inputmode="numeric" style="font-size:24px;font-weight:700" value="' + esc(store.get('pay.lastFee') || '') + '"></div>' +
+      '<div class="field"><label for="ffDate">払った日</label><input class="input" id="ffDate" type="date" value="' + esc(d0) + '" max="' + today() + '"></div>' +
+      (bankList().length ? '<div class="field"><label for="ffBank">口座の残高から引く(なくてもよい)</label><select class="input" id="ffBank">' + bankOptions(store.get('pay.lastBank') || '', '(口座からは引かない)') + '</select></div>' : '') +
+      '<div class="field"><label for="ffMemo">コメント(なくてもよい)</label><input class="input" id="ffMemo" value="' + esc(p.memo || '') + '"></div>' +
+      '<div class="error hidden" id="ffErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-primary btn-block" id="ffSave">足す</button><button class="btn btn-tonal btn-block" id="ffBack">← 戻る</button></div>');
+    $('ffBack').addEventListener('click', function () { openPayDetail(id); });
+    $('ffSave').addEventListener('click', function () {
+      var fee = Math.round(Number($('ffAmt').value) || 0), d = $('ffDate').value || d0, memo = $('ffMemo').value.trim().slice(0, 200);
+      if (fee <= 0) { $('ffErr').textContent = '手数料の金額を入れてください'; show('ffErr', true); return; }
+      var b = this; b.disabled = true; b.textContent = '入れています…';
+      store.set('pay.lastFee', String(fee));
+      api('savePayments', { person: state.owner, title: '振込手数料', annual: 0, category: '手数料',
+        rows: [{ label: what.slice(0, 20), due: d, amount: fee, status: '済み', paidDate: d, place: p.place || '', memo: memo }] }).then(function () {
+        var bk = $('ffBank') ? $('ffBank').value : '';
+        if (bk) { bankMove(bk, -fee, '振込手数料(' + what + ')', d); store.set('pay.lastBank', bk); }
+        toast('振込手数料 ' + yen(fee) + ' を足しました' + (bk ? '(口座からも引きました)' : ''));
+        return loadPayments(true);
+      }).then(function () { closeSheet(); }).catch(function (e) { b.disabled = false; b.textContent = '足す'; $('ffErr').textContent = e.message; show('ffErr', true); });
+    });
+  }
   function openPaidForm(id) {
     var p = findPay(id); if (!p) return;
     var place = store.get('pay.lastPlace') || '';
@@ -4999,13 +5027,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           (openSiblings(p).length > 1 ? '<button class="btn btn-tonal btn-block" id="pdPrep">🏦 振り込みの準備(何か月分まとめるか・お金を移す日を知らせる)</button>' : '') +
           '<button class="btn btn-tonal btn-block" id="pdGcal">📅 Google カレンダーに入れる</button>' +
           '<button class="btn btn-tonal btn-block" id="pdIcs">📅 スマホのカレンダーに入れる(iPhone など)</button>'
-        : p.status === '済み' ? '<button class="btn btn-tonal btn-block" id="pdUnpaid">↩ まだ払っていないに戻す</button>' : '') +
+        : p.status === '済み' ? (p.title !== '振込手数料' ? '<button class="btn btn-primary btn-block" id="pdFee">＋ 振込手数料を足す(払ったあとから)</button>' : '') +
+          '<button class="btn btn-tonal btn-block" id="pdUnpaid">↩ まだ払っていないに戻す</button>' : '') +
       '<button class="btn btn-tonal btn-block" id="pdEdit">✏ 直す</button>' +
       '<button class="btn btn-danger btn-block" id="pdDel">🗑 この支払いを削除</button>' +
       (sameGroup(p).length > 1 ? '<button class="btn btn-danger btn-block" id="pdDelAll">🗑 同じ納付書の ' + sameGroup(p).length + '件をまとめて削除</button>' : '') +
       '<button class="btn btn-text btn-block" id="pdClose">' + (pay.returnGroup ? '← 内訳に戻る' : '閉じる') + '</button></div>');
     $('pdClose').addEventListener('click', afterPayChange);
     if ($('pdPaid')) $('pdPaid').addEventListener('click', function () { openPaidForm(id); });
+    if ($('pdFee')) $('pdFee').addEventListener('click', function () { openFeeForm(id); });
     if ($('pdPrep')) $('pdPrep').addEventListener('click', function () { openTransferPrep(id); });
     if ($('pdUnpaid')) $('pdUnpaid').addEventListener('click', function () {
       this.disabled = true;
