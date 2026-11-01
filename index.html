@@ -374,6 +374,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .slip-row { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; background: var(--surface); }
 .slip-row .two { display: flex; gap: 8px; }
 .slip-row .two > * { flex: 1; min-width: 0; }
+.slip-row .three { display: grid; grid-template-columns: 0.8fr 1fr 1.45fr; gap: 6px; }
+.slip-row .three > * { min-width: 0; }
+.slip-row .three .input { padding-left: 8px; padding-right: 6px; font-size: 16px; }
+.slip-row .paidline { display: flex; align-items: flex-end; gap: 6px; margin-top: 8px; }
+.slip-row .paidline .pd { flex: 1; min-width: 0; }
 .slip-row .paidchk { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 12px;
   border-radius: 12px; background: var(--surface-2); font-size: 19px; font-weight: 700; }
 .slip-row .paidchk input { width: 30px; height: 30px; flex: none; }
@@ -794,7 +799,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 18:05 版130';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 21:20 版131';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版130';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -912,6 +917,35 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  var NATIVE_VAL = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  function commaNum(v) {
+    var t = String(v == null ? '' : v).replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/[−ー－]/g, '-');
+    var neg = /^\s*-/.test(t), d = t.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+    return (neg ? '-' : '') + d.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  function moneyInput(el) {
+    if (el._money || !NATIVE_VAL) return; el._money = 1;
+    var first = NATIVE_VAL.get.call(el);
+    el.type = 'text'; el.setAttribute('inputmode', 'numeric'); el.setAttribute('autocomplete', 'off');
+    Object.defineProperty(el, 'value', { configurable: true,
+      get: function () { return NATIVE_VAL.get.call(this).replace(/,/g, ''); },
+      set: function (v) { NATIVE_VAL.set.call(this, commaNum(v)); } });
+    el.value = first;
+    el.addEventListener('input', function () {
+      var cur = NATIVE_VAL.get.call(el), pos = el.selectionStart || cur.length;
+      var digitsLeft = cur.slice(0, pos).replace(/[^0-9-]/g, '').length, out = commaNum(cur);
+      if (out === cur) return;
+      NATIVE_VAL.set.call(el, out);
+      var k = 0, n = 0; while (k < out.length && n < digitsLeft) { if (/[0-9-]/.test(out[k])) n++; k++; }
+      try { el.setSelectionRange(k, k); } catch (e) {}
+    }, true);
+  }
+  function moneyInputs(root) { (root || document).querySelectorAll('input[type="number"]').forEach(moneyInput); }
+  try {
+    new MutationObserver(function (ms) { ms.forEach(function (m) { m.addedNodes.forEach(function (n) { if (n.nodeType !== 1) return; if (n.matches && n.matches('input[type="number"]')) moneyInput(n); else if (n.querySelectorAll) moneyInputs(n); }); }); })
+      .observe(document.documentElement, { childList: true, subtree: true });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { moneyInputs(); }); else moneyInputs();
+  } catch (e) {}
   function yen(n) { n = Math.round(Number(n) || 0); return (n < 0 ? '-¥' : '¥') + Math.abs(n).toLocaleString('ja-JP'); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function today() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -5064,15 +5098,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function renderSlipRows() {
     var rowHtml = function (x, i) {
       var w = x.status === '天引き';
+      var del = '<button class="icon-btn" data-del="' + i + '" aria-label="これを消す" style="flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
       return '<div class="slip-row">' +
-        '<div class="two"><div><label class="note">' + (w ? '何月分' : '期') + '</label><input class="input" data-i="' + i + '" data-k="label" value="' + esc(x.label) + '" placeholder="' + (w ? '10月分' : '第1期') + '"></div>' +
-        '<div><label class="note">金額(円)</label><input class="input" data-i="' + i + '" data-k="amount" type="number" inputmode="numeric" value="' + (x.amount || '') + '"></div></div>' +
-        '<div style="margin-top:6px"><label class="note">' + (w ? '天引きの月' : '期限') + '</label><input class="input" data-i="' + i + '" data-k="due" type="date" value="' + esc(x.due) + '"></div>' +
-        (!w && x.due && x.due < today() && !x.paid ? '<div class="ask">期限が過ぎています。払っていれば、下の「払った」にチェックしてください</div>' : '') +
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;flex-wrap:wrap">' +
-        (w ? '<span></span>' : '<label class="check" style="margin:0;font-size:17px"><input type="checkbox" data-pp="' + i + '"' + (x.paid ? ' checked' : '') + '> <span>✅ 払った</span></label>' +
-          (x.paid ? '<div style="flex-basis:100%;order:3"><label class="note">払った日</label><input class="input" type="date" data-pd="' + i + '" value="' + esc(x.paidDate || '') + '" max="' + today() + '"></div>' : '')) +
-        '<button class="icon-btn" data-del="' + i + '" aria-label="これを消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div>';
+        '<div class="three"><div><label class="note">' + (w ? '何月分' : '期') + '</label><input class="input" data-i="' + i + '" data-k="label" value="' + esc(x.label) + '" placeholder="' + (w ? '10月分' : '第1期') + '"></div>' +
+        '<div><label class="note">金額(円)</label><input class="input" data-i="' + i + '" data-k="amount" type="number" inputmode="numeric" value="' + (x.amount || '') + '"></div>' +
+        '<div><label class="note">' + (w ? '天引きの月' : '期限') + '</label><input class="input" data-i="' + i + '" data-k="due" type="date" value="' + esc(x.due) + '"></div></div>' +
+        (!w && x.due && x.due < today() && !x.paid ? '<div class="ask">期限が過ぎています。払っていれば「払った」にチェックしてください</div>' : '') +
+        (w ? '<div class="paidline" style="justify-content:flex-end">' + del + '</div>' :
+          '<div class="paidline"><div class="pd"><label class="note">払った日</label><input class="input" type="date" data-pd="' + i + '" value="' + esc(x.paidDate || '') + '" max="' + today() + '"></div>' +
+          '<label class="check" style="margin:0 0 6px 18px;font-size:17px;white-space:nowrap;flex:none"><input type="checkbox" data-pp="' + i + '"' + (x.paid ? ' checked' : '') + '> <span>払った</span></label>' + del + '</div>') + '</div>';
     };
     var mine = [], withheld = [];
     pay.draft.rows.forEach(function (x, i) { (x.status === '天引き' ? withheld : mine).push(rowHtml(x, i)); });
@@ -5097,7 +5131,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       if (x.paid && !x.paidDate) x.paidDate = x.due && x.due < today() ? x.due : today();
       renderSlipRows();
     }); });
-    root.querySelectorAll('[data-pd]').forEach(function (c) { c.addEventListener('input', function () { pay.draft.rows[+c.dataset.pd].paidDate = c.value; }); });
+    root.querySelectorAll('[data-pd]').forEach(function (c) { c.addEventListener('change', function () {
+      var x = pay.draft.rows[+c.dataset.pd]; x.paidDate = c.value;
+      if (c.value && !x.paid) { x.paid = true; renderSlipRows(); }
+    }); });
     root.querySelectorAll('[data-paidchk]').forEach(function (c) {
       c.addEventListener('change', function () { pay.draft.rows[+c.dataset.paidchk].status = c.checked ? '済み' : 'これから'; renderSlipRows(); });
     });
