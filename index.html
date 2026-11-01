@@ -794,7 +794,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 17:40 版128';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 17:55 版129';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版125';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -993,7 +993,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     return r;
   }
   function normRes(res) { if (res && Array.isArray(res.receipts)) res.receipts.forEach(normRc); return res; }
-  function spentOf(r) { return (Number(r.total) || 0) - (Number(r.share) || 0); }
+  function rawSpent(r) { return (Number(r.total) || 0) - (Number(r.share) || 0); }
+  // 📅 家計簿を始めた日:この日より前の買い物・支払いは、記録として残すだけで、合計や残りには数えない(このスマホの設定)
+  function startDay() { var v = G.get('startDay') || ''; return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; }
+  function beforeStart(d) { var s0 = startDay(); return !!(s0 && d && d < s0); }
+  function spentOf(r) { return beforeStart(r.date) ? 0 : rawSpent(r); }
   function api(action, data, passOverride) {
     if (DEMO) return demoApi(action, data || {}).then(function (res) {
       if (!res.ok) throw new Error(res.error || 'エラーが起きました'); return normRes(res);
@@ -1266,7 +1270,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       html += '<button class="rc-line receipt' + (on ? ' sel' : '') + '" data-id="' + esc(r.id) + '">' +
         '<span class="d">' + (sel ? '<span class="chk">' + (on ? '✓' : '') + '</span>' : '') + d + '</span>' +
         '<span class="st">' + esc(r.store || 'お店の名前なし') + (function () { var sw = (r.items || []).filter(function (it) { return SWEETS.test(String(it.name || '').normalize('NFKC')); })[0]; return sw ? ' <span class="hop-slow" title="' + esc(sw.name) + '">' + sweetEmoji(sw.name) + '</span>' : ''; })() + (r.purpose || r.payMethod || MEMBERS.length > 1 ? '<small>' + esc([r.purpose, r.payMethod, MEMBERS.length > 1 ? label(r.person) : ''].filter(Boolean).join(' ・ ')) + '</small>' : '') + '</span>' +
-        '<span class="y">' + yen(spentOf(r)) + (r.share ? '<small style="display:block;font-size:13px;font-weight:400">🤝 お店 ' + yen(r.total) + '</small>' : '') + '</span></button>';
+        '<span class="y">' + yen(rawSpent(r)) + (beforeStart(r.date) ? '<small style="display:block;font-size:13px;font-weight:400">始める前・数えない</small>' : '') + (r.share ? '<small style="display:block;font-size:13px;font-weight:400">🤝 お店 ' + yen(r.total) + '</small>' : '') + '</span></button>';
     });
     if (sel) html += '<div style="height:84px"></div>';
     $('histList').innerHTML = html;
@@ -2174,7 +2178,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var m = state.month, o = { paid: 0, due: 0 };
     (state.allPays || []).forEach(function (p) {
       if (who && p.person !== who) return;
-      if (p.status === '済み') { if ((p.paidDate || p.due || '').slice(0, 7) === m) o.paid += Number(p.amount) || 0; }
+      if (p.status === '済み') { if (beforeStart(p.paidDate || p.due)) return; if ((p.paidDate || p.due || '').slice(0, 7) === m) o.paid += Number(p.amount) || 0; }
+      else if (beforeStart(p.due)) return;
       else if (p.status !== '天引き' && (p.due || '').slice(0, 7) === m) o.due += Number(p.amount) || 0;
     });
     return o;
@@ -2681,7 +2686,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="margin-top:12px">' + (items ? (feat('memo') ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' : '') + items : '<div class="note">品目の記録はありません</div>') +
       '<div class="line-item total"><span>' + (r.share ? 'レシートの合計(お店の金額)' : '合計') + '</span><span>' + yen(r.total) + '</span></div>' +
       (r.share ? (r.adj || []).map(function (a) { return '<div class="line-item"><span>🤝 ' + esc(a.name) + (a.who ? ' <span class="in-sub">(' + esc(a.who) + 'の買い物にも入っています)</span>' : '') + '</span><span class="minus">−' + yen(a.amount) + '</span></div>'; }).join('') +
-        '<div class="line-item total"><span>家計簿に入る金額</span><span>' + yen(spentOf(r)) + '</span></div>' : '') + '</div>' +
+        '<div class="line-item total"><span>家計簿に入る金額</span><span>' + yen(rawSpent(r)) + '</span></div>' : '') + '</div>' +
+      (beforeStart(r.date) ? '<div class="note" style="font-size:15px;margin-top:8px">📅 家計簿を始めた日(' + esc(md(startDay())) + ')より前なので、記録として残すだけで、合計には数えていません。</div>' : '') +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
       '<button class="btn btn-primary btn-block" id="dtEdit">✏ 編集する</button>' +
       '<button class="btn btn-tonal btn-block" id="dtClose">閉じる</button>' +
@@ -4445,7 +4451,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       (pay.list || []).forEach(function (p) {
         if (p.status === '天引き') return;
         var d = p.status === '済み' ? (p.paidDate || p.due) : p.due;
-        if ((d || '').slice(0, 7) !== wm) return;
+        if ((d || '').slice(0, 7) !== wm || beforeStart(d)) return;
         rows.push({ date: d, amount: Number(p.amount) || 0, slip: p });
       });
       rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
@@ -5404,6 +5410,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="stMembers">🏠 家族のメンバーを編集</button>' +
       '<button class="btn btn-tonal btn-block" id="stPay">💴 支払いの設定・お知らせ</button>' +
       '<button class="btn btn-tonal btn-block" id="stFeat">🧩 使う機能を選ぶ</button>' +
+      '<button class="btn btn-tonal btn-block" id="stStart">📅 家計簿を始めた日' + (startDay() ? '(' + esc(md(startDay())) + ')' : '') + '</button>' +
       (feat('pay') ? '<button class="btn btn-tonal btn-block" id="stStrip">📌 いちばん上に出すもの・画面を選ぶ</button>' : '') +
       '<button class="btn btn-tonal btn-block" id="stReopen">🔁 アプリを開き直す(閉じて開くのと同じ)</button>' +
       (feat('pay') ? '<button class="btn btn-tonal btn-block" id="stCards">👛 お財布(電子マネー・カード・ポイント)</button>' : '') +
@@ -5433,6 +5440,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('stPay').addEventListener('click', openPaySettings);
     if ($('stCards')) $('stCards').addEventListener('click', function () { openWallet('emoney'); });
     $('stFeat').addEventListener('click', openFeatures);
+    $('stStart').addEventListener('click', openStartDay);
     if ($('stStrip')) $('stStrip').addEventListener('click', function () { openStripSettings(openSettings); });
     $('stTalk').addEventListener('click', openTalkSettings);
     if ($('stTicker')) $('stTicker').addEventListener('click', openTickerSettings);
@@ -6538,6 +6546,22 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   setInterval(function () { try { refreshTalkPlans(); runTicker(); } catch (e) {} }, 30e3);
   setTimeout(function () { try { refreshTalkPlans(); setTimeout(function () { runTicker(); }, 4000); } catch (e) {} }, 3000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(function () { try { refreshTalkPlans(); runTicker(); } catch (e) {} }, 1500); });
+  function openStartDay() {
+    var v = startDay();
+    openSheet('<div class="grip"></div><h2>📅 家計簿を始めた日</h2>' +
+      '<div class="note" style="font-size:16px;margin-bottom:10px">この日より前の買い物や支払いは、<b>記録として残すだけ</b>にして、買い物の合計・支払い額・収入の残りには<b>数えません</b>。<br>途中から使い始めて、前の分をあとから入れたときに使います。<br>(この設定は、このスマホだけです)</div>' +
+      '<div class="field"><label for="sdDate">始めた日</label><input class="input" id="sdDate" type="date" value="' + esc(v) + '"></div>' +
+      '<div class="chips" style="margin:-4px 0 12px"><button type="button" class="chip" id="sdThis">今月の1日</button><button type="button" class="chip" id="sdPrev">先月の1日</button></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-primary btn-block" id="sdSave">保存する</button>' +
+      (v ? '<button class="btn btn-tonal btn-block" id="sdClear">始めた日を決めない(全部数える)</button>' : '') +
+      '<button class="btn btn-tonal btn-block" id="sdBack">← 戻る</button></div>');
+    $('sdThis').addEventListener('click', function () { $('sdDate').value = thisMonth() + '-01'; });
+    $('sdPrev').addEventListener('click', function () { $('sdDate').value = shiftMonth(thisMonth(), -1) + '-01'; });
+    var done = function (msg) { toast(msg); state.loadedMonth = null; loadMonth(true); try { renderPay(); } catch (e) {} openSettings(); };
+    $('sdSave').addEventListener('click', function () { var d = $('sdDate').value; if (!d) { G.del('startDay'); return done('始めた日を決めないにしました'); } G.set('startDay', d); done(md(d) + 'より前は、数えないようにしました'); });
+    if ($('sdClear')) $('sdClear').addEventListener('click', function () { G.del('startDay'); done('始めた日を決めないにしました(全部数えます)'); });
+    $('sdBack').addEventListener('click', openSettings);
+  }
   function openTickerSettings() {
     var c = tkSet();
     var chips = function (id, list, cur, unit) { return '<div class="chips" id="' + id + '">' + list.map(function (v) {
