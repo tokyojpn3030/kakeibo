@@ -633,7 +633,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           <button class="btn btn-tonal btn-block pm-btn" id="pmOpenList">📋 今月なにを払うのか見たい</button>
           <button class="btn btn-tonal btn-block pm-btn" id="pmOpenGroups">🏦 どの口座にいくら必要か知りたい</button>
           <button class="btn btn-tonal btn-block pm-btn" id="pmOpenSlips">📄 税金・保険料の明細を見たい</button>
-          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenPaid">💰 払ったお金を知りたい</button>
+          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenPaid">💰 払ったもの(見る・直す・手数料を足す)</button>
           <button class="btn btn-tonal btn-block pm-btn" id="payCard">💳 カードで払った物を見たい・直したい</button>
           <button class="btn btn-tonal btn-block pm-btn" id="payCardReg">👛 電子マネーやカードを登録したい</button>
         </div>
@@ -2575,7 +2575,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     return head + '<div class="card" style="margin-bottom:12px">' + (idx.map(function (i) {
       var r = rows[i], a = r.amount || 0;
       var amt = mode === 'bal' ? '<b class="' + (a > 0 ? 'in-down' : '') + '">' + (a > 0 ? '+' : '−') + yen(Math.abs(a)) + '</b>' : '<b>' + yen(a) + '</b>';
-      return '<div class="in-line"' + (r.attrs || '') + '><span>' + esc(md(r.date)) + (r.date ? '(' + '日月火水木金土'.charAt(new Date(r.date + 'T00:00:00').getDay()) + ')' : '') + ' ' + (r.label || '') + (r.sub ? '<br><span class="in-sub">' + esc(r.sub) + '</span>' : '') + '</span>' +
+      return '<div class="in-line"' + (r.attrs || '') + '><span>' + esc(md(r.date)) + (r.date ? '(' + '日月火水木金土'.charAt(new Date(r.date + 'T00:00:00').getDay()) + ')' : '') + ' ' + (r.label || '') + (r.sub ? '<br><span class="in-sub">' + esc(r.sub) + '</span>' : '') + (r.extra || '') + '</span>' +
         '<span style="white-space:nowrap;display:flex;align-items:center;gap:6px"><span style="text-align:right">' + amt +
         '<br><span class="in-sub">' + (mode === 'bal' ? '残高 ' : '合計 ') + yen(run[i]) + '</span></span>' + (r.tail || '') + '</span></div>';
     }).join('') || '<div class="note">ありません</div>') + '</div>';
@@ -4606,7 +4606,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var title = { month: '今月払ったもの', year: '今年払ったもの', pre: '家計簿を始める前に払ったもの(数えない)', open: 'これから払うもの' }[k];
     var dt = function (p) { return isOpen ? p.due : (p.paidDate || p.due); };
     var rows = l.slice().sort(function (a, b) { return dt(a) < dt(b) ? -1 : dt(a) > dt(b) ? 1 : 0; }).map(function (p) {
-      return { date: dt(p), label: payName(p), sub: [isOpen ? '期限' : (p.place ? p.place + 'で' : ''), p.category || '', p.memo || ''].filter(Boolean).join(' ・ '), amount: Number(p.amount) || 0, attrs: ' data-pid="' + esc(p.id) + '" role="button" style="cursor:pointer"' };
+      var btns = '<span style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">' +
+        '<button type="button" class="chip" data-pe="' + esc(p.id) + '" style="min-height:40px;font-size:15px">✏ 直す</button>' +
+        (!isOpen && p.title !== '振込手数料' ? '<button type="button" class="chip" data-pf="' + esc(p.id) + '" style="min-height:40px;font-size:15px">＋ 手数料</button>' : '') +
+        (isOpen ? '<button type="button" class="chip" data-pp2="' + esc(p.id) + '" style="min-height:40px;font-size:15px">✅ 払った</button>' : '') + '</span>';
+      return { date: dt(p), label: payName(p), sub: [isOpen ? '期限' : (p.place ? p.place + 'で' : ''), p.category || '', p.memo || ''].filter(Boolean).join(' ・ '), extra: btns, amount: Number(p.amount) || 0, attrs: ' data-pid="' + esc(p.id) + '" role="button" style="cursor:pointer"' };
     });
     var again = function () { openPaidList(k); };
     openSheet('<div class="grip"></div><h2>💰 ' + esc(title) + '</h2>' +
@@ -4614,7 +4618,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       (rows.length ? ledgerHtml(rows, 'sum') : '<div class="note" style="font-size:17px">ありません</div>') +
       '<button class="btn btn-tonal btn-block" id="plBack2" style="margin-top:10px">← 戻る</button>');
     bindLedger(again);
-    $('sheet').querySelectorAll('[data-pid]').forEach(function (r) { r.addEventListener('click', function () { pay.returnGroup = null; openPayDetail(r.dataset.pid); }); });
+    $('sheet').querySelectorAll('[data-pid]').forEach(function (r) { r.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pe],[data-pf],[data-pp2]'); pay.returnGroup = null;
+      if (b && b.dataset.pe) { var x = findPay(b.dataset.pe); if (x) openPayEdit(x); return; }
+      if (b && b.dataset.pf) return openFeeForm(b.dataset.pf);
+      if (b && b.dataset.pp2) return openPaidForm(b.dataset.pp2);
+      openPayDetail(r.dataset.pid);
+    }); });
     $('plBack2').addEventListener('click', openPmPaid);
   }
   function openPmPaid() {
@@ -5036,9 +5046,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
           (openSiblings(p).length > 1 ? '<button class="btn btn-tonal btn-block" id="pdPrep">🏦 振り込みの準備(何か月分まとめるか・お金を移す日を知らせる)</button>' : '') +
           '<button class="btn btn-tonal btn-block" id="pdGcal">📅 Google カレンダーに入れる</button>' +
           '<button class="btn btn-tonal btn-block" id="pdIcs">📅 スマホのカレンダーに入れる(iPhone など)</button>'
-        : p.status === '済み' ? (p.title !== '振込手数料' ? '<button class="btn btn-primary btn-block" id="pdFee">＋ 振込手数料を足す(払ったあとから)</button>' : '') +
+        : p.status === '済み' ? '<button class="btn btn-primary btn-block" id="pdEdit">✏ 直す(金額・払った日・場所・コメント)</button>' +
+          (p.title !== '振込手数料' ? '<button class="btn btn-primary btn-block" id="pdFee">＋ 振込手数料を足す</button>' : '') +
           '<button class="btn btn-tonal btn-block" id="pdUnpaid">↩ まだ払っていないに戻す</button>' : '') +
-      '<button class="btn btn-tonal btn-block" id="pdEdit">✏ 直す</button>' +
+      (p.status !== '済み' ? '<button class="btn btn-tonal btn-block" id="pdEdit">✏ 直す</button>' : '') +
       '<button class="btn btn-danger btn-block" id="pdDel">🗑 この支払いを削除</button>' +
       (sameGroup(p).length > 1 ? '<button class="btn btn-danger btn-block" id="pdDelAll">🗑 同じ納付書の ' + sameGroup(p).length + '件をまとめて削除</button>' : '') +
       '<button class="btn btn-text btn-block" id="pdClose">' + (pay.returnGroup ? '← 内訳に戻る' : '閉じる') + '</button></div>');
@@ -5088,6 +5099,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="field"><label>状態</label><div class="chips" id="peStatus" style="margin:0"></div></div>' +
       '<div id="pePaidBox"><div class="field"><label for="pePaid">払った日</label><input class="input" id="pePaid" type="date" value="' + esc(p.paidDate || today()) + '"></div>' +
       '<div class="field"><label for="pePlace">払った場所</label><input class="input" id="pePlace" value="' + esc(p.place || '') + '" placeholder="コンビニ、銀行 など"></div></div>' +
+      '<div class="field"><label for="peMemo">コメント(なくてもよい)</label><textarea class="input" id="peMemo" rows="2">' + esc(p.memo || '') + '</textarea></div>' +
       '<div class="error hidden" id="peError"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
       '<button class="btn btn-primary btn-block" id="peSave">保存する</button>' +
@@ -5108,7 +5120,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         title: $('peTitle').value.trim(), label: $('peLabel').value.trim(), due: $('peDue').value,
         amount: Math.round(Number($('peAmount').value) || 0), status: st,
         paidDate: st === '済み' ? ($('pePaid').value || today()) : '',
-        place: st === '済み' ? $('pePlace').value.trim() : '', category: $('peCatText').value.trim() || 'その他'
+        place: st === '済み' ? $('pePlace').value.trim() : '', category: $('peCatText').value.trim() || 'その他', memo: $('peMemo').value.trim().slice(0, 200)
       });
       if (!n.title || !n.due) { $('peError').textContent = '名前と日付を入れてください'; show('peError', true); return; }
       var b = this; b.disabled = true;
