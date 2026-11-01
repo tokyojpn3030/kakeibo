@@ -794,8 +794,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 17:55 版129';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版125';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-01 18:05 版130';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版130';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -995,7 +995,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function normRes(res) { if (res && Array.isArray(res.receipts)) res.receipts.forEach(normRc); return res; }
   function rawSpent(r) { return (Number(r.total) || 0) - (Number(r.share) || 0); }
   // 📅 家計簿を始めた日:この日より前の買い物・支払いは、記録として残すだけで、合計や残りには数えない(このスマホの設定)
-  function startDay() { var v = G.get('startDay') || ''; return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; }
+  // 家計簿(家)ごとに窓口に保存。アプリを開いたときの ping で受け取って、このスマホにも控えておく
+  function startDay() { var v = store.get('startDay') || ''; return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; }
+  function syncStartDay(v) {
+    var old = startDay(); v = v || '';
+    var phone = G.get('startDay');   // 版129でこのスマホだけに入れた日は、家計簿の方へ移す
+    if (!v && phone) { api('setStartDay', { startDay: phone }).then(function () { G.del('startDay'); syncStartDay(phone); }).catch(function () {}); return; }
+    if (phone) G.del('startDay');
+    if (v) store.set('startDay', v); else store.del('startDay');
+    if (v !== old) { state.loadedMonth = null; try { loadMonth(true); } catch (e) {} }
+  }
   function beforeStart(d) { var s0 = startDay(); return !!(s0 && d && d < s0); }
   function spentOf(r) { return beforeStart(r.date) ? 0 : rawSpent(r); }
   function api(action, data, passOverride) {
@@ -1012,6 +1021,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         if (res && res.usage) showUsage(res.usage);
         // 前の版の窓口が「合言葉」と返しても、画面には「パスワード」と出す
         if (!res.ok) throw new Error(String(res.error || 'エラーが起きました').replace(/合言葉/g, 'パスワード'));
+        if (action === 'ping' && res.sv && 'startDay' in res) setTimeout(function () { syncStartDay(res.startDay); }, 0);
         return normRes(res);
       });
   }
@@ -1025,6 +1035,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       setTimeout(function () {
         var list = demoLoad();
         if (action === 'ping') return resolve({ ok: true, name: '' });
+        if (action === 'setStartDay') { if (data.startDay) store.set('startDay', data.startDay); else store.del('startDay'); return resolve({ ok: true, startDay: data.startDay || '' }); }
         if (action === 'analyze') return resolve({ ok: true, receipt: {
           store: 'スーパーみどり', purpose: '食料品', date: today(), total: 1288,
           items: [{ name: '牛乳 1L', price: 238 }, { name: '食パン 6枚', price: 178 },
@@ -6549,7 +6560,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function openStartDay() {
     var v = startDay();
     openSheet('<div class="grip"></div><h2>📅 家計簿を始めた日</h2>' +
-      '<div class="note" style="font-size:16px;margin-bottom:10px">この日より前の買い物や支払いは、<b>記録として残すだけ</b>にして、買い物の合計・支払い額・収入の残りには<b>数えません</b>。<br>途中から使い始めて、前の分をあとから入れたときに使います。<br>(この設定は、このスマホだけです)</div>' +
+      '<div class="note" style="font-size:16px;margin-bottom:10px">この日より前の買い物や支払いは、<b>記録として残すだけ</b>にして、買い物の合計・支払い額・収入の残りには<b>数えません</b>。<br>途中から使い始めて、前の分をあとから入れたときに使います。<br>(この家計簿を使う<b>家族みんなのスマホで同じ日</b>になります)</div>' +
       '<div class="field"><label for="sdDate">始めた日</label><input class="input" id="sdDate" type="date" value="' + esc(v) + '"></div>' +
       '<div class="chips" style="margin:-4px 0 12px"><button type="button" class="chip" id="sdThis">今月の1日</button><button type="button" class="chip" id="sdPrev">先月の1日</button></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-primary btn-block" id="sdSave">保存する</button>' +
@@ -6557,9 +6568,18 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="sdBack">← 戻る</button></div>');
     $('sdThis').addEventListener('click', function () { $('sdDate').value = thisMonth() + '-01'; });
     $('sdPrev').addEventListener('click', function () { $('sdDate').value = shiftMonth(thisMonth(), -1) + '-01'; });
-    var done = function (msg) { toast(msg); state.loadedMonth = null; loadMonth(true); try { renderPay(); } catch (e) {} openSettings(); };
-    $('sdSave').addEventListener('click', function () { var d = $('sdDate').value; if (!d) { G.del('startDay'); return done('始めた日を決めないにしました'); } G.set('startDay', d); done(md(d) + 'より前は、数えないようにしました'); });
-    if ($('sdClear')) $('sdClear').addEventListener('click', function () { G.del('startDay'); done('始めた日を決めないにしました(全部数えます)'); });
+    var put = function (d, msg, btn) {
+      btn.disabled = true;
+      api('setStartDay', { startDay: d }).then(function () {
+        if (d) store.set('startDay', d); else store.del('startDay'); G.del('startDay');
+        toast(msg); state.loadedMonth = null; loadMonth(true); try { renderPay(); } catch (e) {} openSettings();
+      }).catch(function (e) {
+        btn.disabled = false;
+        alert(/不明な依頼/.test(e.message) ? '窓口(Apps Script)が古い版です。窓口を入れ替えてデプロイしてください。' : e.message);
+      });
+    };
+    $('sdSave').addEventListener('click', function () { var d = $('sdDate').value; put(d, d ? md(d) + 'より前は、家族みんな数えないようにしました' : '始めた日を決めないにしました', this); });
+    if ($('sdClear')) $('sdClear').addEventListener('click', function () { put('', '始めた日を決めないにしました(全部数えます)', this); });
     $('sdBack').addEventListener('click', openSettings);
   }
   function openTickerSettings() {
