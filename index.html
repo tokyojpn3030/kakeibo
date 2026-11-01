@@ -651,13 +651,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     </div>
 
     <div id="payConfirm" class="hidden">
-      <div class="section-title" style="margin-top:4px">読み取り結果を確認</div>
-      <div class="note" style="margin-bottom:12px">名前・住所・番号などは読み取っていません。写真も保存しません。</div>
+      <div class="section-title" style="margin-top:4px" id="pcHead">読み取り結果を確認</div>
+      <div class="note" style="margin-bottom:12px" id="pcHeadNote">名前・住所・番号などは読み取っていません。写真も保存しません。</div>
       <button class="btn btn-tonal btn-block hidden" id="pcToReceipt" style="margin-bottom:12px">🧾 これはお店のレシートです(買い物として読み直す)</button>
-      <div class="field"><label for="pcTitle">支払いの名前</label>
-        <input class="input" id="pcTitle" placeholder="例:住民税、国民健康保険料"></div>
       <div class="field"><label for="pcCatText">何の支払い(分類)</label><div class="chips" id="pcCat" style="margin:0 0 8px"></div>
         <input class="input" id="pcCatText" placeholder="ほかの分類はここに書く(例:町内会費)"></div>
+      <div class="field"><label for="pcTitle">支払いの名前 <span class="in-sub" id="pcTitleHint"></span></label>
+        <div style="display:flex;gap:6px"><input class="input" id="pcTitle" placeholder="例:住民税、国民健康保険料" style="flex:1;min-width:0">
+        <button type="button" class="btn btn-text" id="pcTitleClr" aria-label="名前を消す" style="min-width:44px;padding:0;font-size:20px">✕</button></div></div>
       <div class="field"><label for="pcAnnual">合計金額(住民税なら差引普通徴収税額・分かれば)</label>
         <input class="input" id="pcAnnual" type="number" inputmode="numeric" placeholder="0"></div>
       <div class="section-title">💴 自分で払う分</div>
@@ -674,7 +675,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="error hidden" id="pcError"></div>
       <div style="display:flex;flex-direction:column;gap:10px;margin:20px 0">
         <button class="btn btn-primary btn-block" id="pcSave">保存する</button>
-        <button class="btn btn-text btn-block" id="pcCancel">やめる</button>
+        <button class="btn btn-tonal btn-block hidden" id="pcRedo">↺ はじめから入れ直す</button>
+        <button class="btn btn-text btn-block" id="pcCancel">やめる(保存しない)</button>
       </div>
     </div>
 
@@ -784,7 +786,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 00:10 版119';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 10:55 版120';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版116';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -4799,7 +4801,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('pcAnnual').value = pay.draft.annual || '';
     $('pcAnnual').oninput = slipSum;
     $('pcCatText').value = pay.draft.category;
-    catField('pcCat', 'pcCatText');
+    // 手で入れるとき:分類を選ぶと、その名前を「支払いの名前」に入れる(あとで直せる。分類を選び直すと入れ替わる)
+    var manual = !lastShot && !r.title && !r.annual;
+    $('pcHead').textContent = manual ? '✍ 支払いを手で入れる' : '読み取り結果を確認';
+    $('pcHeadNote').textContent = manual ? 'まず「何の支払い」を選んでください。選んだものが「支払いの名前」に入ります。名前は、あとから書き直せます。' : '名前・住所・番号などは読み取っていません。写真も保存しません。';
+    $('pcTitleHint').textContent = '(分類を選ぶと入ります・書き直せます)';
+    show('pcRedo', manual);
+    pay.autoTitle = '';
+    catField('pcCat', 'pcCatText', function (v) {
+      var t = $('pcTitle'), cur = t.value.trim();
+      if (!cur || cur === pay.autoTitle) { t.value = v; pay.autoTitle = v; }
+    });
     show('pcError', false);
     renderSlipRows(); payView('confirm');
   }
@@ -4852,6 +4864,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     return;
     $('pcSum').textContent = yen(pay.draft.rows.reduce(function (s, x) { return s + (x.status === '天引き' ? 0 : (Number(x.amount) || 0)); }, 0));
   }
+  $('pcTitleClr').addEventListener('click', function () { $('pcTitle').value = ''; pay.autoTitle = ''; $('pcTitle').focus(); });
+  $('pcRedo').addEventListener('click', function () {
+    if (!confirm('入れたものを消して、はじめから入れ直しますか?')) return;
+    openSlip({ title: '', annual: 0, installments: [{ label: '', due: '', amount: 0 }], withheld: [] }); window.scrollTo(0, 0);
+  });
   $('pcAdd').addEventListener('click', function () {
     pay.draft.rows.push({ label: '', due: '', amount: 0, status: 'これから', past: false }); renderSlipRows();
   });
@@ -4880,7 +4897,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     pay.draft.rows.push({ label: '', due: '', amount: 0, status: '天引き', past: false }); renderSlipRows();
   });
   $('pcCancel').addEventListener('click', function () {
-    if (confirm('この納付書を保存せずに戻りますか?')) payView('main');
+    if (confirm('入れたものを保存せずに戻りますか?')) payView('main');
   });
   $('pcSave').addEventListener('click', function () {
     var d = pay.draft, t = today();
