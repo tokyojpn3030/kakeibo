@@ -807,7 +807,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 22:35 版135';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 22:45 版136';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -4929,11 +4929,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<input class="input" id="pfDate" type="date" value="' + d0 + '" max="' + today() + '"></div>' +
       '<div style="display:flex;gap:8px;margin:-6px 0 14px">' +
       '<button class="chip" id="pfToday">今日</button>' + (p.due < today() ? '<button class="chip" id="pfDue">期限の日</button>' : '') + '</div>' +
+      (openSiblings(p).length > 1 ? pickMonthsHtml(p, [p.id], 'pfPick') : '') +
+      '<div class="card" style="margin:12px 0;padding:12px 14px;border:2px solid var(--primary)">' +
+        '<div style="font-size:19px;font-weight:700;margin-bottom:6px">💴 振込手数料</div>' +
+        '<div class="note" style="font-size:15px;margin-bottom:6px">振り込んだときの手数料を入れてください(なければ空のまま)。何か月分をまとめても、1回分だけ入れます。</div>' +
+        '<div style="display:flex;align-items:center;gap:8px"><input class="input" id="pfFee" type="number" inputmode="numeric" placeholder="0" style="font-size:22px;font-weight:700;flex:1;min-width:0" value="' + esc(store.get('pay.lastFee') || '') + '"><span style="font-size:18px">円</span></div>' +
+        '<div class="sum-line" style="font-size:18px;margin-top:8px"><span>払った合計(手数料こみ)</span><b id="pfGrand">¥0</b></div></div>' +
       '<div class="field"><label>どこで払いましたか</label><div class="chips" id="pfPlaces" style="margin:0 0 8px"></div>' +
       '<input class="input" id="pfPlace" placeholder="ほかの場所はここに書く(例:○○銀行)" value="' + esc(place) + '"></div>' +
-      (openSiblings(p).length > 1 ? pickMonthsHtml(p, [p.id], 'pfPick') : '') +
-      '<div class="field" style="margin-top:10px"><label for="pfFee">振込手数料(円・なくてもよい)</label><input class="input" id="pfFee" type="number" inputmode="numeric" placeholder="0" value="' + esc(store.get('pay.lastFee') || '') + '"></div>' +
-      '<div class="note" style="font-size:15px;margin:-6px 0 10px">手数料を入れると、「振込手数料」として別の支払い(払った)で記録し、収入の残りからも引きます。</div>' +
       '<div class="field"><label for="pfMemo">コメント(なくてもよい)</label><textarea class="input" id="pfMemo" rows="2" placeholder="例:ゆうちょから東京都医業健康保険組合へ振込"></textarea>' +
       (store.get('pay.memo.' + p.title) || store.get('pay.lastMemo') ? '<button type="button" class="btn btn-text" id="pfMemoCopy" style="padding:0 6px;min-height:40px">📋 前回のコメントを写す</button>' : '') + '</div>' +
       (bankList().length ? (function () {
@@ -4960,7 +4963,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     };
     drawPlaces();
     if ($('pfMemoCopy')) $('pfMemoCopy').addEventListener('click', function () { $('pfMemo').value = store.get('pay.memo.' + p.title) || store.get('pay.lastMemo') || ''; });
-    var pickIds = $('pfPick') ? bindPickMonths('pfPick') : null; if (pickIds) pickIds();
+    var grand = function () {
+      var ids = $('pfPick') ? Array.prototype.filter.call($('pfPick').querySelectorAll('[data-pm]'), function (c) { return c.checked; }).map(function (c) { return c.dataset.pm; }) : [id];
+      var sum = ids.reduce(function (a, k) { var x = findPay(k); return a + (x ? Number(x.amount) || 0 : 0); }, 0);
+      $('pfGrand').textContent = yen(sum + Math.round(Number($('pfFee').value) || 0));
+    };
+    var pickIds = $('pfPick') ? bindPickMonths('pfPick', grand) : null; if (pickIds) pickIds();
+    $('pfFee').addEventListener('input', grand); grand();
     $('pfPlace').addEventListener('input', drawPlaces);
     $('pfToday').addEventListener('click', function () { $('pfDate').value = today(); });
     if ($('pfDue')) $('pfDue').addEventListener('click', function () { $('pfDate').value = p.due; });
