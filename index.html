@@ -121,7 +121,14 @@ input { font: inherit; color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .walker { display: none; } }
 .topbar { position: sticky; top: 30px; z-index: 10; background: var(--bg);
   display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 8px; }
-.topbar h1 { font-size: 24px; font-weight: 700; margin: 0; }
+.topbar h1 { font-size: 21px; font-weight: 700; margin: 0; white-space: nowrap; flex: none; }
+.tb-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.home-pill { border: none; background: var(--primary-soft); color: var(--on-primary-soft); border-radius: 18px; padding: 5px 10px; font: inherit; font-size: 16px; font-weight: 700;
+  min-height: 36px; min-width: 0; max-width: 100%; white-space: normal; line-height: 1.25; text-align: left; cursor: pointer; }
+.cat-pop { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.cat-pop .box { background: var(--surface); color: var(--text); border-radius: 20px; padding: 16px; width: 100%; max-width: 460px; max-height: 86vh; overflow-y: auto; }
+.cat-pick { min-height: 48px; padding: 0 12px; border-radius: 14px; border: 1.5px solid var(--primary); background: var(--primary-soft); color: var(--on-primary-soft);
+  font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; white-space: nowrap; flex: none; max-width: 48%; overflow: hidden; text-overflow: ellipsis; }
 .icon-btn { background: none; border: none; width: 48px; height: 48px; border-radius: 24px;
   display: flex; align-items: center; justify-content: center; color: var(--text-2); }
 .icon-btn:active { background: var(--surface-2); }
@@ -379,6 +386,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .slip-row .three .input { padding-left: 8px; padding-right: 6px; font-size: 16px; }
 .slip-row .paidline { display: flex; align-items: flex-end; gap: 6px; margin-top: 8px; }
 .slip-row .paidline .pd { flex: 1; min-width: 0; }
+.slip-row .paidline .input { font-size: 16px; padding-left: 8px; padding-right: 6px; }
 .slip-row .paidchk { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 12px;
   border-radius: 12px; background: var(--surface-2); font-size: 19px; font-weight: 700; }
 .slip-row .paidchk input { width: 30px; height: 30px; flex: none; }
@@ -393,10 +401,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 <body>
 
 <div class="clockbar" id="clockBar"></div>
-<header class="topbar">
-  <div><h1>お家の家計簿</h1><div class="note" id="homeLabel" style="margin-top:-2px"></div>
-    <div class="note" id="verLabel" style="font-size:13px;margin-top:-2px"></div></div>
-  <div style="display:flex">
+<header class="topbar" style="flex-wrap:wrap">
+  <div class="tb-left"><h1>お家の家計簿</h1><button type="button" class="home-pill" id="homeLabel" aria-label="家のアイコンを選ぶ"></button></div>
+  <div style="display:flex;flex:none">
     <button class="icon-btn" id="btnRefresh" aria-label="最新にする">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
     </button>
@@ -404,6 +411,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
     </button>
   </div>
+  <div class="note" id="verLabel" style="font-size:13px;margin-top:-4px;flex-basis:100%"></div>
 </header>
 <div class="demo-banner hidden" id="demoBanner">仮モードで動いています(まだどの家計簿にもつながっていません)。データはこのスマホの中だけに仮保存されます。招待リンクをもらったら、⚙ →「🔁 家の切り替え・追加」に貼り付けるとつながります。</div>
 <div class="demo-banner hidden" id="lineBanner" style="background:var(--danger-soft);color:var(--danger);font-size:16px">
@@ -413,7 +421,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
 <main>
   <!-- 電子マネーの残高(どの画面でも一番上) -->
-  <div id="balStrip" class="hidden" style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 10px"></div>
+  <div id="balStrip" class="hidden" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 10px"></div>
   <!-- 履歴 -->
   <section class="screen active" id="screen-history">
     <div class="ticker hidden" id="ticker" role="status" aria-live="polite" title="押すと閉じます"></div>
@@ -666,17 +674,17 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       <div class="section-title" style="margin-top:4px" id="pcHead">読み取り結果を確認</div>
       <div class="note" style="margin-bottom:12px" id="pcHeadNote">名前・住所・番号などは読み取っていません。写真も保存しません。</div>
       <button class="btn btn-tonal btn-block hidden" id="pcToReceipt" style="margin-bottom:12px">🧾 これはお店のレシートです(買い物として読み直す)</button>
-      <div class="field"><label for="pcCatText">何の支払い(分類)</label><div class="chips" id="pcCat" style="margin:0 0 8px"></div>
-        <input class="input" id="pcCatText" placeholder="ほかの分類はここに書く(例:町内会費)"></div>
-      <div class="field"><label for="pcTitle">支払いの名前 <span class="in-sub" id="pcTitleHint"></span></label>
-        <div style="display:flex;gap:6px"><input class="input" id="pcTitle" placeholder="例:住民税、国民健康保険料" style="flex:1;min-width:0">
-        <button type="button" class="btn btn-text" id="pcTitleClr" aria-label="名前を消す" style="min-width:44px;padding:0;font-size:20px">✕</button></div></div>
+      <div class="field"><label for="pcTitle">何の支払い(分類) と 支払いの名前 <span class="in-sub" id="pcTitleHint"></span></label>
+        <div style="display:flex;gap:6px;align-items:center"><div id="pcCat" style="display:contents"></div>
+        <input class="input" id="pcTitle" placeholder="支払いの名前" style="flex:1;min-width:0">
+        <button type="button" class="btn btn-text" id="pcTitleClr" aria-label="名前を消す" style="min-width:40px;padding:0;font-size:20px;flex:none">✕</button></div>
+        <input class="input hidden" id="pcCatText"></div>
       <div class="field"><label for="pcAnnual">合計金額(住民税なら差引普通徴収税額・分かれば)</label>
         <input class="input" id="pcAnnual" type="number" inputmode="numeric" placeholder="0"></div>
       <div class="section-title">💴 自分で払う分</div>
-      <div class="note" style="margin:-4px 0 8px">もう払った分は、その行の「✅ 払った」にチェックして、払った日を入れてください。払っていない分は、保存したあと支払いの一覧に出ます。</div>
+      <label class="check hidden" id="pcPastBox" style="margin:0 0 8px;font-size:17px;padding:8px 10px;border-radius:12px;background:var(--primary-soft)"><input type="checkbox" id="pcPastPaid" checked> <span id="pcPastTxt"></span></label>
+      <div class="note" style="margin:0 0 8px">もう払った分は、その行の「払った」にチェックしてください(払った日は、入れても入れなくてもよい)。払っていない分は、保存したあと支払いの一覧に出ます。</div>
       <div id="pcRows"></div>
-      <label class="check hidden" id="pcPastBox" style="margin:4px 0 8px;font-size:17px"><input type="checkbox" id="pcPastPaid" checked> <span id="pcPastTxt"></span></label>
       <button class="btn btn-text" id="pcAdd" style="padding:0 8px">+ 自分で払う分を追加</button>
       <button class="btn btn-tonal btn-block" id="pcMore" style="margin:6px 0">📷 別のページ・用紙を撮って足す</button>
       <div class="note hidden" id="pcMoreMsg"></div>
@@ -799,7 +807,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 21:20 版131';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-01 21:30 版132';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版130';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2665,9 +2673,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var l = feat('pay') ? cardList().filter(function (c) { return isPrepaid(c) && showIt(c); }) : [];
     // 毎月引き落としの電子マネーは、通勤の電車賃を登録したもの(または「出す」を選んだもの)
     var em = feat('pay') ? cardList().filter(function (c) { return c.type === 'スマホ決済・電子マネー' && c.withdraw && (c.commute || c.strip) && showIt(c); }) : [];
-    var chip = 'font-size:17px;min-height:44px;padding:4px 12px;background:var(--primary-soft);color:var(--on-primary-soft);border-color:transparent;text-align:left;line-height:1.3';
+    var chip = 'font-size:16px;min-height:48px;padding:6px 10px;background:var(--primary-soft);color:var(--on-primary-soft);border-color:transparent;text-align:left;line-height:1.3;width:100%;min-width:0;margin:0;justify-content:flex-start;flex-wrap:wrap;white-space:normal';
     $('balStrip').innerHTML = l.map(function (c, i) {
-      return '<button class="chip" data-bs="' + i + '" style="' + chip + '">💴 ' + esc(cardLabel(c)) + ' <b style="margin-left:4px">' + yen(c.balance || 0) + '</b></button>';
+      return '<button class="chip" data-bs="' + i + '" style="' + chip + '"><span>💴 ' + esc(cardLabel(c)) + '</span> <b style="margin-left:4px;font-size:18px">' + yen(c.balance || 0) + '</b></button>';
     }).join('') + em.map(function (c, i) { return '<button class="chip" data-be="' + i + '" style="' + chip + '">🚃 ' + esc(cardLabel(c)) + ' <span class="be-amt">…</span></button>'; }).join('');
     $('balStrip').querySelectorAll('[data-bs]').forEach(function (b) { b.addEventListener('click', function () { openPrepaid(l[+b.dataset.bs], null); }); });
     STRIP.has = !!(l.length || em.length); applyStripScreen();
@@ -3122,17 +3130,33 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   // 何の支払い(分類):ボタンで選ぶか、文字で書く。買い物と支払いで同じ一覧を使う
   var CATS = ['食料品', '日用品', '外食', '衣類', '医療費', '住民税', '社会保険料', 'ほかの税金', '公共料金', '通信費', 'その他'];
+  // 分類:ボタンを押すと、選ぶ窓(ポップアップ)が開く。ほかの分類は窓の中で書ける
+  function catPopup(cur, onPick) {
+    var old = document.querySelector('.cat-pop'); if (old) old.remove();
+    var el = document.createElement('div'); el.className = 'cat-pop';
+    el.innerHTML = '<div class="box" role="dialog" aria-label="何の支払い(分類)を選ぶ"><h2 style="margin:0 0 10px">何の支払い(分類)</h2>' +
+      '<div class="chips">' + CATS.map(function (x) { return '<button type="button" class="chip' + (x === cur ? ' on' : '') + '" data-cat="' + x + '" style="font-size:18px;min-height:50px">' + x + '</button>'; }).join('') + '</div>' +
+      '<div class="field" style="margin-top:12px"><label for="cpOther">ほかの分類(書いて「これにする」)</label><div style="display:flex;gap:6px"><input class="input" id="cpOther" style="flex:1;min-width:0" placeholder="例:町内会費" value="' + (cur && CATS.indexOf(cur) < 0 ? esc(cur) : '') + '">' +
+      '<button type="button" class="btn btn-primary" id="cpOk" style="flex:none">これにする</button></div></div>' +
+      '<div style="display:flex;gap:8px;margin-top:6px">' + (cur ? '<button type="button" class="btn btn-tonal" id="cpNone" style="flex:1">分類をなしにする</button>' : '') +
+      '<button type="button" class="btn btn-tonal" id="cpClose" style="flex:1">やめる</button></div></div>';
+    document.body.appendChild(el);
+    var done = function (v) { el.remove(); if (v != null) onPick(v); };
+    el.addEventListener('click', function (e) { if (e.target === el) done(null); });
+    el.querySelectorAll('[data-cat]').forEach(function (b) { b.addEventListener('click', function () { done(b.dataset.cat); }); });
+    el.querySelector('#cpOk').addEventListener('click', function () { var v = el.querySelector('#cpOther').value.trim(); if (v) done(v.slice(0, 20)); else el.querySelector('#cpOther').focus(); });
+    if (el.querySelector('#cpNone')) el.querySelector('#cpNone').addEventListener('click', function () { done(''); });
+    el.querySelector('#cpClose').addEventListener('click', function () { done(null); });
+  }
   function catField(chipsId, inputId, onChange) {
+    $(inputId).classList.add('hidden');
     var draw = function () {
       var cur = $(inputId).value.trim();
-      $(chipsId).innerHTML = CATS.map(function (x) {
-        return '<button type="button" class="chip' + (x === cur ? ' on' : '') + '" data-cat="' + x + '">' + x + '</button>';
-      }).join('');
-      $(chipsId).querySelectorAll('[data-cat]').forEach(function (b) {
-        b.addEventListener('click', function () { $(inputId).value = b.dataset.cat === cur ? '' : b.dataset.cat; draw(); if (onChange) onChange($(inputId).value.trim()); });
+      $(chipsId).innerHTML = '<button type="button" class="cat-pick" aria-label="分類を選ぶ">' + (cur ? esc(cur) : '分類を選ぶ') + ' ▾</button>';
+      $(chipsId).querySelector('.cat-pick').addEventListener('click', function () {
+        catPopup(cur, function (v) { $(inputId).value = v; draw(); if (onChange) onChange(v); });
       });
     };
-    $(inputId).oninput = function () { draw(); if (onChange) onChange($(inputId).value.trim()); };
     draw();
   }
   /* ---------- カードの登録(このスマホの中だけに保存。サーバーには送らない) ----------
@@ -5085,7 +5109,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var manual = !lastShot && !r.title && !r.annual;
     $('pcHead').textContent = manual ? '✍ 支払いを手で入れる' : '読み取り結果を確認';
     $('pcHeadNote').textContent = manual ? 'まず「何の支払い」を選んでください。選んだものが「支払いの名前」に入ります。名前は、あとから書き直せます。' : '名前・住所・番号などは読み取っていません。写真も保存しません。';
-    $('pcTitleHint').textContent = '(分類を選ぶと入ります・書き直せます)';
+    $('pcTitleHint').textContent = '(分類を選ぶと名前にも入ります・書き直せます)';
     show('pcRedo', manual);
     pay.autoTitle = '';
     catField('pcCat', 'pcCatText', function (v) {
@@ -5129,6 +5153,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     root.querySelectorAll('[data-pp]').forEach(function (c) { c.addEventListener('change', function () {
       var x = pay.draft.rows[+c.dataset.pp]; x.paid = c.checked;
       if (x.paid && !x.paidDate) x.paidDate = x.due && x.due < today() ? x.due : today();
+      if (!x.paid) x.paidDate = '';   // チェックを外したら、払った日も空にする
       renderSlipRows();
     }); });
     root.querySelectorAll('[data-pd]').forEach(function (c) { c.addEventListener('change', function () {
@@ -5164,7 +5189,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   });
   $('pcPastPaid').addEventListener('change', function () {
     var on = this.checked;
-    pay.draft.rows.forEach(function (x) { if (x.status !== '天引き' && x.due && x.due < today()) { x.paid = on; if (on && !x.paidDate) x.paidDate = x.due; } });
+    pay.draft.rows.forEach(function (x) { if (x.status !== '天引き' && x.due && x.due < today()) { x.paid = on; if (on && !x.paidDate) x.paidDate = x.due; if (!on) x.paidDate = ''; } });
     renderSlipRows();
   });
   $('pcAdd').addEventListener('click', function () {
@@ -5336,7 +5361,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var b = this; b.disabled = true; b.textContent = '保存中…';
     api('setHomeName', { name: n }).then(function (res) {
       HOME.name = res.name || n; saveHomes(HOMES);
-      $('setupHome').textContent = '🏠 ' + HOME.name; $('homeLabel').textContent = '🏠 ' + HOME.name;
+      $('setupHome').textContent = '🏠 ' + HOME.name; setHomeLabel();
       if (homeNameAfter) homeNameAfter();
     }).catch(function (e) { setupError(e.message); })
       .then(function () { b.disabled = false; b.textContent = '次へ'; });
@@ -5596,7 +5621,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (!DEMO && !checked) {
       // 送る前に、スプレッドシートに登録した家の名前を確かめる
       return api('ping').then(function (res) {
-        if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); $('homeLabel').textContent = '🏠 ' + HOME.name; }
+        if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); setHomeLabel(); }
       }).catch(function () {}).then(function () { openInvite(true); });
     }
     if (DEMO) {
@@ -6594,6 +6619,18 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   setInterval(function () { try { refreshTalkPlans(); runTicker(); } catch (e) {} }, 30e3);
   setTimeout(function () { try { refreshTalkPlans(); setTimeout(function () { runTicker(); }, 4000); } catch (e) {} }, 3000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(function () { try { refreshTalkPlans(); runTicker(); } catch (e) {} }, 1500); });
+  var HOME_ICONS = ['🏠', '🏡', '🏘', '🌸', '🍓', '🐰', '🐱', '🐶', '🌻', '⭐', '🍙', '🍀', '🎀', '💰', '🗻', '🌈'];
+  function homeIcon() { return store.get('homeIcon') || '🏠'; }
+  function setHomeLabel() { if ($('homeLabel')) $('homeLabel').textContent = homeIcon() + ' ' + (HOME && HOME.name || ''); }
+  function openHomeIcon() {
+    openSheet('<div class="grip"></div><h2>家のアイコンを選ぶ</h2>' +
+      '<div class="note" style="font-size:16px;margin-bottom:10px">いちばん上の「' + esc(HOME.name || '') + '」の前に出るアイコンです(このスマホだけ)。</div>' +
+      '<div class="chips" id="hiList">' + HOME_ICONS.map(function (x) { return '<button type="button" class="chip' + (x === homeIcon() ? ' on' : '') + '" data-v="' + x + '" style="font-size:28px;min-width:56px;min-height:56px;justify-content:center">' + x + '</button>'; }).join('') + '</div>' +
+      '<button class="btn btn-tonal btn-block" id="hiClose" style="margin-top:12px">閉じる</button>');
+    $('hiList').querySelectorAll('[data-v]').forEach(function (b) { b.addEventListener('click', function () { store.set('homeIcon', b.dataset.v); setHomeLabel(); closeSheet(); toast('アイコンを ' + b.dataset.v + ' にしました'); }); });
+    $('hiClose').addEventListener('click', closeSheet);
+  }
+  $('homeLabel').addEventListener('click', openHomeIcon);
   function openStartDay() {
     var v = startDay();
     openSheet('<div class="grip"></div><h2>📅 家計簿を始めた日</h2>' +
@@ -6797,16 +6834,16 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('verLabel').textContent = 'アプリの版:' + APP_VERSION;
   if (RELOADING) return;
   if (!DEMO) autoMove().then(function (changed) { if (changed) location.reload(); });
-  if (JOINED && !store.get('owner')) { show('demoBanner', DEMO); $('homeLabel').textContent = '🏠 ' + HOME.name; openAddHomeGuide(openSetup); return; }
+  if (JOINED && !store.get('owner')) { show('demoBanner', DEMO); setHomeLabel(); openAddHomeGuide(openSetup); return; }
   show('demoBanner', DEMO);
-  $('homeLabel').textContent = '🏠 ' + HOME.name;
+  setHomeLabel();
   function ownerMissing() { return !MEMBERS.some(function (m) { return m.name === state.owner; }); }
   if (!state.owner || (!DEMO && !state.pass) || ownerMissing() || store.get('firstSetup')) openSetup();
   else {
     refreshMembers().then(function () { if (ownerMissing()) openSetup(); });
     // 家の名前(Apps Script の HOME_NAME)が変わっていたら表示を合わせる
     api('ping').then(function (res) {
-      if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); $('homeLabel').textContent = '🏠 ' + HOME.name; }
+      if (res.name && res.name !== HOME.name) { HOME.name = res.name; saveHomes(HOMES); setHomeLabel(); }
     }).catch(function () {});
     loadMonth(true);
     // 新しい版になった直後などに読み込みがうまくいかないことがあるので、少しあとにもう一度確かめる
