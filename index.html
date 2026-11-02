@@ -124,7 +124,7 @@ input { font: inherit; color: var(--text); }
 .topbar h1 { font-size: 21px; font-weight: 700; margin: 0; white-space: nowrap; flex: none; }
 .tb-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
 .home-pill { border: none; background: var(--primary-soft); color: var(--on-primary-soft); border-radius: 18px; padding: 5px 10px; font: inherit; font-size: 16px; font-weight: 700;
-  min-height: 36px; min-width: 0; max-width: 100%; white-space: normal; line-height: 1.25; text-align: left; cursor: pointer; }
+  min-height: 36px; min-width: 0; max-width: 100%; white-space: normal; line-height: 1.2; text-align: left; cursor: pointer; overflow: hidden; }
 .cat-pop { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .cat-pop .box { background: var(--surface); color: var(--text); border-radius: 20px; padding: 16px; width: 100%; max-width: 460px; max-height: 86vh; overflow-y: auto; }
 .cat-pick { min-height: 48px; padding: 0 12px; border-radius: 14px; border: 1.5px solid var(--primary); background: var(--primary-soft); color: var(--on-primary-soft);
@@ -807,7 +807,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-01 22:45 版136';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-02 14:15 版137';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -6728,7 +6728,14 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(function () { try { refreshTalkPlans(); runTicker(); } catch (e) {} }, 1500); });
   var HOME_ICONS = ['🏠', '🏡', '🏘', '🌸', '🍓', '🐰', '🐱', '🐶', '🌻', '⭐', '🍙', '🍀', '🎀', '💰', '🗻', '🌈'];
   function homeIcon() { return store.get('homeIcon') || '🏠'; }
-  function setHomeLabel() { if ($('homeLabel')) $('homeLabel').textContent = homeIcon() + ' ' + (HOME && HOME.name || ''); }
+  // いちばん上:1行目「🏠 佐藤」、2行目「の家計簿」(名前の最後の「の家計簿」「家計簿」は2行目にまわす)
+  function setHomeLabel() {
+    if (!$('homeLabel')) return;
+    var n = String(HOME && HOME.name || '').trim(), base = n.replace(/\s*(の家計簿|家計簿)$/, '') || n;
+    $('homeLabel').innerHTML = '<span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(homeIcon() + ' ' + base) + '</span>' +
+      '<span style="display:block;font-size:13px;font-weight:400;white-space:nowrap">の家計簿</span>';
+    $('homeLabel').setAttribute('aria-label', homeIcon() + ' ' + n + '(押すと家のアイコンを選べます)');
+  }
   function openHomeIcon() {
     openSheet('<div class="grip"></div><h2>家のアイコンを選ぶ</h2>' +
       '<div class="note" style="font-size:16px;margin-bottom:10px">いちばん上の「' + esc(HOME.name || '') + '」の前に出るアイコンです(このスマホだけ)。</div>' +
