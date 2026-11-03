@@ -807,7 +807,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-03 12:15 版139';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-03 12:20 版140';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2175,14 +2175,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div class="card" style="margin-bottom:10px;padding:12px 14px;border:2px solid var(--primary)"><div style="font-size:16px">🧾 レシートに書いてあること</div>' +
         '<div style="font-size:20px;font-weight:700;margin-top:4px">累計ポイント ' + P(bal) + '</div>' +
         (earned ? '<div style="font-size:17px">今回もらったポイント ' + P(earned) + '</div>' : '') + (used ? '<div style="font-size:17px">今回使ったポイント ' + P(used) + '</div>' : '') + '</div>' +
-      '<div class="note" style="font-size:17px;margin-bottom:10px">「累計ポイント」は、今の残り全部の数です。家計簿の残りを、どうしますか?' +
+      '<div class="note" style="font-size:17px;margin-bottom:10px">「累計ポイント」は、今回の分も入った、今の残り全部の数です。家計簿の残りを、この数にしますか?' +
       (has ? '<br>今の家計簿の残り:' + P(old) + (earned || used ? '(今回 ' + (earned ? '+' + earned : '') + (used ? ' −' + used : '') + ')' : '') : '<br>このポイントは、はじめて入れます。') + '</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px">' +
-      '<button class="btn btn-primary btn-block" id="ptOver" style="min-height:56px;font-size:18px">レシートの累計 ' + P(bal) + ' に上書きする(おすすめ)</button>' +
-      (has ? '<button class="btn btn-tonal btn-block" id="ptAdd" style="min-height:56px;font-size:18px">今の残りに足す:' + P(old) + (earned ? ' + ' + earned : '') + (used ? ' − ' + used : '') + ' = ' + P(add) + '</button>' : '') +
+      '<button class="btn btn-primary btn-block" id="ptOver" style="min-height:56px;font-size:18px">レシートの累計 ' + P(bal) + ' に上書きする</button>' +
       '<button class="btn btn-tonal btn-block" id="ptSkip">やめる(ポイントは変えない)</button></div>');
     $('ptOver').addEventListener('click', function () { put(bal, 'レシートの累計'); closeSheet(); done(); });
-    if ($('ptAdd')) $('ptAdd').addEventListener('click', function () { put(add, '足した'); closeSheet(); done(); });
     $('ptSkip').addEventListener('click', function () { closeSheet(); toast('ポイントは変えませんでした'); done(); });
   }
   // ポイントの名前が書いていないレシート:お店の名前から「○○ポイント」を入れる(前に同じお店のポイントがあればそれ)。直せる
