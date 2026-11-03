@@ -807,7 +807,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-02 14:15 版137';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-03 12:05 版138';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2167,6 +2167,21 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     savePointBook(b);
     toast(name + ' の残り:' + next.toLocaleString('ja-JP') + 'ポイント');
   }
+  // ポイントの名前が書いていないレシート:お店の名前から「○○ポイント」を入れる(前に同じお店のポイントがあればそれ)。直せる
+  var PTAUTO = { v: '' };
+  function storePointName(store) {
+    var st = String(store || '').replace(/(株式会社|\(株\)|㈱)/g, '').trim().split(/[\s　]+/)[0].replace(/(本店|支店|店)$/, '');
+    if (!st) return '';
+    var base = st.replace(/[^\u3040-\u30ff\u4e00-\u9fffA-Za-z0-9ー]/g, '').slice(0, 10);
+    var hit = pointNames().filter(function (n) { var k = n.replace(/ポイント|POINT|ﾎﾟｲﾝﾄ/gi, ''); return k && (base.indexOf(k) >= 0 || k.indexOf(base.slice(0, 4)) >= 0); })[0];
+    return hit || (base.replace(/(高田馬場|新宿|渋谷|池袋|駅前|駅ビル)$/, '') + 'ポイント');
+  }
+  function autoPointName() {
+    var cur = $('cfPointName').value.trim();
+    if (cur && cur !== PTAUTO.v) return;   // 自分で書いた名前は変えない
+    var v = storePointName($('cfStore').value); if (!v) return;
+    $('cfPointName').value = v; PTAUTO.v = v; drawPointChips();
+  }
   function drawPointChips() {
     var cur = $('cfPointName').value.trim();
     $('cfPointChips').innerHTML = pointNames().map(function (x) {
@@ -2888,6 +2903,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   $('cfStore').addEventListener('focus', function () { seedStores(); showStoreSug(); });
   $('cfStore').addEventListener('input', showStoreSug);
+  ['cfPtEarned', 'cfPtUsed', 'cfPtBal'].forEach(function (k) { $(k).addEventListener('input', function () { if (!$('cfPointName').value.trim() && $(k).value) autoPointName(); }); });
+  $('cfStore').addEventListener('change', function () { if (PTAUTO.v && $('cfPointName').value.trim() === PTAUTO.v) autoPointName(); });
   $('cfStore').addEventListener('blur', function () { setTimeout(function () { show('cfStoreSug', false); }, 200); });
 
   // 手で入力する(ネットで買ったとき・レシートがないとき)。写真の読み取りはしないので、回数は使わない
@@ -3121,7 +3138,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('cfStore').value = state.draft.store;
     $('cfPurpose').value = state.draft.purpose; drawPurpose();
     $('cfPayMethod').value = state.draft.payMethod; drawPayMethod();
-    $('cfPointName').value = r.pointName || ''; drawPointChips();
+    $('cfPointName').value = r.pointName || ''; PTAUTO.v = '';
+    if (!r.pointName && (r.pointEarned || r.pointUsed || r.pointBalance)) autoPointName();
+    drawPointChips();
     $('cfPtUsed').value = r.pointUsed || ''; $('cfPtEarned').value = r.pointEarned || ''; $('cfPtBal').value = r.pointBalance || '';
     show('cfPointField', feat('points') && !state.editingId);
     $('cfDate').value = state.draft.date;
