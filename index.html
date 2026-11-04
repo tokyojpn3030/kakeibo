@@ -808,7 +808,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 15:20 版142';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 15:30 版143';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -3805,8 +3805,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>' + (r[2] === 'スイーツ' ? '🍰 ' : '🍳 ') + esc(r[1]) + '</h2>' +
       '<div class="note" style="font-size:15px;margin-bottom:8px">旬の品物:' + r[3].map(esc).join('・') + ' ・ 2人分の目安</div>' +
       '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">' +
-      '<label class="check" style="font-size:18px;margin:0"><input type="checkbox" id="rcWant"' + (f ? ' checked' : '') + '> <span>☑ 作ってみたい(「📖 作ってみたい」の一覧に入れる)</span></label>' +
-      (f ? '<label class="check" style="font-size:18px;margin:0"><input type="checkbox" id="rcDone"' + (f === 'done' ? ' checked' : '') + '> <span>✅ 作った</span></label>' : '') + '</div>' +
+      '<label class="check" style="font-size:18px;margin:0"><input type="checkbox" id="rcWant"' + (f ? ' checked' : '') + '> <span>作ってみたい(「📖 作ってみたい」の一覧に入れる)</span></label>' +
+      (f ? '<label class="check" style="font-size:18px;margin:0"><input type="checkbox" id="rcDone"' + (f === 'done' ? ' checked' : '') + '> <span>作った</span></label>' : '') + '</div>' +
       '<div class="section-title">材料</div><div class="card" style="padding:10px 14px;margin-bottom:12px">' + r[4].map(function (x) { return '<div style="font-size:17px;padding:4px 0;border-bottom:1px solid var(--line)">・' + esc(x) + '</div>'; }).join('') + '</div>' +
       '<div class="section-title">作り方</div><div class="card" style="padding:10px 14px;margin-bottom:8px">' + r[5].map(function (x, i) { return '<div style="font-size:17px;padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px"><b style="flex:none">' + (i + 1) + '.</b><span>' + esc(x) + '</span></div>'; }).join('') + '</div>' +
       '<div class="note" style="font-size:14px">分量と時間は目安です。火加減を見ながら作ってください。</div>' +
@@ -3851,7 +3851,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         var r = recipeById(id); if (!r) return '';
         return '<button type="button" class="in-line" data-rc="' + r[0] + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);color:var(--text);font:inherit;text-align:left;cursor:pointer;font-size:18px">' +
           '<span>' + (r[2] === 'スイーツ' ? '🍰 ' : '🍳 ') + esc(r[1]) + '<span class="in-sub" style="display:block">' + r[3].map(esc).join('・') + '</span></span><span class="in-sub">' + (fv[id] === 'done' ? '✅ 作った' : '☑ これから') + ' ›</span></button>';
-      }).join('') : '<div class="note" style="font-size:17px">まだありません。旬の品物を押して料理を開き、「☑ 作ってみたい」にチェックすると、ここに並びます。</div>';
+      }).join('') : '<div class="note" style="font-size:17px">まだありません。旬の品物を押して料理を開き、「作ってみたい」にチェックすると、ここに並びます。</div>';
     } else {
       var K = SHUN_KINDS.filter(function (k) { return k.k === tab; })[0], sel = pick != null ? +pick : -1;
       // その種類の中で広げて置く(左右・上下いっぱいに)。同じ場所が重なったら少しずらす
