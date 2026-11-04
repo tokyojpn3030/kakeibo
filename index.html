@@ -521,6 +521,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         <input class="input" id="cfPayMethod" placeholder="ほかの払い方・カードの名前はここに書く(例:楽天カード)">
         <div id="cfCardInfo" class="hidden" style="margin-top:8px"></div>
         <button type="button" class="btn btn-text" id="cfCards" style="padding:0 4px">💳 カードを登録する・見る</button>
+        <button type="button" class="btn btn-tonal btn-block hidden" id="cfCardRules" style="margin-top:6px">📅 カードの締め日と引き落とし日を見る</button>
       </div>
       <div class="field" id="cfPointField">
         <label for="cfPointName">🎁 ポイント(使った・もらったとき)</label>
@@ -809,7 +810,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 15:50 版144';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 16:05 版145';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2771,6 +2772,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<div style="display:flex;align-items:center;gap:12px">' + avatarHtml(r.person) +
       '<div><h2>' + esc(r.store || 'お店の名前なし') + '</h2><div class="meta" style="margin:0">' + esc(dayLabel(r.date)) + ' ・ ' + nm(r.person) + '</div></div></div>' +
       (r.purpose ? '<div class="kv" style="margin-top:8px"><span>何の支払い</span><b>' + esc(r.purpose) + '</b></div>' : '') +
+      (feat('pay') && isCardPay(r.payMethod) ? '<button class="btn btn-tonal btn-block" id="dtRules" style="margin-top:6px;order:2">📅 カードの締め日と引き落とし日を見る</button>' : '') +
       (r.payMethod ? '<div class="kv" style="margin-top:4px"><span>払い方</span><b>' + esc(r.payMethod) + (cardByLabel(r.payMethod) ? ' <button class="btn btn-text" id="dtCard" style="min-height:36px;padding:0 6px">💳 詳しく</button>' : '') + '</b></div>' : '') +
       '<div style="margin-top:12px">' + (items ? (feat('memo') ? '<div class="note" style="font-size:15px;margin-bottom:4px">品物の横の 😋 を押すと、味の評価を記録できます</div>' : '') + items : '<div class="note">品目の記録はありません</div>') +
       '<div class="line-item total"><span>' + (r.share ? 'レシートの合計(お店の金額)' : '合計') + '</span><span>' + yen(r.total) + '</span></div>' +
@@ -2784,6 +2786,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       '<button class="btn btn-tonal btn-block" id="dtClose">閉じる</button>' +
       '<button class="btn btn-danger btn-block" id="dtDelete">このレシートを削除</button></div>');
     $('dtClose').addEventListener('click', closeSheet);
+    if ($('dtRules')) $('dtRules').addEventListener('click', function () { openCardRules(function () { openDetail(id); }, { card: receiptCard(r.payMethod), date: r.date, pm: r.payMethod }); });
     if ($('dtCard')) $('dtCard').addEventListener('click', function () { openCardInfo(cardByLabel(r.payMethod), function () { openDetail(id); }); });
     $('sheet').querySelectorAll('.it-rate').forEach(function (b) { b.addEventListener('click', function () {
       var it = r.items[+b.dataset.i];
@@ -2942,6 +2945,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     window.scrollTo(0, 0);
   }
   $('btnManual').addEventListener('click', startManual);
+  $('cfCardRules').addEventListener('click', function () { var pm = $('cfPayMethod').value.trim(); openCardRules(null, { card: receiptCard(pm), date: $('cfDate').value || today(), pm: pm }); });
   $('cfCards').addEventListener('click', function () { openWallet('card'); });
   $('payWd').addEventListener('click', function () { openWithdrawals(Math.max(0, Math.min(1, PM.off))); });
   $('payCard').addEventListener('click', openCardPays);
@@ -3358,13 +3362,22 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     [/ポケットカード/, 'ポケットカード', 1, 1, 1, '']
   ];
   // 登録したカードの締め日・引き落とし日の一覧と、次の引き落とし
-  function openCardRules(back) {
-    var self = function () { openCardRules(back); }, t = today();
+  // レシートの払い方に当たるカード(チャージ式でないもの)
+  function receiptCard(pm) { pm = String(pm || '').trim(); if (!pm) return null; return cardList().filter(function (c) { return !isPrepaid(c) && payIs(pm, c); })[0] || null; }
+  function isCardPay(pm) { return !!receiptCard(pm) || normPayMethod(pm) === 'クレジットカード'; }
+  // 使った日から、引き落とされる日
+  function billOfDate(c, d) { var m0 = String(d || today()).slice(0, 7); for (var k = 0; k < 4; k++) { var b = billFor(c, shiftMonth(m0, k)); if (d >= b.start && d <= b.end) return b; } return null; }
+  function openCardRules(back, focus) {
+    var self = function () { openCardRules(back, focus); }, t = today();
     var l = cardList().filter(function (c) { return !isPrepaid(c); });
+    var fc = focus && focus.card;
+    if (fc) l = [fc].concat(l.filter(function (c) { return c.id !== fc.id; }));
     var row = function (c, i) {
       var next = c.withdraw ? [0, 1, 2].map(function (k) { return billFor(c, shiftMonth(thisMonth(), k)); }).filter(function (b) { return b.date >= t; })[0] : null;
-      return '<button class="card" data-cr="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:10px;border:1px solid var(--line);color:var(--text)">' +
-        '<b style="font-size:19px">' + (c.type === 'クレジットカード' || !c.type ? '💳 ' : '🏦 ') + esc(cardLabel(c)) + '</b>' +
+      var me = fc && c.id === fc.id, bb = me && c.withdraw ? billOfDate(c, focus.date) : null;
+      return '<button class="card" data-cr="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:10px;border:' + (me ? '2px solid var(--primary)' : '1px solid var(--line)') + ';color:var(--text)">' +
+        '<b style="font-size:19px">' + (c.type === 'クレジットカード' || !c.type ? '💳 ' : '🏦 ') + esc(cardLabel(c)) + '</b>' + (me ? ' <span class="in-sub">(このレシートのカード)</span>' : '') +
+        (bb ? '<div style="font-size:17px;margin-top:4px;color:var(--primary);font-weight:700">このレシート(' + esc(md(focus.date)) + ')の分は、' + esc(md(bb.date)) + 'に引き落とされます</div>' : '') +
         (c.withdraw ? '<div style="font-size:17px;margin-top:4px">📅 ' + esc(ruleText(c)) + '</div>' +
           (next ? '<div class="in-sub" style="font-size:15px">次の引き落とし:' + esc(md(next.date)) + '(' + esc(md(next.start)) + '〜' + esc(md(next.end)) + 'に使った分)</div>' : '') :
           '<div style="font-size:16px;margin-top:4px;color:var(--on-warn)">締め日・引き落とし日が入っていません(押すと入れられます)</div>') +
@@ -3372,11 +3385,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     };
     openSheet('<div class="grip"></div><h2>📅 カードの締め日と引き落とし日</h2>' +
       '<div class="note" style="font-size:16px;margin-bottom:10px">登録したカードです。押すと、締め日や口座を直せます。</div>' +
+      (focus && !fc ? '<div class="note" style="font-size:16px;margin-bottom:10px;color:var(--on-warn)">このレシートの払い方「' + esc(focus.pm || '') + '」は、まだカードとして登録されていません。「＋ カードを登録する」で登録できます。</div>' : '') +
       (l.map(row).join('') || '<div class="note" style="font-size:17px;margin-bottom:10px">まだカードが登録されていません。</div>') +
       '<button class="btn btn-primary btn-block" id="crNew">＋ カードを登録する</button>' +
       '<button class="btn btn-tonal btn-block" id="crBack" style="margin-top:10px">' + (back ? '← 戻る' : '閉じる') + '</button>');
     $('crBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
-    $('crNew').addEventListener('click', function () { openCardEdit({}, self, 'card'); });
+    $('crNew').addEventListener('click', function () { var pm = focus && !fc ? focus.pm : ''; openCardEdit(pm && normPayMethod(pm) !== 'クレジットカード' ? { name: pm, type: 'クレジットカード' } : {}, self, 'card'); });
     $('sheet').querySelectorAll('[data-cr]').forEach(function (b) { b.addEventListener('click', function () { var c = l[+b.dataset.cr]; openCardEdit(c, self, c.type === 'クレジットカード' || !c.type ? 'card' : 'emoney'); }); });
   }
   function cardRule(name) {
@@ -4524,6 +4538,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
   function drawPayMethod() {
     var cur = $('cfPayMethod').value.trim(), cards = cardList();
+    show('cfCardRules', feat('pay') && isCardPay(cur));
     var labels = cards.map(cardLabel);
     $('cfPayChips').innerHTML = payMethodList().filter(function (x) { return labels.indexOf(x) < 0; }).map(function (x) {
       return '<button type="button" class="chip' + (x === cur ? ' on' : '') + '" data-pm="' + esc(x) + '">' + esc(x) + '</button>';
