@@ -816,7 +816,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 16:20 版146';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 16:35 版147';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -7446,6 +7446,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   /* ---------- 起動 ---------- */
   show('lineBanner', /\bLine\//i.test(navigator.userAgent) && !STANDALONE);
   $('verLabel').textContent = 'アプリの版:' + APP_VERSION;
+  window.__kakeiboOk = true;   // ここまで読み込めた(招待の画面に進むときも、「なおす」の知らせは出さない)
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
   if (RELOADING) return;
   if (!DEMO) autoMove().then(function (changed) { if (changed) location.reload(); });
   if (JOINED && !store.get('owner')) { show('demoBanner', DEMO); setHomeLabel(); openAddHomeGuide(openSetup); return; }
@@ -7464,10 +7466,6 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     setTimeout(function () { if (!state.receipts.length) { state.loadedMonth = null; loadMonth(true); } }, 2500);
   }
 
-  if ('serviceWorker' in navigator && location.protocol === 'https:') {
-    navigator.serviceWorker.register('sw.js').catch(function () {});
-  }
-  window.__kakeiboOk = true;   // 最後まで読み込めた(「なおす」の知らせは出さない)
 })();
 </script>
 </body>
