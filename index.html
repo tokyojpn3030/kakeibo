@@ -133,6 +133,7 @@ input { font: inherit; color: var(--text); }
   display: flex; align-items: center; justify-content: center; color: var(--text-2); }
 .icon-btn:active { background: var(--surface-2); }
 .icon-btn svg { width: 26px; height: 26px; }
+@media (max-width: 400px) { .topbar .icon-btn { width: 40px; } .topbar h1 { font-size: 19px; } .tb-left { gap: 6px; } }
 
 .demo-banner { margin: 0 16px 8px; padding: 10px 14px; border-radius: 12px;
   background: var(--warn-soft); color: var(--on-warn); font-size: 15px; }
@@ -261,6 +262,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
   display: flex; justify-content: space-around; background: var(--surface);
   border-top: 1px solid var(--line); padding: 6px 0 calc(8px + var(--safe-b)); }
+.hl-box { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; font-size: 18px; line-height: 1.6; }
+.hl-lb { font-weight: 700; margin-bottom: 4px; }
+.hl-ol, .hl-ul { margin: 4px 0 0; padding-left: 1.5em; font-size: 18px; line-height: 1.7; }
+.hl-ol li { margin-bottom: 6px; }
+b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; }
 .nav-item { flex: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center;
   gap: 2px; font-size: 14px; color: var(--text-2); padding: 4px 0; }
 .nav-item .pill { width: 56px; height: 34px; border-radius: 17px; display: flex; align-items: center; justify-content: center; }
@@ -404,6 +410,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 <header class="topbar" style="flex-wrap:wrap">
   <div class="tb-left"><h1>お家の家計簿</h1><button type="button" class="home-pill" id="homeLabel" aria-label="家のアイコンを選ぶ"></button></div>
   <div style="display:flex;flex:none">
+    <button class="icon-btn" id="btnHelp" aria-label="使い方" style="font-size:24px;font-weight:700">❓</button>
     <button class="icon-btn" id="btnRefresh" aria-label="最新にする">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
     </button>
@@ -816,7 +823,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 17:30 版150';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 19:00 版151';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -1268,6 +1275,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     });
   });
   $('btnRefresh').addEventListener('click', function () { refreshMembers(); loadMonth(true); });
+  $('btnHelp').addEventListener('click', function () { openHelp(); });
   $('histReload').addEventListener('click', function () { state.loadedMonth = null; refreshMembers(); loadMonth(true); toast('最新の記録を読み込みました'); });
   // アプリを開き直したとき・ほかのアプリから戻ってきたときは、最新の記録を読み込む
   document.addEventListener('visibilitychange', function () {
@@ -6195,6 +6203,69 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         $('psOk').addEventListener('click', closeSheet);
       }).catch(function (e) { b.disabled = false; b.textContent = 'パスワードを変える'; $('psError').textContent = e.message; show('psError', true); });
     });
+  }
+
+  /* ---------- ❓ 使い方(目的ごと:こんなときに・使うとこうなる・手順・この画面を開く) ----------
+     手順の中の [ボタン名] は、黄色の印で出す */
+  var HELP = [
+    { k: 'receipt', icon: '🧾', t: 'レシートを撮って入れる', why: '買い物をしたとき', res: 'お店・日付・品物・金額をAIが読み取って、買物の一覧と合計に入ります。カードや電子マネーで払ったときは、その残高や引き落としにも入ります。',
+      steps: ['下の[撮影]を押す', '[レシート・納付書を撮る]を押して、レシート全体が入るように撮る(撮ってある写真なら[アルバムの写真から選ぶ])', '読み取った内容を見て、違うところを直す', '[保存する]を押す'], open: function () { go('capture'); } },
+    { k: 'manual', icon: '✍', t: 'レシートがないときに手で入れる', why: 'レシートをもらわなかったとき・なくしたとき', res: '手で入れた買い物も、レシートと同じように一覧と合計に入ります。',
+      steps: ['買物の画面の[✍ 手で入力]を押す(撮影の画面の[✍ 手で入力する]でもよい)', 'お店・日付・払い方・支払った合計を入れる(品物はなくてもよい)', '[保存する]を押す'], open: function () { $('histManual').click(); } },
+    { k: 'share', icon: '🤝', t: '割り勘・人からもらった分を引く', why: '飲み会などで、人からお金をもらったとき', res: 'お店の合計はそのまま残して、もらった分を引いた金額だけを家計簿に入れます。家族からもらったときは、その家族の買い物にも入ります。',
+      steps: ['レシートを読み込むか[✍ 手で入力]で入れる', '支払った合計の下の[🤝 合計のあとに引く分を入れる(割り勘など)]を押す', '項目(例:池水さん 割り勘)と金額を入れる。家族なら「家族なら」で名前を選ぶ', '[保存する]を押す'], open: function () { $('histManual').click(); } },
+    { k: 'slip', icon: '📄', f: 'pay', t: '税金・保険料の紙を読み込む', why: '住民税や保険料などの納付書・お知らせが届いたとき', res: '期ごと・月ごとの期限と金額が、支払いの一覧に入ります。期限が近づくと、お知らせメールやテロップで知らせます。',
+      steps: ['下の[支払い]を押す', '[＋ 支払い入力]→[📄 納付書・請求書を撮る]を押して撮る', '期・金額・期限を確かめる。もう払った分は[払った]にチェック', '[保存する]を押す'], open: function () { go('pay'); } },
+    { k: 'paid', icon: '✅', f: 'pay', t: '払ったことにする・手数料を足す・直す', why: '支払いを済ませたとき・入れた内容を直したいとき', res: '払った月の支払い額と、収入の残りから引かれます。口座を選ぶと、その口座の残高からも引きます。',
+      steps: ['支払いの一覧で[払った]を押す(何か月分でもまとめて選べる)', '払った日・場所・振込手数料・コメントを入れて[支払い済みにする]', 'あとから直すときは[💰 払ったもの(見る・直す・手数料を足す)]→ 行の[✏ 直す]や[＋ 手数料]'], open: function () { go('pay'); } },
+    { k: 'card', icon: '💳', f: 'pay', t: 'カード・電子マネーを登録する', why: 'カードや Suica・PayPay などで払うとき', res: 'カードで払った分が、締め日ごとにまとめて「引き落としの見込み」として支払いの画面に出ます。電子マネーは残高を数えます。',
+      steps: ['⚙ →[👛 お財布(電子マネー・カード・ポイント)]を押す', '[💳 カード]か[💴 電子マネー]を選んで[＋ カードを登録する]([＋ 電子マネーを登録する])', '名前を入れる(よく使うカードなら、締め日と引き落とし日が自動で入る)', '口座や下4桁を入れて[保存する]'], open: function () { openWallet('card'); } },
+    { k: 'bank', icon: '🏦', f: 'pay', t: '口座の残高を入れる', why: 'ゆうちょなどの口座から振り込むとき', res: '支払いを「払った」にするときに口座を選ぶと、その残高から自動で引きます。',
+      steps: ['⚙ →[👛 お財布(電子マネー・カード・ポイント)]→[🏦 口座]を押す', '[＋ 口座を登録する]で名前と今の残高を入れる', '入れた・出したときは、口座を押して[＋ 入れた]や[− 出した・払った]'], open: function () { openWallet('bank'); } },
+    { k: 'income', icon: '💰', f: 'income', t: '収入・年金を入れる', why: '給料や年金が入ったとき', res: '買物の画面に「収入 − 買い物 − 支払い = 残り」が出ます。年金の決まりを入れると、その日に知らせたり自動で入れたりします。',
+      steps: ['買物の画面の[💰 収入を入れる・見る]を押す', '[＋ 収入を入れる]で種類・金額・日付を入れる', '年金は[🗓 年金の決まり]で、入る日と金額を決めておける'], open: function () { $('histIncomeBtn').click(); } },
+    { k: 'plan', icon: '📅', f: 'memo', t: '予定を入れる', why: '病院の予約や、忘れたくない用事があるとき', res: '前の日・当日の朝などにメールで知らせます。買物の画面の上にもテロップで流れます。',
+      steps: ['下の[メモ]→[予定]を押す', '[＋ 予定を入れる]を押す', '予約の画面のスクリーンショットがあれば[📷 予約の画面・予約票から読み込む]', '日付・時刻・内容を確かめて[保存する]'], open: function () { go('notes'); try { NT.tab = 'plans'; renderNotes(); } catch (e) {} } },
+    { k: 'points', icon: '🎁', f: 'points', t: 'ポイントを記録する', why: 'お店のポイントの残りを覚えておきたいとき', res: 'レシートにポイントが書いてあれば、読み取ったときに残りを直します。累計ポイントがあれば、その数に上書きするか聞きます。',
+      steps: ['いつものようにレシートを撮る(残りを見るだけなら、買物の画面の[🎁 ポイントの残り])', '確かめの画面の「🎁 ポイント」の欄を確かめる(名前はお店の名前から自動で入る)', '[保存する]→ 累計ポイントがあれば[上書きする]'], open: function () { openWallet('points'); } },
+    { k: 'shun', icon: '🍎', f: 'shun', t: '旬と早見表・料理を見る', why: '今が旬のものや、果物の選び方を知りたいとき', res: '月や季節ごとの旬の果物・野菜・魚と、かんたんな料理の作り方が見られます。作ってみたい料理は一覧にできます。',
+      steps: ['買物の画面の[🍎 旬と早見表]を押す', '品物の名前を押すと、説明と料理が出る', '料理の[作ってみたい]にチェックすると[📖 作ってみたい]に並ぶ'], open: function () { openShun('month'); } },
+    { k: 'family', icon: '👪', t: '家族で使えるようにするには', why: '家族みんなで同じ家計簿に記録したいとき', res: '家族のスマホにも同じ家計簿のアイコンができて、だれが入れたレシートも全員で見られます。入れた人の名前も残ります。',
+      steps: ['【招待する人】⚙ →[💌 家族を招待する]を押して、招待リンクを LINE で送る', '【招待する人】家族のパスワードを、紙などで別に伝える', '【招待された人】LINE のリンクを押して、ブラウザ(Android は Chrome、iPhone は Safari)で開き直す', '【招待された人】ホーム画面にアイコンを作る(Android はボタン、iPhone は 共有 →「ホーム画面に追加」)', '【招待された人】アイコンから開いて、家族のパスワードを入れ、自分の名前を選ぶ'], open: function () { openInvite(); } },
+    { k: 'where', icon: '📖', t: '家族で見られるもの・自分のスマホだけのもの', why: '家族で使うときに、何が共有されるか知りたいとき', res: '',
+      html: '<div class="section-title">① 家族みんなで同じものが見えるもの</div><ul class="hl-ul"><li>買物(レシート)と割り勘。「全員」「名前」のボタンで、だれの分かを切り替えられます</li><li>収入・年金</li><li>メモ(味の評価・お店の情報・買い物メモ)</li><li>家計簿の名前、家族の名前、家計簿を始めた日</li></ul>' +
+        '<div class="section-title">② 家計簿に入るけれど、自分の分だけが出るもの</div><ul class="hl-ul"><li>支払い(税金・保険料・振込など)。入れた人の分だけが支払いの画面に出ます。収入の残りを数えるときは、家族の分も数えます</li><li>予定と、お知らせメールの設定</li></ul>' +
+        '<div class="section-title">③ このスマホだけのもの(家族には見えない・ほかのスマホに引き継がれない)</div><ul class="hl-ul"><li>カード・電子マネー・口座・ポイント</li><li>カード支払のくり返し、カードの請求額</li><li>年金の決まり</li><li>使う機能、テロップ・声、家のアイコン、作ってみたい料理</li><li>パスワードを覚えていること</li></ul>' +
+        '<div class="note" style="font-size:16px;margin-top:8px">家族がそれぞれのスマホで使うときは、③は一人ずつ自分のスマホで入れます。機種変更や、LINE からアイコンに変えたときも、③は入れ直します。</div>' },
+    { k: 'start', icon: '🗓', t: '家計簿を始めた日を決める', why: '途中から使い始めて、前の分をあとから入れたとき', res: 'その日より前の買い物や支払いは、記録として残るだけで、合計や収入の残りには数えません。家族みんなのスマホで同じ日になります。',
+      steps: ['⚙ →[📅 家計簿を始めた日]を押す', '始めた日を選ぶ(「今月の1日」のボタンもある)', '[保存する]を押す'], open: function () { openStartDay(); } },
+    { k: 'clear', icon: '🧹', t: '記録を消して、はじめからにする', why: 'ためしに入れた記録を消して、はじめから使いたいとき', res: '選んだ記録を消します。消す前に、Google ドライブに控えを自動で作ります。家族みんなの記録が消えるので、気をつけてください。',
+      steps: ['⚙ →[🗑 記録の削除・はじめからにする・ゴミ箱]を押す', '[🧹 記録を消して、はじめからにする]を押す', '消すものにチェックを付けて、確かめてから消す'], open: function () { openDelete(); } },
+    { k: 'update', icon: '⬆', t: 'アプリを新しい版にする', why: '新しくなった機能が出てこないとき', res: '⚙ のいちばん下に出る「アプリの版」が、新しい番号になります。',
+      steps: ['⚙ →[⬆ 新しい版に更新する]を押す', 'それでも変わらないときは、アプリを完全に閉じて(下から上へ払って消す)、アイコンから開き直す'], open: function () { openSettings(); } }
+  ];
+  function helpSteps(l) { return '<ol class="hl-ol">' + l.map(function (x) { return '<li>' + esc(x).replace(/\[([^\]]+)\]/g, '<b class="hk">$1</b>') + '</li>'; }).join('') + '</ol>'; }
+  function openHelp(k) {
+    var list = HELP.filter(function (h) { return !h.f || feat(h.f); });
+    if (!k) {
+      openSheet('<div class="grip"></div><h2>❓ 使い方</h2>' +
+        '<div class="note" style="font-size:16px;margin-bottom:10px">したいことを押すと、こんなときに使う・使うとどうなる・手順が出ます。</div>' +
+        list.map(function (h) {
+          return '<button type="button" class="in-line" data-hk="' + h.k + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);color:var(--text);font:inherit;text-align:left;cursor:pointer;font-size:19px;min-height:56px"><span>' + h.icon + ' ' + esc(h.t) + '</span><span>›</span></button>';
+        }).join('') + '<button class="btn btn-tonal btn-block" id="hlClose" style="margin-top:12px">閉じる</button>');
+      $('hlClose').addEventListener('click', closeSheet);
+      $('sheet').querySelectorAll('[data-hk]').forEach(function (b) { b.addEventListener('click', function () { openHelp(b.dataset.hk); }); });
+      return;
+    }
+    var h = HELP.filter(function (x) { return x.k === k; })[0]; if (!h) return openHelp();
+    openSheet('<div class="grip"></div><h2>' + h.icon + ' ' + esc(h.t) + '</h2>' +
+      '<div class="hl-box"><div class="hl-lb">🎯 こんなときに</div><div>' + esc(h.why) + '</div></div>' +
+      (h.res ? '<div class="hl-box"><div class="hl-lb">✨ 使うとこうなる</div><div>' + esc(h.res) + '</div></div>' : '') +
+      (h.steps ? '<div class="hl-box"><div class="hl-lb">👣 手順</div>' + helpSteps(h.steps) + '</div>' : '') + (h.html || '') +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' + (h.open ? '<button class="btn btn-primary btn-block" id="hlOpen">この画面を開く</button>' : '') +
+      '<button class="btn btn-tonal btn-block" id="hlBack">← 戻る</button></div>');
+    $('hlBack').addEventListener('click', function () { openHelp(); });
+    if ($('hlOpen')) $('hlOpen').addEventListener('click', function () { closeSheet(); setTimeout(function () { try { h.open(); } catch (e) {} }, 50); });
   }
 
   /* ---------- 新しい版に更新 ----------
