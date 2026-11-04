@@ -440,6 +440,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     </div>
     <button class="btn btn-tonal btn-block" id="histIncomeBtn" style="min-height:48px;margin:0 0 10px">💰 収入を入れる・見る</button>
     <button class="btn btn-tonal btn-block" id="ptBtn" style="min-height:48px;margin:0 0 10px">🎁 ポイントの残り</button>
+    <button class="btn btn-tonal btn-block hidden" id="shunBtn" style="min-height:48px;margin:0 0 10px">🍎 旬と早見表(今月の旬・果物の早見表)</button>
     <div style="display:flex;gap:8px;margin:0 0 10px" id="amtRow">
       <input class="input" id="amtQ" type="number" inputmode="numeric" placeholder="🔍 金額で探す(カードの明細など)" style="flex:1;min-width:0">
       <button class="btn btn-primary" id="amtGo" style="min-width:72px">探す</button>
@@ -807,7 +808,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-03 12:20 版140';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 14:40 版141';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2115,7 +2116,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     ['pay', '💳 払い方・カード・引き落とし予定・金額で探す'],
     ['net', '🛒 ネットで買った物の取り込み'],
     ['rank', '📊 ランキング・グラフ・気づき(集計の画面)'],
-    ['points', '🎁 ポイントの残り']
+    ['points', '🎁 ポイントの残り'],
+    ['shun', '🍎 旬と早見表(果物の早見表・今月の旬)']
   ];
   function feat(k) {
     var f; try { f = JSON.parse(store.get('features') || 'null'); } catch (e) { f = null; }
@@ -2127,7 +2129,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     show('histIncomeBtn', feat('income'));
     if (!feat('income')) { show('histIncome', false); show('sumIncome', false); }
     show('amtRow', feat('pay')); show('cfPayField', feat('pay')); show('payWd', feat('pay'));
-    show('netBox', feat('net')); show('sumMore', feat('rank')); show('ptBtn', feat('points')); show('payCard', feat('pay')); show('payCardReg', feat('pay'));
+    show('netBox', feat('net')); show('sumMore', feat('rank')); show('ptBtn', feat('points')); show('shunBtn', feat('shun')); show('payCard', feat('pay')); show('payCardReg', feat('pay'));
     renderBalStrip();
     if (!feat('memo') && document.querySelector('#screen-notes.active')) go('history');
   }
@@ -2653,6 +2655,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   $('histDetail').addEventListener('click', openHistDetail);
   $('histTotal').addEventListener('click', openHistDetail);
   $('ptBtn').addEventListener('click', function () { openWallet('points'); });
+  $('shunBtn').addEventListener('click', function () { openShun('month'); });
   // 電子マネー(チャージ式)の残高をまとめて見る
   function openBalances() {
     var l = cardList().filter(isPrepaid);
@@ -2773,6 +2776,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<div class="line-item total"><span>家計簿に入る金額</span><span>' + yen(rawSpent(r)) + '</span></div>' : '') + '</div>' +
       (beforeStart(r.date) ? '<div class="note" style="font-size:15px;margin-top:8px">📅 家計簿を始めた日(' + esc(md(startDay())) + ')より前なので、記録として残すだけで、合計には数えていません。</div>' : '') +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
+      (feat('shun') ? shunHit((r.items || []).map(function (it) { return it.name; }).join(' ')).map(function (k) {
+        return '<button class="btn btn-tonal btn-block" data-shun="' + k.k + '">' + k.icon + ' ' + esc(k.name) + 'の早見表を見る</button>'; }).join('') : '') +
       '<button class="btn btn-primary btn-block" id="dtEdit">✏ 編集する</button>' +
       '<button class="btn btn-tonal btn-block" id="dtClose">閉じる</button>' +
       '<button class="btn btn-danger btn-block" id="dtDelete">このレシートを削除</button></div>');
@@ -2784,6 +2789,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       openReview(old || { item: it.name, store: r.store, date: r.date, receiptId: r.id });
     }); });
     $('dtEdit').addEventListener('click', function () { closeSheet(); startEdit(r); });
+    $('sheet').querySelectorAll('[data-shun]').forEach(function (b) { b.addEventListener('click', function () { openShun(b.dataset.shun, function () { openDetail(id); }); }); });
     $('dtDelete').addEventListener('click', function () {
       var fam = (r.adj || []).filter(function (a) { return a.who; });
       if (!confirm('このレシートを削除しますか?\n(30日間はゴミ箱から戻せます)' + (fam.length ? '\n割り勘で入れた ' + fam.map(function (a) { return a.who; }).join('・') + ' の分も一緒に消します。' : ''))) return;
@@ -3541,6 +3547,169 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   }
 
   // 👛 お財布:電子マネー・カード・ポイントを1か所で
+  /* ---------- 🍎 旬と早見表(アプリの中だけの目安。お店の掲示ではなく、一般的な特徴をまとめたもの) ----------
+     x:0(左)〜10(右)、y:0(下)〜10(上)。m:旬の月。skin/seed はぶどうだけ */
+  var SHUN_KINDS = [
+    { k: 'apple', icon: '🍎', name: 'りんご', x: ['すっぱい', '甘い'], y: ['やわらかめ', 'かため'], hit: /りんご|林檎|リンゴ|サンふじ|王林|シナノスイート|シナノゴールド|つがる|紅玉|ジョナゴールド|ぐんま名月|秋映|こうとく|陸奥/,
+      list: [
+        ['ふじ', 8, 7, '10〜12月', 'シャキッとして甘みと酸味のバランスがよい。蜜が入ることも。日もちする'],
+        ['サンふじ', 9, 7, '11〜12月', '袋をかけずに日に当てて育てたふじ。見た目はまだらでも甘みが強い'],
+        ['王林', 9, 4, '10〜11月', '青りんご。酸味が少なく、香りが強い'],
+        ['シナノスイート', 8, 6, '10月', '酸味が少なく、果汁が多い'],
+        ['シナノゴールド', 6, 8, '10月', '黄色いりんご。甘みと酸味がはっきり、パリッとかため'],
+        ['つがる', 7, 4, '8〜9月', '早くから出回る。酸味が少なくやさしい甘さ'],
+        ['ジョナゴールド', 5, 5, '10月', '甘酸っぱく果汁が多い。お菓子にも'],
+        ['紅玉', 2, 7, '10月', '酸味が強い。アップルパイや焼きりんご向き'],
+        ['ぐんま名月', 9, 6, '11月', '黄色いりんご。蜜が入りやすく甘い'],
+        ['秋映', 5, 8, '9〜10月', '濃い赤色。甘酸っぱくかため'],
+        ['トキ', 8, 6, '10月', '黄色いりんご。甘く果汁が多い'],
+        ['陸奥', 6, 4, '10〜11月', '大玉。さわやかな甘さ'],
+        ['グラニースミス', 1, 9, '輸入が多い', '緑色。とてもすっぱい。料理やお菓子に']
+      ] },
+    { k: 'grape', icon: '🍇', name: 'ぶどう', x: ['さっぱり・酸味', '甘い'], y: ['ジューシー・やわらかめ', '歯ごたえ'], hit: /ぶどう|葡萄|ブドウ|マスカット|巨峰|ピオーネ|デラウェア|ナガノパープル|クイーンニーナ|クイーンルージュ|甲斐路|ロザリオ|藤稔|スチューベン/,
+      list: [
+        ['シャインマスカット', 7, 8, '8〜10月', 'パリッとした歯ごたえと、マスカットの香り', '食べられる', 'なし'],
+        ['巨峰', 6, 3, '8〜9月', '大粒で果汁が多い。こくのある甘さ', 'むく', 'あり・なし'],
+        ['ピオーネ', 6, 3, '8〜9月', '巨峰に似た大粒。甘みと酸味のバランスがよい', 'むく', 'なし が多い'],
+        ['デラウェア', 8, 2, '6〜8月', '小粒で甘い。つるっと食べやすい', 'むく', 'なし'],
+        ['ナガノパープル', 7, 7, '8〜9月', '黒い大粒。皮ごと食べられる', '食べられる', 'なし'],
+        ['クイーンニーナ', 8, 6, '8〜9月', '赤い大粒。酸味が少なく甘い', 'むく', 'なし'],
+        ['クイーンルージュ', 9, 6, '9〜10月', '赤い粒。とても甘く、皮ごと食べられる', '食べられる', 'なし'],
+        ['藤稔', 6, 2, '8月', 'とても大粒。果汁が多い', 'むく', 'なし'],
+        ['ロザリオビアンコ', 7, 5, '9月', '黄緑色。さわやかな甘さ', '食べられる', 'あり'],
+        ['甲斐路', 7, 6, '9〜10月', '赤い粒。マスカットに似た香り', '食べられる品も', 'あり'],
+        ['スチューベン', 8, 2, '10〜12月', '黒い小粒。甘みが強く、日もちする', 'むく', 'あり'],
+        ['マスカット・オブ・アレキサンドリア', 6, 5, '8〜10月', '「マスカットの女王」。上品な香り', '食べられる', 'あり']
+      ] },
+    { k: 'pear', icon: '🍐', name: '梨・洋梨', x: ['さっぱり', '甘い'], y: ['とろける・やわらかい', 'シャリシャリ'], hit: /梨|ラ・?フランス|幸水|豊水|新高梨|あきづき|二十世紀|南水|ル.?レクチェ|バートレット/,
+      list: [
+        ['幸水', 8, 7, '8月', '和梨。甘みが強く、シャリッとみずみずしい'],
+        ['豊水', 7, 6, '9月', '和梨。甘みと少しの酸味。果汁が多い'],
+        ['二十世紀', 5, 8, '9月', '青梨。さっぱりした甘さ'],
+        ['あきづき', 8, 6, '9〜10月', '和梨。大玉で甘い'],
+        ['南水', 9, 6, '9〜10月', '和梨。酸味が少なく、とても甘い'],
+        ['新高', 6, 7, '10月', '和梨。とても大玉。日もちする'],
+        ['ラ・フランス', 7, 2, '11〜12月', '洋梨。ねっとりなめらか。食べごろは軸のまわりがやわらかくなってから'],
+        ['ル レクチェ', 9, 1, '12月', '洋梨。とろけるような食感と強い香り'],
+        ['バートレット', 6, 2, '9月', '洋梨。甘みと酸味のバランスがよい'],
+        ['オーロラ', 8, 2, '10月', '洋梨。なめらかで甘い']
+      ] },
+    { k: 'kaki', icon: '🟠', name: '柿', x: ['さっぱり', '甘い'], y: ['やわらかい', 'かたい'], hit: /柿|富有|太秋|平核無|刀根早生/,
+      list: [
+        ['富有', 8, 5, '11月', '甘柿の代表。やわらかめで甘い'],
+        ['次郎', 7, 8, '10〜11月', '甘柿。四角い形で、かためのしっかりした食感'],
+        ['太秋', 9, 8, '10〜11月', '大きい甘柿。サクサクして果汁が多い'],
+        ['平核無', 6, 4, '10〜11月', '渋を抜いた柿。種がなく、やわらかめ'],
+        ['刀根早生', 7, 5, '9〜10月', '平核無の早い品種。種なし'],
+        ['西村早生', 4, 8, '9〜10月', '早く出回る甘柿。かため'],
+        ['富士(蜂屋)', 9, 1, '10〜11月', '大きい渋柿。干し柿やとろとろの熟柿に']
+      ] },
+    { k: 'citrus', icon: '🍊', name: 'みかん・柑橘', x: ['すっぱい', '甘い'], y: ['皮がむきにくい', '皮がむきやすい'], hit: /みかん|蜜柑|ミカン|デコポン|不知火|伊予柑|いよかん|はっさく|八朔|せとか|清見|文旦|ぽんかん|ポンカン|柑/,
+      list: [
+        ['温州みかん', 7, 9, '10〜2月', 'いちばん身近なみかん。手でむける'],
+        ['ぽんかん', 8, 8, '12〜2月', '香りがよく、甘い'],
+        ['不知火(デコポン)', 9, 7, '2〜4月', '頭がでこっとしている。甘くて果汁が多い'],
+        ['せとか', 9, 6, '2〜3月', 'とろけるような果肉。甘みが強い'],
+        ['伊予柑', 6, 5, '1〜3月', '香りがよく、甘酸っぱい'],
+        ['清見', 7, 3, '3〜4月', 'オレンジのような香り。果汁が多い'],
+        ['はっさく', 3, 2, '2〜4月', 'さっぱりして少し苦みがある。皮が厚い'],
+        ['文旦', 4, 1, '2〜4月', '大きい。さっぱりした甘さ。皮が厚い']
+      ] },
+    { k: 'berry', icon: '🍓', name: 'いちご', x: ['甘酸っぱい', '甘い'], y: ['やわらかめ', 'しっかり'], hit: /いちご|苺|イチゴ|あまおう|とちおとめ|紅ほっぺ|スカイベリー|ゆめのか|章姫/,
+      list: [
+        ['あまおう', 8, 7, '12〜5月', '大粒で甘い。福岡の品種'],
+        ['とちおとめ', 7, 6, '12〜5月', '甘みと酸味のバランスがよい。栃木の品種'],
+        ['スカイベリー', 8, 6, '12〜5月', '大粒で形がきれい'],
+        ['紅ほっぺ', 6, 6, '12〜5月', '甘酸っぱく、こくがある'],
+        ['ゆめのか', 7, 7, '12〜5月', '果肉がしっかりして甘い'],
+        ['章姫', 8, 3, '12〜4月', '細長い形。酸味が少なく、やわらかい'],
+        ['女峰', 4, 6, '12〜4月', '酸味が強め。お菓子にも']
+      ] },
+    { k: 'peach', icon: '🍑', name: 'もも', x: ['さっぱり', '甘い'], y: ['やわらかい', 'かため'], hit: /桃|白鳳|あかつき|黄金桃|川中島/,
+      list: [
+        ['白鳳', 8, 3, '7月', '果汁が多く、やわらかい'],
+        ['あかつき', 8, 6, '7〜8月', '甘みが強く、少しかため'],
+        ['川中島白桃', 7, 8, '8月', '大玉でかため。日もちする'],
+        ['黄金桃', 8, 5, '8〜9月', '果肉が黄色。甘く香りがよい']
+      ] }
+  ];
+  // 月ごとの旬(目安)
+  var SHUN_MONTH = {
+    1: { f: 'みかん、伊予柑、いちご、りんご', v: '白菜、大根、ほうれん草、小松菜、ねぎ、かぶ、春菊、れんこん', s: 'ぶり、たら、あんこう、ひらめ、牡蠣、金目鯛' },
+    2: { f: 'いちご、デコポン、はっさく、伊予柑、ぽんかん', v: '菜の花、ブロッコリー、白菜、ねぎ、ほうれん草、小松菜', s: 'たら、ひらめ、牡蠣、わかさぎ、白魚' },
+    3: { f: 'いちご、デコポン、せとか、清見', v: '菜の花、春キャベツ、新玉ねぎ、ふき、うど', s: 'さわら、はまぐり、あさり、しらす、ほたるいか' },
+    4: { f: 'いちご、清見、文旦、甘夏', v: 'たけのこ、春キャベツ、新じゃが、アスパラガス、そら豆', s: 'かつお(初がつお)、鯛、あさり、さわら' },
+    5: { f: 'いちご、メロン、びわ', v: 'アスパラガス、そら豆、グリーンピース、新玉ねぎ、さやえんどう', s: 'かつお、あじ、いさき、あさり' },
+    6: { f: 'さくらんぼ、梅、びわ、メロン', v: 'きゅうり、ズッキーニ、らっきょう、新しょうが', s: 'あじ、いわし、あゆ、いさき' },
+    7: { f: 'もも、すいか、メロン、デラウェア', v: 'とうもろこし、トマト、なす、ピーマン、オクラ、枝豆', s: 'うなぎ、あじ、はも、すずき' },
+    8: { f: 'もも、ぶどう(巨峰・ピオーネ)、梨(幸水)、すいか', v: 'トマト、なす、かぼちゃ、ゴーヤ、枝豆、とうもろこし', s: 'あじ、いわし、太刀魚、さんま(出はじめ)' },
+    9: { f: '梨(豊水)、ぶどう、いちじく、栗、りんご(つがる)', v: 'さつまいも、かぼちゃ、里いも、まいたけ、しいたけ', s: 'さんま、秋鮭、かつお(戻りがつお)' },
+    10: { f: 'りんご、柿、梨(新高)、栗、みかん(早いもの)', v: 'さつまいも、きのこ(しいたけ・しめじ)、里いも、れんこん', s: 'さんま、秋鮭、さば、いくら' },
+    11: { f: 'りんご(ふじ)、柿、みかん、ラ・フランス', v: '白菜、大根、ほうれん草、かぶ、ごぼう、ブロッコリー', s: 'ぶり、さば、牡蠣、ずわいがに、ししゃも' },
+    12: { f: 'みかん、りんご、いちご、ル レクチェ', v: '白菜、大根、ねぎ、春菊、ほうれん草、ゆず', s: 'ぶり(寒ぶり)、たら、牡蠣、ふぐ、ずわいがに' }
+  };
+  function shunHit(text) {
+    text = String(text || '');
+    return SHUN_KINDS.filter(function (k) { return k.hit.test(text); });
+  }
+  function openShun(tab, back, pick) {
+    tab = tab || 'month';
+    var self = function (t, pk) { openShun(t, back, pk); };
+    var tabs = '<div class="chips" id="shTabs" style="margin-bottom:10px">' + [['month', '📅 今月の旬']].concat(SHUN_KINDS.map(function (k) { return [k.k, k.icon + ' ' + k.name]; })).map(function (t) {
+      return '<button class="chip' + (t[0] === tab ? ' on' : '') + '" data-t="' + t[0] + '" style="font-size:16px;min-height:44px">' + t[1] + '</button>'; }).join('') + '</div>';
+    var body = '';
+    if (tab === 'month') {
+      var m = +(pick || (new Date().getMonth() + 1)), x = SHUN_MONTH[m];
+      body = '<div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px"><button class="icon-btn" id="shPrev" aria-label="前の月" style="font-size:22px">◀</button>' +
+        '<b style="font-size:22px">' + m + '月の旬</b><button class="icon-btn" id="shNext" aria-label="次の月" style="font-size:22px">▶</button></div>' +
+        [['🍎 果物', x.f], ['🥬 野菜', x.v], ['🐟 魚・貝', x.s]].map(function (r) {
+          return '<div class="card" style="margin-bottom:10px;padding:12px 14px"><div style="font-size:18px;font-weight:700;margin-bottom:4px">' + r[0] + '</div><div style="font-size:18px;line-height:1.6">' + esc(r[1]) + '</div></div>';
+        }).join('') + '<div class="note" style="font-size:14px">旬は目安です。産地や天気で前後します。</div>';
+    } else {
+      var K = SHUN_KINDS.filter(function (k) { return k.k === tab; })[0], sel = pick != null ? +pick : -1;
+      // その種類の中で広げて置く(左右・上下いっぱいに)。同じ場所が重なったら少しずらす
+      var xs = K.list.map(function (it) { return it[1]; }), ys = K.list.map(function (it) { return it[2]; });
+      var nx = function (v) { var a = Math.min.apply(null, xs), b = Math.max.apply(null, xs); return b > a ? (v - a) / (b - a) * 10 : 5; };
+      var ny = function (v) { var a = Math.min.apply(null, ys), b = Math.max.apply(null, ys); return b > a ? (v - a) / (b - a) * 10 : 5; };
+      var used = {}, pos = K.list.map(function (it) {
+        var px = nx(it[1]), py = ny(it[2]), key;
+        for (var t = 0; t < 6; t++) { key = Math.round(px * 1.4) + ',' + Math.round(py * 1.4); if (!used[key]) break; px = Math.min(10, px + 0.9); if (t % 2) py = Math.max(0, py - 0.9); }
+        used[key] = 1; return [px, py];
+      });
+      var dot = function (it, i) {
+        var on = i === sel;
+        return '<button type="button" data-si="' + i + '" aria-label="' + esc(it[0]) + '" style="position:absolute;left:calc(' + (12 + pos[i][0] * 7.6) + '% - 16px);top:calc(' + (11 + (10 - pos[i][1]) * 6.9) + '% - 16px);width:32px;height:32px;border-radius:50%;border:2px solid ' + (on ? 'var(--text)' : 'transparent') + ';background:' + (on ? 'var(--primary)' : 'var(--primary-soft)') + ';color:' + (on ? '#fff' : 'var(--on-primary-soft)') + ';font:inherit;font-size:14px;font-weight:700;padding:0;cursor:pointer;z-index:' + (on ? 3 : 2) + '">' + (i + 1) + '</button>';
+      };
+      body = '<div style="position:relative;width:100%;aspect-ratio:1/1;max-width:420px;margin:0 auto 8px;background:var(--surface-2,#f4f4f6);border-radius:16px;overflow:hidden">' +
+        '<div style="position:absolute;left:50%;top:4%;bottom:4%;border-left:2px dashed var(--line)"></div><div style="position:absolute;top:50%;left:4%;right:4%;border-top:2px dashed var(--line)"></div>' +
+        '<div style="position:absolute;top:1%;left:0;right:0;text-align:center;font-size:13px;font-weight:700">▲ ' + esc(K.y[1]) + '</div>' +
+        '<div style="position:absolute;bottom:1%;left:0;right:0;text-align:center;font-size:13px;font-weight:700">▼ ' + esc(K.y[0]) + '</div>' +
+        '<div style="position:absolute;left:2%;bottom:6%;font-size:13px;font-weight:700;max-width:30%">◀ ' + esc(K.x[0]) + '</div>' +
+        '<div style="position:absolute;right:2%;bottom:6%;font-size:13px;font-weight:700;text-align:right;max-width:30%">' + esc(K.x[1]) + ' ▶</div>' +
+        '<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:64px;opacity:.15">' + K.icon + '</div>' +
+        K.list.map(dot).join('') + '</div>' +
+        '<div class="note" style="font-size:14px;margin-bottom:8px">番号を押すと説明が出ます。味や食感は目安です(産地・時期・熟れ具合で変わります)。</div>' +
+        (sel >= 0 ? (function (it) {
+          return '<div class="card" style="margin-bottom:10px;padding:12px 14px;border:2px solid var(--primary)"><div style="font-size:20px;font-weight:700">' + (sel + 1) + '. ' + esc(it[0]) + '</div>' +
+            '<div style="font-size:17px;margin:4px 0">' + esc(it[4]) + '</div><div class="in-sub" style="font-size:15px">旬:' + esc(it[3]) + (it[5] ? ' ・ 皮ごと:' + esc(it[5]) + ' ・ 種:' + esc(it[6]) : '') + '</div></div>';
+        })(K.list[sel]) : '') +
+        K.list.map(function (it, i) {
+          return '<button type="button" class="in-line" data-si="' + i + '" style="width:100%;background:' + (i === sel ? 'var(--primary-soft)' : 'none') + ';border:none;border-bottom:1px solid var(--line);color:var(--text);font:inherit;text-align:left;cursor:pointer">' +
+            '<span><b>' + (i + 1) + '. ' + esc(it[0]) + '</b><span class="in-sub" style="display:block">' + esc(it[4]) + '</span></span><span class="in-sub" style="white-space:nowrap">' + esc(it[3]) + '</span></button>';
+        }).join('');
+    }
+    openSheet('<div class="grip"></div><h2>🍎 旬と早見表</h2>' + tabs + body +
+      '<button class="btn btn-tonal btn-block" id="shBack" style="margin-top:12px">' + (back ? '← 戻る' : '閉じる') + '</button>');
+    $('shTabs').querySelectorAll('[data-t]').forEach(function (b) { b.addEventListener('click', function () { self(b.dataset.t); }); });
+    $('shBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
+    if (tab === 'month') {
+      var mm = +(pick || (new Date().getMonth() + 1));
+      $('shPrev').addEventListener('click', function () { self('month', mm === 1 ? 12 : mm - 1); });
+      $('shNext').addEventListener('click', function () { self('month', mm === 12 ? 1 : mm + 1); });
+    } else {
+      $('sheet').querySelectorAll('[data-si]').forEach(function (b) { b.addEventListener('click', function () { var y = $('sheet').scrollTop; self(tab, b.dataset.si); $('sheet').scrollTop = y; }); });
+    }
+  }
   /* ---------- 🏦 銀行口座の残高(このスマホの中だけ。口座番号は下4桁だけ) ---------- */
   function bankList() { try { return JSON.parse(store.get('banks') || '[]'); } catch (e) { return []; } }
   function saveBanks(l) { store.set('banks', JSON.stringify(l)); }
