@@ -824,8 +824,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 18:30 版152';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版134';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-04 18:15 版153';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版135';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1105,16 +1105,14 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           var r = Object.assign({ id: String(Date.now()) }, data.receipt);
           list.push(r); demoSave(list); return resolve({ ok: true, id: r.id });
         }
-        if (/^(msgs|sendMsg|readMsg|deleteMsg|getMsgNotify|setMsgNotify|testMsgMail)$/.test(action)) {
+        if (/^(msgs|sendMsg|readMsg|deleteMsg)$/.test(action)) {
           var MS; try { MS = JSON.parse(store.get('demoMsgs') || '[]'); } catch (e) { MS = []; }
           var mkeep = function () { store.set('demoMsgs', JSON.stringify(MS)); };
           if (action === 'msgs') return resolve({ ok: true, msgs: MS.filter(function (x) { return (x.hidden || []).indexOf(data.person) < 0 && (x.from === data.person || x.to.indexOf(data.person) >= 0); }).slice().reverse() });
           if (action === 'sendMsg') { var d0 = new Date(); MS.push(Object.assign({ id: String(Date.now()), at: d0.getFullYear() + '/' + pad(d0.getMonth() + 1) + '/' + pad(d0.getDate()) + ' ' + pad(d0.getHours()) + ':' + pad(d0.getMinutes()), read: [], hidden: [] }, data.msg)); mkeep(); return resolve({ ok: true }); }
           if (action === 'readMsg') { MS.forEach(function (x) { if (data.ids.indexOf(x.id) >= 0 && x.read.indexOf(data.person) < 0) x.read.push(data.person); }); mkeep(); return resolve({ ok: true }); }
           if (action === 'deleteMsg') { MS = MS.filter(function (x) { if (x.id !== data.id) return true; if (x.from === data.person) return false; (x.hidden = x.hidden || []).push(data.person); return true; }); mkeep(); return resolve({ ok: true }); }
-          if (action === 'getMsgNotify') { var nn; try { nn = JSON.parse(store.get('demoMsgNotify') || 'null'); } catch (e) {} return resolve({ ok: true, notify: nn || { mode: 'off', hours: [8, 18], email: '' } }); }
-          if (action === 'setMsgNotify') { store.set('demoMsgNotify', JSON.stringify(data.notify)); return resolve({ ok: true, notify: data.notify }); }
-          return resolve({ ok: false, error: '仮の家ではメールは送れません' });
+          return resolve({ ok: false, error: '不明な依頼です' });
         }
         if (/^(plans|savePlan|deletePlan|testPlanMail)$/.test(action)) {
           var P; try { P = JSON.parse(store.get('demoPlans') || '[]'); } catch (e) { P = []; }
@@ -6220,7 +6218,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   }
 
   /* ---------- 💬 伝言(同じ家の家族のあいだだけ・文字だけ・90日で自動で消える) ----------
-     送った人と、あて先に選ばれた人だけに見える。メールの知らせ方は人ごと(窓口に保存) */
+     送った人と、あて先に選ばれた人だけに見える。メールでの知らせは、まだない */
   var MSG = { list: null, at: 0, fresh: {}, busy: false };
   function msgUnread() { return (MSG.list || []).filter(function (m) { return m.to.indexOf(state.owner) >= 0 && m.read.indexOf(state.owner) < 0; }); }
   function msgWhen(at) { var m = String(at || '').match(/^\d{4}\/(\d{2})\/(\d{2}) (\d{2}:\d{2})/); return m ? Number(m[1]) + '/' + Number(m[2]) + ' ' + m[3] : esc(at); }
@@ -6272,12 +6270,10 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     };
     var got = list.filter(function (m) { return m.from !== me; }), sent = list.filter(function (m) { return m.from === me; });
     $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="msNew" style="margin-bottom:8px">＋ 伝言を書く</button>' +
-      '<button class="btn btn-tonal btn-block" id="msMail" style="margin-bottom:8px">📧 メールの知らせ方</button>' +
       '<div class="note" style="font-size:15px;margin-bottom:12px">伝言は、送った人と、選ばれた人だけに見えます。文字だけで、90日たつと自動で消えます。アプリを開いたときや 🔄 を押したときに届きます。</div>' +
       '<div class="section-title">届いた伝言(' + got.length + '件)</div>' + (got.map(card).join('') || '<div class="note" style="font-size:17px">届いた伝言はありません。</div>') +
       '<div class="section-title">送った伝言(' + sent.length + '件)</div>' + (sent.map(card).join('') || '<div class="note" style="font-size:17px">送った伝言はありません。</div>');
     $('msNew').addEventListener('click', function () { openMsgWrite(null); });
-    $('msMail').addEventListener('click', openMsgNotify);
     $('ntBody').querySelectorAll('[data-mr]').forEach(function (b) { b.addEventListener('click', function () { openMsgWrite(list.filter(function (m) { return m.id === b.dataset.mr; })[0]); }); });
     $('ntBody').querySelectorAll('[data-md]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -6328,37 +6324,6 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       }).catch(function (e) { b.disabled = false; b.textContent = '送る'; $('mwErr').textContent = e.message; show('mwErr', true); });
     });
   }
-  function openMsgNotify() {
-    openSheet('<div class="grip"></div><h2>📧 伝言のメール</h2><div class="loading"><div class="spinner"></div>読み込み中…</div>');
-    api('getMsgNotify', { person: state.owner }).then(function (r) {
-      var n = r.notify || { mode: 'off', hours: [8, 18] }, hours = n.hours.slice();
-      var opt = function (v, t, s) { return '<label class="in-line" style="font-size:19px;min-height:56px;cursor:pointer"><span>' + t + (s ? '<br><span class="in-sub">' + s + '</span>' : '') + '</span><input type="radio" name="mnMode" value="' + v + '"' + (n.mode === v ? ' checked' : '') + ' style="width:26px;height:26px"></label>'; };
-      openSheet('<div class="grip"></div><h2>📧 伝言のメール</h2>' +
-        '<div class="note" style="font-size:16px;margin-bottom:8px">自分あての伝言が届いたことを、メールでも知らせます。送り先は「💴 支払いの設定・お知らせ」のメールアドレスです' + (n.email ? '(' + esc(n.email) + ')' : '(<b>まだ入っていません</b>)') + '。</div>' +
-        opt('off', 'メールは送らない', 'アプリの中だけで知らせます') + opt('now', '伝言のたびに、すぐ1通', '') + opt('times', '時間を決めて、まとめて1通', 'その時刻までに届いた、まだ読んでいない伝言をまとめます') +
-        '<div id="mnHours" style="margin-top:8px"><div class="section-title">メールを送る時刻(いくつでも)</div><div class="chips" style="flex-wrap:wrap">' +
-        [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].map(function (h) { return '<button type="button" class="chip' + (hours.indexOf(h) >= 0 ? ' on' : '') + '" data-h="' + h + '">' + h + '時</button>'; }).join('') +
-        '</div><div class="in-sub">メールは、選んだ時刻の「時」のうちに届きます(8時なら 8時台)。</div></div>' +
-        '<div class="error hidden" id="mnErr"></div>' +
-        '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button class="btn btn-primary btn-block" id="mnSave">保存する</button>' +
-        '<button class="btn btn-tonal btn-block" id="mnTest">📧 確認のメールを送る</button><button class="btn btn-tonal btn-block" id="mnNo">閉じる</button></div>');
-      var mode = function () { var c = $('sheet').querySelector('[name="mnMode"]:checked'); return c ? c.value : 'off'; };
-      var vis = function () { show('mnHours', mode() === 'times'); };
-      $('sheet').querySelectorAll('[name="mnMode"]').forEach(function (r) { r.addEventListener('change', vis); }); vis();
-      $('mnHours').querySelectorAll('[data-h]').forEach(function (c) { c.addEventListener('click', function () { c.classList.toggle('on'); }); });
-      $('mnNo').addEventListener('click', closeSheet);
-      $('mnTest').addEventListener('click', function () { var b = this; b.disabled = true; api('testMsgMail', { person: state.owner }).then(function () { toast('確認のメールを送りました'); }).catch(function (e) { $('mnErr').textContent = e.message; show('mnErr', true); }).then(function () { b.disabled = false; }); });
-      $('mnSave').addEventListener('click', function () {
-        var hs = Array.prototype.slice.call($('mnHours').querySelectorAll('.chip.on')).map(function (c) { return Number(c.dataset.h); });
-        var b = this; b.disabled = true;
-        api('setMsgNotify', { person: state.owner, notify: { mode: mode(), hours: hs } }).then(function () { closeSheet(); toast('メールの知らせ方を保存しました'); })
-          .catch(function (e) { b.disabled = false; $('mnErr').textContent = e.message; show('mnErr', true); });
-      });
-    }).catch(function (e) {
-      openSheet('<div class="grip"></div><h2>📧 伝言のメール</h2><div class="error">' + esc(e.message) + '</div>' + (/不明な依頼/.test(e.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。</div>' : '') + '<button class="btn btn-tonal btn-block" id="mnNo" style="margin-top:12px">閉じる</button>');
-      $('mnNo').addEventListener('click', closeSheet);
-    });
-  }
 
   /* ---------- ❓ 使い方(目的ごと:こんなときに・使うとこうなる・手順・この画面を開く) ----------
      手順の中の [ボタン名] は、黄色の印で出す */
@@ -6385,8 +6350,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       steps: ['いつものようにレシートを撮る(残りを見るだけなら、買物の画面の[🎁 ポイントの残り])', '確かめの画面の「🎁 ポイント」の欄を確かめる(名前はお店の名前から自動で入る)', '[保存する]→ 累計ポイントがあれば[上書きする]'], open: function () { openWallet('points'); } },
     { k: 'shun', icon: '🍎', f: 'shun', t: '旬と早見表・料理を見る', why: '今が旬のものや、果物の選び方を知りたいとき', res: '月や季節ごとの旬の果物・野菜・魚と、かんたんな料理の作り方が見られます。作ってみたい料理は一覧にできます。',
       steps: ['買物の画面の[🍎 旬と早見表]を押す', '品物の名前を押すと、説明と料理が出る', '料理の[作ってみたい]にチェックすると[📖 作ってみたい]に並ぶ'], open: function () { openShun('month'); } },
-    { k: 'msg', icon: '💬', f: 'memo', t: '家族に伝言を送る', why: '家族に頼みごとや知らせたいことがあるとき', res: '選んだ家族のアプリに届き、メモのボタンに赤い数字、買物の画面にテロップが出ます。読むと、送った人の画面に「読みました」と出ます。メールでも知らせられます。',
-      steps: ['下の[メモ]→[💬 伝言]を押す', '[＋ 伝言を書く]を押す', '送る相手にチェックを付ける(何人でも。[👪 みんなを選ぶ]もある)', '文を入れて[送る]を押す', '届いた伝言には[↩ 返事をする]で返事ができる', 'メールでも知らせてほしいときは[📧 メールの知らせ方]で、「すぐ1通」か「時間を決めて」を選ぶ'], open: function () { NT.tab = 'msgs'; go('notes'); } },
+    { k: 'msg', icon: '💬', f: 'memo', t: '家族に伝言を送る', why: '家族に頼みごとや知らせたいことがあるとき', res: '選んだ家族のアプリに届き、メモのボタンに赤い数字、買物の画面にテロップが出ます。読むと、送った人の画面に「読みました」と出ます。',
+      steps: ['下の[メモ]→[💬 伝言]を押す', '[＋ 伝言を書く]を押す', '送る相手にチェックを付ける(何人でも。[👪 みんなを選ぶ]もある)', '文を入れて[送る]を押す', '届いた伝言には[↩ 返事をする]で返事ができる'], open: function () { NT.tab = 'msgs'; go('notes'); } },
     { k: 'family', icon: '👪', t: '家族で使えるようにするには', why: '家族みんなで同じ家計簿に記録したいとき', res: '家族のスマホにも同じ家計簿のアイコンができて、だれが入れたレシートも全員で見られます。入れた人の名前も残ります。',
       steps: ['【招待する人】⚙ →[💌 家族を招待する]を押して、招待リンクを LINE で送る', '【招待する人】家族のパスワードを、紙などで別に伝える', '【招待された人】LINE のリンクを押して、ブラウザ(Android は Chrome、iPhone は Safari)で開き直す', '【招待された人】ホーム画面にアイコンを作る(Android はボタン、iPhone は 共有 →「ホーム画面に追加」)', '【招待された人】アイコンから開いて、家族のパスワードを入れ、自分の名前を選ぶ'], open: function () { openInvite(); } },
     { k: 'where', icon: '📖', t: '家族で見られるもの・自分のスマホだけのもの', why: '家族で使うときに、何が共有されるか知りたいとき', res: '',
