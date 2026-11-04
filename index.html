@@ -816,7 +816,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 16:50 版148';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 17:15 版149';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2846,7 +2846,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     }
     show('sheetBack', true); $('sheet').scrollTop = 0;
   }
-  function closeSheet() { show('sheetBack', false); }
+  var SHEET_LOCK = false;   // LINE の中:案内を閉じられないようにする
+  function closeSheet() { if (SHEET_LOCK) return; show('sheetBack', false); }
   $('sheetBack').addEventListener('click', function (e) { if (e.target === this) closeSheet(); });
 
   /* ---------- 撮影 ---------- */
@@ -7059,8 +7060,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     openSheet('<div class="grip"></div><h2>📲 まずホーム画面に追加しましょう</h2>' +
       '<div class="meta">' + (store.get('firstSetup') && (!HOME.name || HOME.name === 'お家' || HOME.name === '新しい家計簿') ? '新しい家計簿に招待されました。' : '「' + esc(HOME.name) + '」の家計簿に招待されました。') +
         'ホーム画面に追加すると、アプリのように使えます。</div>' + body +
-      (inLine ? '' : '<div class="note" style="margin-bottom:12px">途中で閉じてしまったら、もう一度 LINE の招待リンクをタップして始めてください。</div>') +
-      '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>' +
+      (inLine ? '<div class="warn" style="font-size:17px;margin-bottom:12px">LINE の中では、家計簿は使えません。ブラウザで開いて、ホーム画面にアイコンを作ってから使ってください。</div>' :
+        '<div class="note" style="margin-bottom:12px">途中で閉じてしまったら、もう一度 LINE の招待リンクをタップして始めてください。</div>' +
+        '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>') +
       (ios && !inLine ? '<div style="height:70px"></div>' : ''));
     // iPhone の Safari:共有ボタンの場所を矢印で示す(案内を閉じたら消す)
     if (ios && !inLine) {
@@ -7071,7 +7073,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       var obs = new MutationObserver(function () { if ($('sheetBack').classList.contains('hidden')) { hint.remove(); obs.disconnect(); } });
       obs.observe($('sheetBack'), { attributes: true, attributeFilter: ['class'] });
     }
-    $('agLater').addEventListener('click', function () { closeSheet(); if (after) after(); });
+    if ($('agLater')) $('agLater').addEventListener('click', function () { closeSheet(); if (after) after(); });
+    if (inLine && $('sheetX')) $('sheetX').remove();
     if ($('agInstall')) $('agInstall').addEventListener('click', function () {
       if (!installPrompt) return;
       installPrompt.prompt();
@@ -7450,6 +7453,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   window.__kakeiboOk = true;   // ここまで読み込めた(招待の画面に進むときも、「なおす」の知らせは出さない)
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
   if (RELOADING) return;
+  // LINE の中では使えない(カメラやこのスマホだけの保存がうまくいかないため)。ブラウザで開く案内だけを出す
+  if (/\bLine\//i.test(navigator.userAgent) && !STANDALONE) { show('lineBanner', false); setHomeLabel(); SHEET_LOCK = true; openAddHomeGuide(null); return; }
   if (!DEMO) autoMove().then(function (changed) { if (changed) location.reload(); });
   if (JOINED && !store.get('owner')) { show('demoBanner', DEMO); setHomeLabel(); openAddHomeGuide(openSetup); return; }
   show('demoBanner', DEMO);
