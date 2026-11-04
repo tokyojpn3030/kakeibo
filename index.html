@@ -758,9 +758,15 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 
     <!-- 家の名前(初期化のあと・その家で初めて使うとき) -->
     <div id="stepHomeName" class="hidden">
+      <div class="card hidden" id="hnTemp" style="margin-bottom:14px;padding:14px;border:2px solid var(--primary)">
+        <div style="font-size:19px;font-weight:700;margin-bottom:6px">👋 ようこそ。今は「仮」の状態です</div>
+        <div style="font-size:17px;line-height:1.7">仮の名前:<b>自分の家計簿</b><br>仮のパスワード:<b id="hnTempPass"></b>(招待リンクに入っていたもの)</div>
+        <div style="font-size:16px;margin-top:8px;line-height:1.6">使い始める前に、次の順番で自分のものに決めます。<br>① 家計簿の名前(このままでもよい)<br>② 自分たちのパスワード<br>③ 使う人の名前</div>
+      </div>
       <div class="section-title">このアプリを使う家の名前を入力</div>
       <p>家族で使うなら「○○家」、自分だけで使うなら「自分の家計簿」など、好きな名前を入れてください。アプリの上に表示されます。</p>
-      <input class="input" id="hnInput" maxlength="30" placeholder="例:佐藤家 / 自分の家計簿">
+      <div style="display:flex;gap:6px"><input class="input" id="hnInput" maxlength="30" placeholder="例:佐藤家 / 自分の家計簿" style="flex:1;min-width:0">
+      <button type="button" class="btn btn-text" id="hnClr" aria-label="名前を消す" style="min-width:44px;padding:0;font-size:20px">✕</button></div>
       <button class="btn btn-primary btn-block" id="hnNext" style="margin-top:20px">次へ</button>
     </div>
 
@@ -810,7 +816,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 16:05 版145';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 16:20 版146';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -5948,9 +5954,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function openHomeName(fresh, after) {
     homeNameAfter = after;
     if (fresh) $('setupHome').textContent = '🏠 (これから決めます)';
-    $('hnInput').value = (!fresh && HOME.name && HOME.name !== 'お家' && HOME.name !== '仮の家') ? HOME.name : '';
+    $('hnInput').value = (!fresh && HOME.name && HOME.name !== 'お家' && HOME.name !== '仮の家') ? HOME.name : (fresh ? '自分の家計簿' : '');
+    show('hnTemp', !!fresh); $('hnTempPass').textContent = setupPass || '(自動で入っています)';
+    $('hnNext').textContent = fresh ? 'この名前で次へ(パスワードを決める)' : '次へ';
     setupStep('HomeName');
   }
+  $('hnClr').addEventListener('click', function () { $('hnInput').value = ''; $('hnInput').focus(); });
   $('hnNext').addEventListener('click', function () {
     var n = $('hnInput').value.trim();
     if (!n) return setupError('家の名前を入れてください');
@@ -7221,6 +7230,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function setHomeLabel() {
     if (!$('homeLabel')) return;
     var n = String(HOME && HOME.name || '').trim(), base = n.replace(/\s*(の家計簿|家計簿)$/, '') || n;
+    if (!n) { $('homeLabel').textContent = homeIcon() + ' これから決めます'; return; }
     $('homeLabel').innerHTML = '<span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(homeIcon() + ' ' + base) + '</span>' +
       '<span style="display:block;font-size:13px;font-weight:400;white-space:nowrap">の家計簿</span>';
     $('homeLabel').setAttribute('aria-label', homeIcon() + ' ' + n + '(押すと家のアイコンを選べます)');
