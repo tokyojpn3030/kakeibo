@@ -816,7 +816,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 17:15 版149';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 17:30 版150';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -7032,7 +7032,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     e.preventDefault(); installPrompt = e;
     if ($('agInstall')) show('agInstall', true);
   });
-  function openAddHomeGuide(after) {
+  function openAddHomeGuide(after, keep) {
     var ua = navigator.userAgent;
     var ios = /iPhone|iPad|iPod/.test(ua), inLine = /\bLine\//i.test(ua);
     var last = '<li>ホーム画面にできた <b>家計簿のアイコン</b> から開く</li><li>' +
@@ -7057,10 +7057,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
         '<ol style="padding-left:22px;margin:4px 0 16px"><li>画面のいちばん上、アドレス(https://…)の右はしにある <b>︙</b> を押す(この案内の外、Chrome のメニューです)</li>' +
         '<li><b>「ホーム画面に追加」</b>(または「アプリをインストール」)→「追加」(「インストール」)</li>' + last + '</ol>';
     }
-    openSheet('<div class="grip"></div><h2>📲 まずホーム画面に追加しましょう</h2>' +
-      '<div class="meta">' + (store.get('firstSetup') && (!HOME.name || HOME.name === 'お家' || HOME.name === '新しい家計簿') ? '新しい家計簿に招待されました。' : '「' + esc(HOME.name) + '」の家計簿に招待されました。') +
+    openSheet('<div class="grip"></div><h2>📲 ' + (keep ? 'アイコンを作ると安心です' : 'まずホーム画面に追加しましょう') + '</h2>' +
+      '<div class="meta">' + (keep ? '今は LINE の中で開いています。' : '') + (keep ? '' : (store.get('firstSetup') && (!HOME.name || HOME.name === 'お家' || HOME.name === '新しい家計簿') ? '新しい家計簿に招待されました。' : '「' + esc(HOME.name) + '」の家計簿に招待されました。')) +
         'ホーム画面に追加すると、アプリのように使えます。</div>' + body +
-      (inLine ? '<div class="warn" style="font-size:17px;margin-bottom:12px">LINE の中では、家計簿は使えません。ブラウザで開いて、ホーム画面にアイコンを作ってから使ってください。</div>' :
+      (inLine && keep ? '<div class="warn" style="font-size:17px;margin-bottom:12px">LINE の中では、カメラが動かなかったり、電子マネーの残高などが消えたりすることがあります。ブラウザで開いて、アイコンを作って使うと安心です。</div>' +
+        '<button class="btn btn-tonal btn-block" id="agLater">今日は LINE の中のまま使う</button>' :
+       inLine ? '<div class="warn" style="font-size:17px;margin-bottom:12px">LINE の中では、家計簿は使えません。ブラウザで開いて、ホーム画面にアイコンを作ってから使ってください。</div>' :
         '<div class="note" style="margin-bottom:12px">途中で閉じてしまったら、もう一度 LINE の招待リンクをタップして始めてください。</div>' +
         '<button class="btn btn-tonal btn-block" id="agLater">ホーム画面に追加せずに、このまま使う</button>') +
       (ios && !inLine ? '<div style="height:70px"></div>' : ''));
@@ -7074,7 +7076,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       obs.observe($('sheetBack'), { attributes: true, attributeFilter: ['class'] });
     }
     if ($('agLater')) $('agLater').addEventListener('click', function () { closeSheet(); if (after) after(); });
-    if (inLine && $('sheetX')) $('sheetX').remove();
+    if (inLine && !keep && $('sheetX')) $('sheetX').remove();
     if ($('agInstall')) $('agInstall').addEventListener('click', function () {
       if (!installPrompt) return;
       installPrompt.prompt();
@@ -7454,7 +7456,10 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
   if (RELOADING) return;
   // LINE の中では使えない(カメラやこのスマホだけの保存がうまくいかないため)。ブラウザで開く案内だけを出す
-  if (/\bLine\//i.test(navigator.userAgent) && !STANDALONE) { show('lineBanner', false); setHomeLabel(); SHEET_LOCK = true; openAddHomeGuide(null); return; }
+  // ただし、もう LINE の中で使い始めている人(名前を選んでいる人)は、しばらくそのまま使える(開くたびにアイコンを作る案内を出す)
+  var LINE_KEEP = /\bLine\//i.test(navigator.userAgent) && !STANDALONE && !!store.get('owner') && !JOINED;
+  if (/\bLine\//i.test(navigator.userAgent) && !STANDALONE && !LINE_KEEP) { show('lineBanner', false); setHomeLabel(); SHEET_LOCK = true; openAddHomeGuide(null); return; }
+  if (LINE_KEEP) setTimeout(function () { try { openAddHomeGuide(null, true); } catch (e) {} }, 1500);
   if (!DEMO) autoMove().then(function (changed) { if (changed) location.reload(); });
   if (JOINED && !store.get('owner')) { show('demoBanner', DEMO); setHomeLabel(); openAddHomeGuide(openSetup); return; }
   show('demoBanner', DEMO);
