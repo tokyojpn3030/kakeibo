@@ -808,7 +808,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 14:40 版141';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 15:20 版142';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2763,7 +2763,8 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var items = (r.items || []).map(function (it, i) {
       var can = feat('memo') && it.name && it.price > 0 && !NOT_ITEM.test(itemKey(it.name));
       return '<div class="line-item" style="align-items:center"><span style="display:flex;align-items:center">' + (can ? '<button class="it-rate" data-i="' + i + '" aria-label="評価する">😋</button>' : '') +
-        esc(it.name) + '</span><span class="' + (it.price < 0 ? 'minus' : '') + '">' + yen(it.price) + '</span></div>';
+        esc(it.name) + (feat('shun') && it.price > 0 && shunOfItem(it.name) ? ' <button type="button" class="chip" data-shi="' + esc(shunOfItem(it.name)) + '" style="min-height:32px;padding:0 8px;font-size:14px;margin-left:6px">🌸旬</button>' : '') +
+        '</span><span class="' + (it.price < 0 ? 'minus' : '') + '">' + yen(it.price) + '</span></div>';
     }).join('');
     openSheet('<div class="grip"></div>' +
       '<div style="display:flex;align-items:center;gap:12px">' + avatarHtml(r.person) +
@@ -2789,6 +2790,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
       openReview(old || { item: it.name, store: r.store, date: r.date, receiptId: r.id });
     }); });
     $('dtEdit').addEventListener('click', function () { closeSheet(); startEdit(r); });
+    $('sheet').querySelectorAll('[data-shi]').forEach(function (b) { b.addEventListener('click', function () { openShunItem(b.dataset.shi, function () { openDetail(id); }); }); });
     $('sheet').querySelectorAll('[data-shun]').forEach(function (b) { b.addEventListener('click', function () { openShun(b.dataset.shun, function () { openDetail(id); }); }); });
     $('dtDelete').addEventListener('click', function () {
       var fam = (r.adj || []).filter(function (a) { return a.who; });
@@ -3648,6 +3650,171 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     11: { f: 'りんご(ふじ)、柿、みかん、ラ・フランス', v: '白菜、大根、ほうれん草、かぶ、ごぼう、ブロッコリー', s: 'ぶり、さば、牡蠣、ずわいがに、ししゃも' },
     12: { f: 'みかん、りんご、いちご、ル レクチェ', v: '白菜、大根、ねぎ、春菊、ほうれん草、ゆず', s: 'ぶり(寒ぶり)、たら、牡蠣、ふぐ、ずわいがに' }
   };
+  /* ---------- 🍳 旬の品物の説明と、かんたんな料理・スイーツ(アプリで書いた目安のレシピ。2人分) ---------- */
+  var SHUN_TIP = {
+    'ぶり': '冬に脂がのる「寒ぶり」がおいしい。切り身は血合いが鮮やかな赤のものを',
+    'たら': '冬の鍋の定番。身が白く透明感のあるものが新鮮',
+    '牡蠣': '冬が旬。加熱用はしっかり火を通して。ぷっくりして縁の黒いものを',
+    'さんま': '秋の味。目が澄んで、口先が黄色いものが脂がのっている',
+    'さば': '秋から冬に脂がのる。身に張りがあるものを',
+    '秋鮭': '秋に川へ戻る鮭。脂は少なめで、焼き物や鍋に',
+    'あじ': '初夏から夏。目が澄んで、えらが赤いものを',
+    'いわし': '初夏から秋。うろこが残って身が太いものが新鮮',
+    'かつお': '春の初がつおはさっぱり、秋の戻りがつおは脂がのる',
+    'あさり': '春が旬。砂抜き(塩水に2〜3時間)をしてから使う',
+    'はまぐり': '春のひな祭りのころ。お吸い物や酒蒸しに',
+    '白菜': '冬がいちばん甘い。切り口が白く、葉がぎっしりのものを',
+    '大根': '冬は甘く、煮物に。葉の付け根に近い上の方が甘い',
+    'ほうれん草': '冬は甘みが増す。葉が濃い緑で、根元が赤いものを',
+    '小松菜': 'あくが少なく、下ゆでなしで使える',
+    'ねぎ': '冬の長ねぎは甘い。焼く・煮ると甘さが出る',
+    'かぶ': '冬はやわらかく甘い。葉も炒め物に使える',
+    '春菊': '香りがよい。やわらかい葉は生でサラダにも',
+    'れんこん': '秋から冬。穴の中が白く、ずっしり重いものを',
+    'ごぼう': '秋から冬。皮に香りがあるので、たわしで軽くこする程度に',
+    'ブロッコリー': '冬が旬。つぼみがかたく締まったものを',
+    '菜の花': '早春の味。ほろ苦さがおいしい',
+    '春キャベツ': '葉がやわらかく、生でもおいしい',
+    '新玉ねぎ': '辛みが少なく、生でサラダに',
+    'たけのこ': '春だけの味。ゆでたものなら手軽に使える',
+    '新じゃが': '皮が薄いので、皮ごと料理できる',
+    'アスパラガス': '春から初夏。穂先が締まって、切り口がみずみずしいものを',
+    'そら豆': '初夏の短い旬。さやから出したら早めに',
+    'きゅうり': '夏が旬。いぼがとがっているものが新鮮',
+    'トマト': '夏が旬。へたがピンとして、ずっしり重いものを',
+    'なす': '夏から秋。皮につやがあり、へたのとげが痛いくらいが新鮮',
+    'ピーマン': '夏が旬。肉厚で、へたが緑のものを',
+    'オクラ': '夏が旬。うぶ毛がしっかりして、小ぶりのものがやわらかい',
+    '枝豆': '夏が旬。さやがふっくらしたものを。ゆでたてがおいしい',
+    'とうもろこし': '夏が旬。ひげが茶色く多いほど実が詰まっている',
+    'かぼちゃ': '夏にとれて、秋に甘くなる。切ったものは種とわたを取って保存',
+    'ゴーヤ': '夏が旬。わたを取って塩もみすると苦みがやわらぐ',
+    'さつまいも': '秋が旬。しばらく置くと甘みが増す',
+    '里いも': '秋から冬。泥つきのものが日もちする',
+    'しいたけ': '秋が旬。かさの裏が白く、肉厚のものを',
+    'きのこ': '秋が旬。しいたけ・しめじ・まいたけなど。洗わずに、汚れはふき取る程度に',
+    'しめじ': '一年中あるが秋が旬。かさが小さく締まったものを',
+    'まいたけ': '秋が旬。香りがよく、炒め物や天ぷらに',
+    'りんご': '秋から冬。お尻まで色づき、ずっしり重いものを',
+    '柿': '秋が旬。へたが緑で実にすき間のないものを',
+    'みかん': '冬が旬。皮が薄く、へたが小さいものが甘い',
+    'いちご': '冬から春。へたが緑で、先まで赤いものを',
+    'もも': '夏が旬。香りが強く、全体が色づいたものを。冷やしすぎない',
+    '梨': '夏から秋。ずっしり重く、皮に張りがあるものを',
+    'ラ・フランス': '晩秋。軸のまわりがやわらかくなったら食べごろ',
+    'ぶどう': '夏から秋。軸が緑で、粒に張りがあるものを',
+    'すいか': '夏が旬。たたくとポンと澄んだ音がするものを',
+    'メロン': 'お尻が少しやわらかくなり、香りが強くなったら食べごろ',
+    '栗': '秋が旬。つやがあり、ずっしり重いものを',
+    'いちじく': '夏の終わりから秋。お尻が少し割れかけたものが甘い',
+    '梅': '初夏の短い旬。青梅は梅シロップや梅酒に',
+    'ゆず': '冬が旬。皮の香りを料理やお風呂に'
+  };
+  // [番号, 名前, 'りょうり' か 'スイーツ', 使う旬の品物, 材料(2人分), 作り方]
+  var RECIPES = [
+    [1, 'ぶり大根', 'りょうり', ['ぶり', '大根'], ['ぶり(切り身)2切れ', '大根 1/3本', 'しょうが 1かけ', '水 300ml', 'しょうゆ・みりん・酒 各大さじ3', '砂糖 大さじ1'], ['大根は2cmの半月切りにして、下ゆでする(竹ぐしが通るまで)', 'ぶりは食べやすく切り、熱湯をかけて臭みを取る', '鍋に水・調味料・薄切りのしょうがを入れて煮立て、大根とぶりを入れる', '落としぶたをして中火で20分、煮汁が少なくなるまで煮る']],
+    [2, 'ぶりの照り焼き', 'りょうり', ['ぶり'], ['ぶり(切り身)2切れ', '塩 少し', '小麦粉 少し', 'しょうゆ・みりん・酒 各大さじ2', '砂糖 小さじ1', '油 少し'], ['ぶりに塩をふって10分おき、出た水気をふく', '小麦粉を薄くまぶす', 'フライパンに油をひき、両面を焼く', '調味料を入れて、とろみが出るまでからめる']],
+    [3, '白菜と豚肉の重ね蒸し', 'りょうり', ['白菜'], ['白菜 1/8個', '豚バラ薄切り 150g', '酒 大さじ2', '塩・こしょう 少し', 'ポン酢 適量'], ['白菜と豚肉を交互に重ね、5cm幅に切る', '鍋に切り口を上にしてぎっしり詰める', '酒をふり、ふたをして弱めの中火で15分蒸す', 'ポン酢をつけて食べる']],
+    [4, '白菜の浅漬け', 'りょうり', ['白菜', 'ゆず'], ['白菜 1/8個', '塩 小さじ1', '昆布 5cm', 'ゆずの皮 少し(あれば)'], ['白菜をざく切りにする', '袋に白菜・塩・細く切った昆布・ゆずの皮を入れてもむ', '空気を抜いて口を閉じ、冷蔵庫で2時間ほど置く', '水気をしぼって食べる']],
+    [5, 'ふろふき大根', 'りょうり', ['大根'], ['大根 6cm', '昆布 5cm', '味噌 大さじ2', '砂糖・みりん 各大さじ1'], ['大根を3cmの輪切りにし、皮を厚めにむく', '昆布と水で、やわらかくなるまで30分ほど煮る', '味噌・砂糖・みりんを小鍋で練って、味噌だれを作る', '大根に味噌だれをかける']],
+    [6, 'ほうれん草のおひたし', 'りょうり', ['ほうれん草', '小松菜'], ['ほうれん草(または小松菜)1束', 'しょうゆ 小さじ2', 'だし 大さじ2', 'かつおぶし 少し'], ['塩を入れた湯で、根元から入れて1分ゆでる', '水にとって冷まし、水気をしぼる', '4cmに切って、だしとしょうゆをかける', 'かつおぶしをのせる']],
+    [7, 'ほうれん草のごま和え', 'りょうり', ['ほうれん草'], ['ほうれん草 1束', 'すりごま 大さじ2', '砂糖 小さじ2', 'しょうゆ 小さじ2'], ['ほうれん草をゆでて水にとり、しぼって4cmに切る', 'すりごま・砂糖・しょうゆを混ぜる', 'ほうれん草をあえる']],
+    [8, '小松菜と油揚げの煮びたし', 'りょうり', ['小松菜'], ['小松菜 1束', '油揚げ 1枚', 'だし 200ml', 'しょうゆ・みりん 各大さじ1'], ['小松菜を4cmに切り、油揚げを細切りにする', 'だしと調味料を煮立て、油揚げを入れる', '小松菜の茎、葉の順に入れて2分煮る']],
+    [9, '長ねぎと鶏肉の甘辛焼き', 'りょうり', ['ねぎ'], ['長ねぎ 1本', '鶏もも肉 1枚', 'しょうゆ・みりん 各大さじ2', '砂糖 小さじ1', '油 少し'], ['ねぎを4cmに切り、鶏肉をひと口大に切る', 'フライパンで鶏肉を皮から焼き、ねぎも焼く', '火が通ったら調味料を入れてからめる']],
+    [10, 'かぶのそぼろあんかけ', 'りょうり', ['かぶ'], ['かぶ 3個', '鶏ひき肉 100g', 'だし 300ml', 'しょうゆ・みりん 各大さじ1', '片栗粉 小さじ2(水で溶く)'], ['かぶを4つに切る(葉は3cmに切る)', 'だしでかぶを5分煮て、ひき肉をほぐし入れる', '調味料と葉を入れて2分煮る', '水溶き片栗粉でとろみをつける']],
+    [11, '春菊のサラダ', 'りょうり', ['春菊'], ['春菊 1/2束', 'くるみ(あれば)少し', 'ごま油 大さじ1', 'しょうゆ 小さじ2', '酢 小さじ1'], ['春菊のやわらかい葉をつみ、水につけてパリッとさせる', '水気をよくきる', '調味料を混ぜてかけ、くるみをちらす']],
+    [12, 'れんこんのきんぴら', 'りょうり', ['れんこん'], ['れんこん 150g', 'ごま油 大さじ1', 'しょうゆ・みりん 各大さじ1', '砂糖 小さじ1', '赤とうがらし(好みで)'], ['れんこんを薄いいちょう切りにし、水にさらす', 'ごま油でれんこんを炒める', '透き通ってきたら調味料を入れ、汁気がなくなるまで炒める']],
+    [13, 'たらのホイル焼き', 'りょうり', ['たら', 'きのこ', 'しめじ', 'しいたけ'], ['たら(切り身)2切れ', 'しめじ 1/2パック', '玉ねぎ 1/4個', 'バター 10g×2', '塩・こしょう 少し', 'しょうゆ 少し'], ['たらに塩・こしょうをふる', 'アルミホイルに玉ねぎの薄切り、たら、しめじ、バターをのせて包む', 'フライパンにのせ、ふたをして中火で12分', 'しょうゆを少しかける']],
+    [14, '牡蠣のバターしょうゆ焼き', 'りょうり', ['牡蠣'], ['牡蠣(加熱用)200g', '片栗粉 大さじ1', 'バター 10g', 'しょうゆ 小さじ2'], ['牡蠣に片栗粉をまぶして軽くもみ、水で洗って汚れを取る', '水気をふき、片栗粉を薄くまぶす', 'バターで両面をしっかり焼く(中まで火を通す)', 'しょうゆを回しかける']],
+    [15, '秋鮭のちゃんちゃん焼き', 'りょうり', ['秋鮭'], ['生鮭 2切れ', 'キャベツ 2枚', '玉ねぎ 1/4個', 'しめじ 1/2パック', '味噌 大さじ2', 'みりん・酒 各大さじ1', 'バター 10g'], ['味噌・みりん・酒を混ぜておく', 'フライパンに野菜を敷き、鮭をのせる', 'ふたをして中火で8分蒸し焼き', '味噌だれとバターをのせ、ほぐしながら混ぜる']],
+    [16, 'さんまの塩焼き', 'りょうり', ['さんま'], ['さんま 2尾', '塩 小さじ1', '大根おろし・すだち 適量'], ['さんまに塩をふって10分おく', '出た水気をふく', 'グリルで両面を焼く(7〜10分)', '大根おろしとすだちを添える']],
+    [17, 'さばの味噌煮', 'りょうり', ['さば'], ['さば(切り身)2切れ', 'しょうが 1かけ', '水 150ml', '酒 大さじ3', '砂糖 大さじ1', '味噌 大さじ2'], ['さばに熱湯をかけて臭みを取る', '鍋に水・酒・砂糖・しょうがを煮立て、さばを入れる', '落としぶたで5分煮て、味噌を溶き入れる', 'さらに5分、煮汁をかけながら煮る']],
+    [18, 'あじの南蛮漬け', 'りょうり', ['あじ'], ['小あじ(または切り身)200g', '玉ねぎ 1/2個', 'にんじん 少し', '片栗粉 適量', '酢 大さじ4', 'しょうゆ・砂糖 各大さじ2', '油 適量'], ['酢・しょうゆ・砂糖を混ぜ、薄切りの玉ねぎ・細切りのにんじんをつける', 'あじに片栗粉をまぶし、多めの油で揚げ焼きにする', '熱いうちに漬け汁につけ、30分ほど置く']],
+    [19, 'いわしの梅煮', 'りょうり', ['いわし', '梅'], ['いわし 4尾(頭と内臓を取る)', '梅干し 2個', 'しょうが 1かけ', '水 100ml', 'しょうゆ・酒・みりん 各大さじ2'], ['鍋に調味料・水・梅干し・しょうがを煮立てる', 'いわしを並べ入れる', '落としぶたをして弱めの中火で15分煮る']],
+    [20, 'かつおのたたき', 'りょうり', ['かつお', '新玉ねぎ'], ['かつおのたたき(さく)1さく', '玉ねぎ 1/4個', '青ねぎ・しょうが 少し', 'ポン酢 適量'], ['玉ねぎを薄切りにして水にさらす', 'かつおを1cmの厚さに切る', '皿に玉ねぎを敷いてかつおを並べ、ねぎ・しょうがをのせる', 'ポン酢をかける']],
+    [21, 'あさりの酒蒸し', 'りょうり', ['あさり', 'はまぐり'], ['あさり(砂抜き済み)300g', '酒 50ml', 'にんにく 1かけ(好みで)', 'バター 10g', '青ねぎ 少し'], ['あさりの殻をこすり合わせて洗う', 'フライパンにあさり・酒・にんにくを入れ、ふたをして中火', '殻が開いたらバターを入れて火を止める', '青ねぎをちらす']],
+    [22, '菜の花のからし和え', 'りょうり', ['菜の花'], ['菜の花 1束', 'しょうゆ 小さじ2', 'だし 大さじ1', 'ねりがらし 少し'], ['菜の花を塩ゆでして水にとり、しぼって4cmに切る', 'しょうゆ・だし・からしを混ぜる', '菜の花をあえる']],
+    [23, '春キャベツのコールスロー', 'りょうり', ['春キャベツ'], ['春キャベツ 1/4個', 'にんじん 少し', '塩 小さじ1/2', 'マヨネーズ 大さじ2', '酢 小さじ1', '砂糖 小さじ1'], ['キャベツとにんじんを細切りにする', '塩をふって10分おき、水気をしぼる', 'マヨネーズ・酢・砂糖であえる']],
+    [24, '新玉ねぎのおかかサラダ', 'りょうり', ['新玉ねぎ'], ['新玉ねぎ 1個', 'かつおぶし 1袋', 'ポン酢 大さじ2', 'ごま油 少し'], ['玉ねぎを薄切りにする(新玉ねぎは水にさらさなくてよい)', '器に盛り、かつおぶしをのせる', 'ポン酢とごま油をかける']],
+    [25, 'たけのこご飯', 'りょうり', ['たけのこ'], ['米 2合', 'ゆでたけのこ 150g', '油揚げ 1/2枚', 'しょうゆ・酒 各大さじ2', 'みりん 大さじ1', 'だし(または水)'], ['米をといで30分水につける', 'たけのこを薄切り、油揚げを細切りにする', '炊飯器に米と調味料を入れ、2合の線までだしを入れる', 'たけのこと油揚げをのせて炊く']],
+    [26, '新じゃがの煮っころがし', 'りょうり', ['新じゃが'], ['新じゃがいも(小)300g', '油 大さじ1', '水 150ml', 'しょうゆ・みりん 各大さじ2', '砂糖 大さじ1'], ['じゃがいもを皮ごとよく洗う', '鍋に油を熱し、じゃがいもを転がしながら炒める', '水と調味料を入れ、ふたをして15分煮る', 'ふたを取り、煮汁をからめる']],
+    [27, 'アスパラのベーコン巻き', 'りょうり', ['アスパラガス'], ['アスパラガス 4本', 'ベーコン 4枚', 'こしょう 少し'], ['アスパラの根元のかたい皮をむき、半分に切る', 'ベーコンで巻き、ようじでとめる', 'フライパンで転がしながら焼き、こしょうをふる']],
+    [28, 'そら豆のさやごと焼き', 'りょうり', ['そら豆'], ['そら豆(さやつき)6本', '塩 少し'], ['さやのまま魚焼きグリルに並べる', '中火で10分、さやが黒く焦げるまで焼く', 'さやを開けて、塩をつけて食べる']],
+    [29, 'たたききゅうり', 'りょうり', ['きゅうり'], ['きゅうり 2本', 'ごま油 大さじ1', '鶏ガラスープの素 小さじ1/2', '塩 少し', 'いりごま 少し'], ['きゅうりをめん棒などでたたいて割り、ひと口大にする', '袋に全部入れて軽くもむ', '10分おいて味をなじませる']],
+    [30, 'トマトと卵の炒め物', 'りょうり', ['トマト'], ['トマト 2個', '卵 3個', '塩・こしょう 少し', '砂糖 小さじ1', '油 大さじ1'], ['トマトをくし形に切る', '卵を溶き、塩と砂糖を入れる', '油で卵を半熟に炒めて、いったん出す', 'トマトを炒め、卵を戻して塩・こしょうで味をととのえる']],
+    [31, '焼きなす', 'りょうり', ['なす'], ['なす 3本', 'しょうが 少し', 'かつおぶし 少し', 'しょうゆ 適量'], ['なすのへたのまわりに切れ目を入れる', 'グリルで皮が黒くなるまで焼く(10〜15分)', '熱いうちに皮をむき、食べやすくさく', 'しょうが・かつおぶし・しょうゆをかける']],
+    [32, 'ピーマンの肉詰め', 'りょうり', ['ピーマン'], ['ピーマン 4個', '合いびき肉 200g', '玉ねぎ 1/4個', 'パン粉 大さじ3', '卵 1/2個', '塩・こしょう 少し', '小麦粉 少し', 'ケチャップ・ソース 各大さじ2'], ['ピーマンを縦半分に切り、種を取る', 'ひき肉・みじん切りの玉ねぎ・パン粉・卵・塩こしょうを混ぜる', 'ピーマンの内側に小麦粉をふり、肉を詰める', '肉の面から焼き、ふたをして弱火で8分。ケチャップとソースをからめる']],
+    [33, 'オクラのおかか和え', 'りょうり', ['オクラ'], ['オクラ 1袋', 'かつおぶし 1袋', 'しょうゆ 小さじ2'], ['オクラに塩をまぶしてこすり、うぶ毛を取る', '1分ゆでて水にとり、小口切りにする', 'かつおぶしとしょうゆであえる']],
+    [34, '枝豆のおいしいゆで方', 'りょうり', ['枝豆'], ['枝豆 1袋', '塩 大さじ1(もみ用)', '水 1L に塩 大さじ1'], ['枝豆のさやの両端を少し切る', '塩でもみ、うぶ毛を取る', '塩を入れたたっぷりの湯で3〜4分ゆでる', 'ざるに上げ、うちわであおいで冷ます(水にはつけない)']],
+    [35, 'とうもろこしご飯', 'りょうり', ['とうもろこし'], ['米 2合', 'とうもろこし 1本', '塩 小さじ1', '酒 大さじ1', 'バター 10g(好みで)'], ['米をといで、2合の線まで水を入れる', 'とうもろこしの実を包丁で切り取る', '塩・酒を入れ、実と芯ものせて炊く', '芯を取り出して混ぜる(好みでバター)']],
+    [36, 'かぼちゃの煮物', 'りょうり', ['かぼちゃ'], ['かぼちゃ 1/4個', '水 200ml', '砂糖 大さじ2', 'しょうゆ 大さじ1', 'みりん 大さじ1'], ['かぼちゃの種とわたを取り、ひと口大に切る', '皮を下にして鍋に並べ、水と砂糖を入れて5分煮る', 'しょうゆ・みりんを入れ、落としぶたで10分煮る', '火を止めて冷ますと味がしみる']],
+    [37, 'ゴーヤチャンプルー', 'りょうり', ['ゴーヤ'], ['ゴーヤ 1/2本', '木綿豆腐 1/2丁', '豚こま肉 100g', '卵 1個', '塩・こしょう 少し', 'しょうゆ 小さじ1', 'かつおぶし 少し', '油 大さじ1'], ['ゴーヤを縦半分に切り、わたを取って薄切り。塩もみして水気をしぼる', '豆腐は水きりして手でちぎり、焼き色をつけて出す', '豚肉とゴーヤを炒め、豆腐を戻す', '溶き卵を回し入れ、塩こしょう・しょうゆで味つけ。かつおぶしをのせる']],
+    [38, '大学いも', 'スイーツ', ['さつまいも'], ['さつまいも 1本', '油 大さじ4', '砂糖 大さじ3', 'しょうゆ 小さじ1', 'いりごま 少し'], ['さつまいもを乱切りにし、水にさらして水気をふく', 'フライパンに油といもを入れ、中火で転がしながら焼く(10分)', '余分な油をふき、砂糖としょうゆを入れてからめる', 'ごまをふる']],
+    [39, '里いもの煮っころがし', 'りょうり', ['里いも'], ['里いも 6個', 'だし 200ml', 'しょうゆ・みりん 各大さじ2', '砂糖 大さじ1'], ['里いもの皮をむき、塩でもんでぬめりを取り、洗う', 'だしと調味料で、落としぶたをして15分煮る', 'ふたを取り、鍋をゆすりながら煮汁をからめる']],
+    [40, 'きのこのバターしょうゆ炒め', 'りょうり', ['きのこ', 'しいたけ', 'しめじ', 'まいたけ'], ['しめじ・まいたけ・しいたけ など合わせて 200g', 'バター 10g', 'しょうゆ 小さじ2', 'こしょう 少し'], ['きのこを石づきを取ってほぐす(洗わない)', 'バターできのこを炒める', 'しんなりしたら、しょうゆとこしょうで味つけ']],
+    [41, 'ごぼうのきんぴら', 'りょうり', ['ごぼう'], ['ごぼう 1本', 'にんじん 1/3本', 'ごま油 大さじ1', 'しょうゆ・みりん 各大さじ1.5', '砂糖 小さじ1', 'いりごま 少し'], ['ごぼうとにんじんを細切りにし、ごぼうは水にさらす', 'ごま油で炒める', '調味料を入れて汁気がなくなるまで炒め、ごまをふる']],
+    [42, 'ブロッコリーとえびの塩炒め', 'りょうり', ['ブロッコリー'], ['ブロッコリー 1株', 'むきえび 100g', 'にんにく 1かけ', '鶏ガラスープの素 小さじ1/2', '塩・こしょう 少し', '油 大さじ1'], ['ブロッコリーを小房に分けて1分ゆでる', '油でにんにく・えびを炒める', 'ブロッコリーを入れ、スープの素・塩こしょうで味つけ']],
+    [43, '焼きりんご', 'スイーツ', ['りんご'], ['りんご 1個', 'バター 10g', '砂糖 大さじ1', 'シナモン(好みで)'], ['りんごを8つのくし形に切り、芯を取る', 'フライパンでバターを溶かし、りんごを焼く', '砂糖をふって、やわらかくなるまで焼く(5〜8分)', '好みでシナモンをふる。アイスを添えても']],
+    [44, 'りんごのコンポート', 'スイーツ', ['りんご'], ['りんご 1個', '砂糖 大さじ3', '水 150ml', 'レモン汁 小さじ1'], ['りんごを皮つきのまま8つに切り、芯を取る', '鍋に全部入れ、落としぶたで弱火10分', 'そのまま冷まし、冷蔵庫で冷やす(ヨーグルトにのせても)']],
+    [45, '柿とクリームチーズのあえもの', 'スイーツ', ['柿'], ['柿 1個', 'クリームチーズ 40g', 'はちみつ 小さじ1'], ['柿の皮をむき、角切りにする', 'クリームチーズも角切りにする', 'あえて、はちみつをかける']],
+    [46, 'みかんゼリー', 'スイーツ', ['みかん'], ['みかん 3個(またはみかん100%ジュース 300ml)', '粉ゼラチン 5g', '水 大さじ2', '砂糖 大さじ1'], ['ゼラチンを水にふり入れてふやかす', 'みかんをしぼって300mlにする', 'ジュースの一部を温めて砂糖とゼラチンを溶かし、残りと混ぜる', '器に入れ、冷蔵庫で3時間冷やし固める']],
+    [47, 'いちごのヨーグルトパフェ', 'スイーツ', ['いちご'], ['いちご 6粒', 'ヨーグルト 200g', 'はちみつ 小さじ2', 'グラノーラ(あれば)少し'], ['いちごを半分に切る', 'グラスにヨーグルト・いちご・グラノーラを重ねる', 'はちみつをかける']],
+    [48, '桃のコンポート', 'スイーツ', ['もも'], ['桃 1個', '水 200ml', '砂糖 大さじ3', 'レモン汁 小さじ2'], ['桃を半分に切って種を取る(皮はつけたまま)', '水・砂糖を煮立て、桃とレモン汁を入れて弱火5分', '皮をむき、シロップごと冷蔵庫で冷やす(皮を入れるとピンク色になる)']],
+    [49, '梨・洋梨のコンポート', 'スイーツ', ['梨', 'ラ・フランス'], ['梨(またはラ・フランス)1個', '砂糖 大さじ3', '水 150ml', 'レモン汁 小さじ1'], ['皮をむいて8つに切り、芯を取る', '鍋に全部入れ、落としぶたで弱火10分', 'そのまま冷まし、冷蔵庫で冷やす']],
+    [50, '冷凍ぶどう', 'スイーツ', ['ぶどう'], ['ぶどう(皮ごと食べられるものが楽)適量'], ['ぶどうを洗って、1粒ずつ軸から外す', '水気をよくふく', '袋に入れて平らにし、冷凍庫で3時間以上', '少しおいて、シャーベットのように食べる']],
+    [51, 'すいかのフルーツポンチ', 'スイーツ', ['すいか', 'メロン'], ['すいか 1/8個', 'ほかの果物(メロン・缶詰など)適量', 'サイダー 200ml'], ['すいかを丸くくり抜くか、ひと口大に切る', 'ほかの果物も同じくらいに切る', '器に入れて、冷やしたサイダーを注ぐ']],
+    [52, '栗ご飯', 'りょうり', ['栗'], ['米 2合', '栗 10〜15個', '塩 小さじ1', '酒 大さじ1'], ['栗を熱湯に30分つけて皮をやわらかくし、鬼皮と渋皮をむく', '米をといで2合の線まで水を入れる', '塩・酒を入れ、栗をのせて炊く']],
+    [53, 'いちじくのはちみつヨーグルト', 'スイーツ', ['いちじく'], ['いちじく 2個', 'ヨーグルト 150g', 'はちみつ 小さじ2'], ['いちじくの皮をむき、くし形に切る', 'ヨーグルトにのせる', 'はちみつをかける']],
+    [54, '梅シロップ', 'スイーツ', ['梅'], ['青梅 500g', '氷砂糖 500g', '保存びん(熱湯でよく洗う)'], ['梅を洗い、竹ぐしでへたを取って水気をふく', 'びんに梅と氷砂糖を交互に入れる', '1日1回びんをゆすり、2〜3週間で氷砂糖が溶けたらできあがり', '水や炭酸で4〜5倍に薄めて飲む']],
+    [55, 'ゆず大根', 'りょうり', ['ゆず', '大根'], ['大根 1/4本', 'ゆずの皮 1/2個分', '塩 小さじ1/2', '砂糖 大さじ1.5', '酢 大さじ2'], ['大根を拍子木に切り、塩をふって20分おき、水気をしぼる', 'ゆずの皮を細切りにする', '砂糖・酢と一緒に袋に入れ、冷蔵庫で半日漬ける']]
+  ];
+  function recipeById(id) { return RECIPES.filter(function (r) { return r[0] === +id; })[0]; }
+  function recipesFor(name) { return RECIPES.filter(function (r) { return r[3].indexOf(name) >= 0; }); }
+  function shunKey(s) { return String(s || '').replace(/[((].*?[))]/g, '').trim(); }
+  function recipeFav() { try { return JSON.parse(store.get('recipeFav') || '{}'); } catch (e) { return {}; } }
+  function setRecipeFav(id, v) { var f = recipeFav(); if (v) f[id] = v; else delete f[id]; store.set('recipeFav', JSON.stringify(f)); }
+  // 今月の旬の品物の名前(レシートの「旬」の印・ふきだし用)
+  function shunNow(m) {
+    var x = SHUN_MONTH[m || (new Date().getMonth() + 1)]; if (!x) return [];
+    return [x.f, x.v, x.s].join('、').split('、').map(shunKey).filter(Boolean);
+  }
+  function shunOfItem(name) {
+    name = String(name || ''); if (!name) return '';
+    var now = shunNow(), hit = now.filter(function (k) { return k.length >= 2 && name.indexOf(k) >= 0; })[0];
+    if (hit) return hit;
+    var kinds = shunHit(name), fr = SHUN_MONTH[new Date().getMonth() + 1].f;
+    return kinds.length && fr.indexOf(kinds[0].name.split('・')[0]) >= 0 ? kinds[0].name.split('・')[0] : '';
+  }
+  function openShunItem(name, back) {
+    var key = shunKey(name), tip = SHUN_TIP[key], rs = recipesFor(key), fav = recipeFav();
+    var months = []; for (var m = 1; m <= 12; m++) if (shunNow(m).indexOf(key) >= 0) months.push(m);
+    openSheet('<div class="grip"></div><h2>' + esc(key) + '</h2>' +
+      (months.length ? '<div class="note" style="font-size:16px;margin-bottom:6px">旬:' + months.map(function (x) { return x + '月'; }).join('・') + '</div>' : '') +
+      (tip ? '<div class="card" style="margin-bottom:12px;padding:12px 14px;font-size:17px">💡 ' + esc(tip) + '</div>' : '') +
+      (rs.length ? '<div class="section-title">🍳 かんたんな料理・スイーツ</div>' + rs.map(function (r) {
+        return '<button type="button" class="in-line" data-rc="' + r[0] + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);color:var(--text);font:inherit;text-align:left;cursor:pointer;font-size:18px">' +
+          '<span>' + (r[2] === 'スイーツ' ? '🍰 ' : '🍳 ') + esc(r[1]) + (fav[r[0]] ? ' <span class="in-sub">' + (fav[r[0]] === 'done' ? '✅ 作った' : '☑ 作ってみたい') + '</span>' : '') + '</span><span>›</span></button>';
+      }).join('') : '<div class="note" style="font-size:16px">この品物の料理は、まだ入っていません。</div>') +
+      '<button class="btn btn-tonal btn-block" id="siBack" style="margin-top:12px">← 戻る</button>');
+    $('siBack').addEventListener('click', back);
+    $('sheet').querySelectorAll('[data-rc]').forEach(function (b) { b.addEventListener('click', function () { openRecipe(b.dataset.rc, function () { openShunItem(key, back); }); }); });
+  }
+  function openRecipe(id, back) {
+    var r = recipeById(id); if (!r) return;
+    var f = recipeFav()[r[0]] || '';
+    openSheet('<div class="grip"></div><h2>' + (r[2] === 'スイーツ' ? '🍰 ' : '🍳 ') + esc(r[1]) + '</h2>' +
+      '<div class="note" style="font-size:15px;margin-bottom:8px">旬の品物:' + r[3].map(esc).join('・') + ' ・ 2人分の目安</div>' +
+      '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">' +
+      '<label class="check" style="font-size:18px;margin:0"><input type="checkbox" id="rcWant"' + (f ? ' checked' : '') + '> <span>☑ 作ってみたい(「📖 作ってみたい」の一覧に入れる)</span></label>' +
+      (f ? '<label class="check" style="font-size:18px;margin:0"><input type="checkbox" id="rcDone"' + (f === 'done' ? ' checked' : '') + '> <span>✅ 作った</span></label>' : '') + '</div>' +
+      '<div class="section-title">材料</div><div class="card" style="padding:10px 14px;margin-bottom:12px">' + r[4].map(function (x) { return '<div style="font-size:17px;padding:4px 0;border-bottom:1px solid var(--line)">・' + esc(x) + '</div>'; }).join('') + '</div>' +
+      '<div class="section-title">作り方</div><div class="card" style="padding:10px 14px;margin-bottom:8px">' + r[5].map(function (x, i) { return '<div style="font-size:17px;padding:6px 0;border-bottom:1px solid var(--line);display:flex;gap:8px"><b style="flex:none">' + (i + 1) + '.</b><span>' + esc(x) + '</span></div>'; }).join('') + '</div>' +
+      '<div class="note" style="font-size:14px">分量と時間は目安です。火加減を見ながら作ってください。</div>' +
+      '<button class="btn btn-tonal btn-block" id="rcBack" style="margin-top:12px">← 戻る</button>');
+    $('rcBack').addEventListener('click', back);
+    $('rcWant').addEventListener('change', function () { setRecipeFav(r[0], this.checked ? 'want' : ''); toast(this.checked ? '「作ってみたい」に入れました' : '「作ってみたい」から外しました'); openRecipe(id, back); });
+    if ($('rcDone')) $('rcDone').addEventListener('change', function () { setRecipeFav(r[0], this.checked ? 'done' : 'want'); toast(this.checked ? '作った、にしました' : '作ってみたい、に戻しました'); openRecipe(id, back); });
+  }
   function shunHit(text) {
     text = String(text || '');
     return SHUN_KINDS.filter(function (k) { return k.hit.test(text); });
@@ -3655,16 +3822,36 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   function openShun(tab, back, pick) {
     tab = tab || 'month';
     var self = function (t, pk) { openShun(t, back, pk); };
-    var tabs = '<div class="chips" id="shTabs" style="margin-bottom:10px">' + [['month', '📅 今月の旬']].concat(SHUN_KINDS.map(function (k) { return [k.k, k.icon + ' ' + k.name]; })).map(function (t) {
+    var nFav = Object.keys(recipeFav()).length;
+    var tabs = '<div class="chips" id="shTabs" style="margin-bottom:10px">' + [['month', '📅 旬(月・季節)'], ['fav', '📖 作ってみたい' + (nFav ? '(' + nFav + ')' : '')]].concat(SHUN_KINDS.map(function (k) { return [k.k, k.icon + ' ' + k.name]; })).map(function (t) {
       return '<button class="chip' + (t[0] === tab ? ' on' : '') + '" data-t="' + t[0] + '" style="font-size:16px;min-height:44px">' + t[1] + '</button>'; }).join('') + '</div>';
     var body = '';
+    var SEAS = { sp: ['🌸 春', [3, 4, 5]], su: ['🌻 夏', [6, 7, 8]], au: ['🍁 秋', [9, 10, 11]], wi: ['⛄ 冬', [12, 1, 2]] };
+    var itemChips = function (names) {
+      var seen = {};
+      return '<div style="display:flex;flex-wrap:wrap;gap:8px">' + names.map(shunKey).filter(function (n) { if (!n || seen[n]) return false; seen[n] = 1; return true; }).map(function (n) {
+        var has = recipesFor(n).length;
+        return '<button type="button" class="chip" data-it="' + esc(n) + '" style="font-size:17px;min-height:46px' + (has ? ';border-color:var(--primary)' : '') + '">' + esc(n) + (has ? ' 🍳' : '') + '</button>';
+      }).join('') + '</div>';
+    };
     if (tab === 'month') {
-      var m = +(pick || (new Date().getMonth() + 1)), x = SHUN_MONTH[m];
-      body = '<div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px"><button class="icon-btn" id="shPrev" aria-label="前の月" style="font-size:22px">◀</button>' +
-        '<b style="font-size:22px">' + m + '月の旬</b><button class="icon-btn" id="shNext" aria-label="次の月" style="font-size:22px">▶</button></div>' +
-        [['🍎 果物', x.f], ['🥬 野菜', x.v], ['🐟 魚・貝', x.s]].map(function (r) {
-          return '<div class="card" style="margin-bottom:10px;padding:12px 14px"><div style="font-size:18px;font-weight:700;margin-bottom:4px">' + r[0] + '</div><div style="font-size:18px;line-height:1.6">' + esc(r[1]) + '</div></div>';
-        }).join('') + '<div class="note" style="font-size:14px">旬は目安です。産地や天気で前後します。</div>';
+      var isSeason = SEAS[pick], m = isSeason ? 0 : +(pick || (new Date().getMonth() + 1));
+      var parts = { f: [], v: [], s: [] };
+      (isSeason ? SEAS[pick][1] : [m]).forEach(function (mm) { var x = SHUN_MONTH[mm]; ['f', 'v', 's'].forEach(function (k) { parts[k] = parts[k].concat(x[k].split('、')); }); });
+      body = '<div class="chips" id="shSeas" style="margin-bottom:6px">' + Object.keys(SEAS).map(function (k) { return '<button class="chip' + (pick === k ? ' on' : '') + '" data-se="' + k + '" style="font-size:17px;min-height:44px">' + SEAS[k][0] + '</button>'; }).join('') + '</div>' +
+        (isSeason ? '<div style="text-align:center;margin:6px 0 10px"><b style="font-size:22px">' + SEAS[pick][0] + 'の旬</b> <span class="in-sub">(' + SEAS[pick][1].join('・') + '月)</span></div>' :
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0 10px"><button class="icon-btn" id="shPrev" aria-label="前の月" style="font-size:22px">◀</button>' +
+        '<b style="font-size:22px">' + m + '月の旬</b><button class="icon-btn" id="shNext" aria-label="次の月" style="font-size:22px">▶</button></div>') +
+        [['🍎 果物', parts.f], ['🥬 野菜', parts.v], ['🐟 魚・貝', parts.s]].map(function (r) {
+          return '<div class="card" style="margin-bottom:10px;padding:12px 14px"><div style="font-size:18px;font-weight:700;margin-bottom:8px">' + r[0] + '</div>' + itemChips(r[1]) + '</div>';
+        }).join('') + '<div class="note" style="font-size:14px">名前を押すと、説明と料理が見られます(🍳 は料理のあるもの)。旬は目安です。産地や天気で前後します。</div>';
+    } else if (tab === 'fav') {
+      var fv = recipeFav(), ids = Object.keys(fv).sort(function (a, b) { return (fv[a] === 'done') - (fv[b] === 'done') || a - b; });
+      body = ids.length ? '<div class="note" style="font-size:15px;margin-bottom:6px">「作ってみたい」にチェックした料理です。押すと材料と作り方が出ます。</div>' + ids.map(function (id) {
+        var r = recipeById(id); if (!r) return '';
+        return '<button type="button" class="in-line" data-rc="' + r[0] + '" style="width:100%;background:none;border:none;border-bottom:1px solid var(--line);color:var(--text);font:inherit;text-align:left;cursor:pointer;font-size:18px">' +
+          '<span>' + (r[2] === 'スイーツ' ? '🍰 ' : '🍳 ') + esc(r[1]) + '<span class="in-sub" style="display:block">' + r[3].map(esc).join('・') + '</span></span><span class="in-sub">' + (fv[id] === 'done' ? '✅ 作った' : '☑ これから') + ' ›</span></button>';
+      }).join('') : '<div class="note" style="font-size:17px">まだありません。旬の品物を押して料理を開き、「☑ 作ってみたい」にチェックすると、ここに並びます。</div>';
     } else {
       var K = SHUN_KINDS.filter(function (k) { return k.k === tab; })[0], sel = pick != null ? +pick : -1;
       // その種類の中で広げて置く(左右・上下いっぱいに)。同じ場所が重なったら少しずらす
@@ -3703,9 +3890,13 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     $('shTabs').querySelectorAll('[data-t]').forEach(function (b) { b.addEventListener('click', function () { self(b.dataset.t); }); });
     $('shBack').addEventListener('click', function () { if (back) back(); else closeSheet(); });
     if (tab === 'month') {
-      var mm = +(pick || (new Date().getMonth() + 1));
-      $('shPrev').addEventListener('click', function () { self('month', mm === 1 ? 12 : mm - 1); });
-      $('shNext').addEventListener('click', function () { self('month', mm === 12 ? 1 : mm + 1); });
+      if ($('shPrev')) { var mm = +(pick || (new Date().getMonth() + 1));
+        $('shPrev').addEventListener('click', function () { self('month', mm === 1 ? 12 : mm - 1); });
+        $('shNext').addEventListener('click', function () { self('month', mm === 12 ? 1 : mm + 1); }); }
+      $('shSeas').querySelectorAll('[data-se]').forEach(function (b) { b.addEventListener('click', function () { self('month', pick === b.dataset.se ? null : b.dataset.se); }); });
+      $('sheet').querySelectorAll('[data-it]').forEach(function (b) { b.addEventListener('click', function () { openShunItem(b.dataset.it, function () { self('month', pick); }); }); });
+    } else if (tab === 'fav') {
+      $('sheet').querySelectorAll('[data-rc]').forEach(function (b) { b.addEventListener('click', function () { openRecipe(b.dataset.rc, function () { self('fav'); }); }); });
     } else {
       $('sheet').querySelectorAll('[data-si]').forEach(function (b) { b.addEventListener('click', function () { var y = $('sheet').scrollTop; self(tab, b.dataset.si); $('sheet').scrollTop = y; }); });
     }
@@ -7058,6 +7249,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     if (feat('memo') && NT.data) { var k = NT.data.shop.filter(function (x) { return !x.done; }).length; if (k) info.push('🛒 買い物メモに ' + k + 'つあるよ'); }
     if (feat('pay')) cardList().filter(isPrepaid).forEach(function (c) { info.push('💴 ' + c.name + ' の残高は ' + yen(c.balance || 0) + ' だよ'); });
     var r = rokuyo(d); if (r === '大安') info.push('今日は大安だよ。いいことがありそう');
+    if (feat('shun')) { var sn = shunNow().filter(function (k) { return recipesFor(k).length; }); if (sn.length) { var k1 = sn[Math.floor(Math.random() * sn.length)], r1 = recipesFor(k1)[0]; info.push('🍳 今は' + k1 + 'が旬だよ。' + r1[1] + 'はどう?'); } }
     var talk = [h < 10 ? 'おはよう!' : h < 17 ? 'こんにちは!' : h < 22 ? 'こんばんは。今日もおつかれさま' : 'そろそろ休もうね',
       mo >= 3 && mo <= 5 ? '🌸 春だね。お散歩が気持ちいいね' : mo >= 6 && mo <= 8 ? '🌻 暑いね。お水を飲んでね' : mo >= 9 && mo <= 11 ? '🍂 秋だね。おいしい物がいっぱい' : '⛄ 寒いね。あったかくしてね',
       'レシートは、もらったらすぐ撮ると楽だよ', '今日もいい日になりますように', 'おやつの時間はまだかな?', 'ちょっとおさんぽ中。じゃましないからね',
