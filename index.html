@@ -416,7 +416,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 <div class="demo-banner hidden" id="demoBanner">仮モードで動いています(まだどの家計簿にもつながっていません)。データはこのスマホの中だけに仮保存されます。招待リンクをもらったら、⚙ →「🔁 家の切り替え・追加」に貼り付けるとつながります。</div>
 <div class="demo-banner hidden" id="lineBanner" style="background:var(--danger-soft);color:var(--danger);font-size:16px">
   ⚠ 今は <b>LINE の中</b> で開いています。LINE の中ではカメラが動かなかったり、ホーム画面に追加できなかったりします。
-  右上の <b>︙</b> などから「ブラウザで開く」を選ぶか、招待リンクをコピーして Chrome・Safari に貼り付けて開き、ホーム画面に追加してください。
+  右上の <b>︙</b> などから「ブラウザで開く」を選んでください(<b>ブラウザ</b>は、インターネットを見るアプリのことです。Android は <b>Chrome</b>、iPhone は <b>Safari</b>)。開いたら、ホーム画面に追加してください。
 </div>
 
 <main>
@@ -816,7 +816,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 16:35 版147';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-04 16:50 版148';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版133';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -7039,10 +7039,11 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
     var body;
     if (inLine) {
       body = '<div class="warn" style="font-size:17px">今は <b>LINE の中</b> で開いています。LINE の中では、ホーム画面に追加できません。</div>' +
+        '<div class="note" style="font-size:17px;margin:6px 0;padding:8px 10px;border-radius:10px;background:var(--primary-soft);color:var(--on-primary-soft)">💡 <b>ブラウザ</b>とは、インターネットを見るアプリのことです。Android は <b>Chrome(クローム)</b>、iPhone は <b>Safari(サファリ)</b> です。下の手順の「ブラウザ」は、このどちらかのことです。</div>' +
         '<div class="note" style="font-size:17px;font-weight:700;color:var(--text);margin:6px 0">LINE は閉じないで、開いたままで手順に沿って操作してください。<br>閉じてしまったら、もう一度 LINE の招待リンクをタップして始めてください。</div>' +
         '<ol style="padding-left:22px;margin:8px 0 16px">' +
         (ios ? '<li>画面の右下(または右上)の <b>共有のマーク</b> か <b>「…」</b> を押す</li><li><b>「Safari で開く」</b> を押す</li>'
-             : '<li>画面のいちばん上の右はしにある <b>︙</b>(LINE のメニュー)を押す</li><li><b>「ブラウザで開く」</b>(または「他のアプリで開く」→ Chrome)を押す</li>') +
+             : '<li>LINE の画面の、いちばん上の右はしにある <b>︙</b> を押す</li><li><b>「ブラウザで開く」</b>を押す(「他のアプリで開く」と出たときは Chrome を選ぶ)</li>') +
         '<li>開いた画面で、もう一度この案内にそって <b>ホーム画面に追加</b> する</li>' + last + '</ol>';
     } else if (ios) {
       body = '<div class="note" style="font-size:16px;margin:6px 0">iPhone では、ボタン1つでの追加はできません(Apple の決まりです)。下の青い矢印の先にある、Safari の共有ボタンから追加します。</div>' +
