@@ -226,6 +226,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .bar-sub { font-size: 14px; color: var(--text-2); margin-top: 4px; }
 .rk-label { font-size: 16px; font-weight: 700; color: var(--text-2); margin: 12px 0 6px; }
 #rkBox .chip { font-size: 17px; min-height: 44px; }
+#rkGroup .chip { flex: 1 1 0; min-width: 0; padding: 0 6px; white-space: nowrap; }
 .sum-tabs { position: sticky; top: calc(30px + var(--tbh, 96px)); z-index: 6; background: var(--bg); display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 10px; margin-bottom: 6px; border-bottom: 2px solid var(--line); }
 .sum-tabs button { font: inherit; font-size: 17px; font-weight: 700; min-height: 46px; padding: 0 12px; border-radius: 23px; border: 1px solid var(--line); background: var(--surface, #fff); color: var(--text); cursor: pointer; }
 .sum-tabs button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -446,9 +447,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   <section class="screen active" id="screen-history">
     <div class="ticker hidden" id="ticker" role="status" aria-live="polite" title="押すと閉じます"></div>
     <div class="month-nav">
-      <button class="icon-btn" data-month="-1" aria-label="前の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="icon-btn" data-month="-1" aria-label="前の月" style="font-size:24px">◀&#xFE0E;</button>
       <span class="title" id="histMonth"></span>
-      <button class="icon-btn" data-month="1" aria-label="次の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="icon-btn" data-month="1" aria-label="次の月" style="font-size:24px">▶&#xFE0E;</button>
     </div>
     <div class="total-card">
       <div class="label" id="histTotalLabel">合計</div>
@@ -596,9 +597,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   <!-- 集計 -->
   <section class="screen" id="screen-summary">
     <div class="month-nav">
-      <button class="icon-btn" data-month="-1" aria-label="前の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="icon-btn" data-month="-1" aria-label="前の月" style="font-size:24px">◀&#xFE0E;</button>
       <span class="title" id="sumMonth"></span>
-      <button class="icon-btn" data-month="1" aria-label="次の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="icon-btn" data-month="1" aria-label="次の月" style="font-size:24px">▶&#xFE0E;</button>
     </div>
     <div class="sum-tabs" id="sumTabs" role="tablist"></div>
     <div id="sumTabTotal">
@@ -622,9 +623,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       <div class="chips" id="rkWho"></div>
       <div class="rk-label" id="rkKindL">何のランキング</div>
       <div class="chips" id="rkKind"></div>
-      <div class="rk-label" id="rkGroupL">食べ物・それ以外</div>
-      <div class="chips" id="rkGroup"></div>
-      <div class="rk-label" id="rkTopL">表示する数</div>
+      <div class="rk-label" id="rkGroupL">食料品・それ以外</div>
+      <div class="chips" id="rkGroup" style="flex-wrap:nowrap"></div>
+      <div class="rk-label hidden" id="rkTopL">表示する数</div>
       <div class="chips" id="rkTop"></div>
       <div id="rkRange" class="note" style="font-size:16px;margin:12px 0 4px"></div>
       <div id="rkChart"></div>
@@ -644,9 +645,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     <div id="payMain">
       <div id="pmBox">
         <div class="month-nav" style="margin:0 0 4px">
-          <button class="icon-btn" id="pmPrev" aria-label="前の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <button class="icon-btn" id="pmPrev" aria-label="前の月" style="font-size:24px">◀&#xFE0E;</button>
           <span class="title" style="font-size:18px" id="pmLabel">今月の支払い額</span>
-          <button class="icon-btn" id="pmNext" aria-label="次の月"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+          <button class="icon-btn" id="pmNext" aria-label="次の月" style="font-size:24px">▶&#xFE0E;</button>
         </div>
         <div class="total-card">
           <div style="display:flex;align-items:center;gap:12px">
@@ -843,7 +844,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-14 17:00 版157';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-14 17:20 版158';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版137';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -1571,20 +1572,20 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     var kinds = RK_KINDS.filter(function (x) { return x[0] !== 'cat'; });
     if (tab === 'rank') rkChips('rkKind', kinds, RK.kind, function (v) { RK.kind = v; RK.rankKind = v; });
     ['rkKindL', 'rkKind'].forEach(function (id) { show(id, tab === 'rank'); });
-    ['rkTopL', 'rkTop', 'rkList'].forEach(function (id) { show(id, tab === 'cat' || tab === 'rank'); });
+    ['rkTop', 'rkList'].forEach(function (id) { show(id, tab === 'cat' || tab === 'rank'); });
     ['rkChart', 'rkPie', 'rkWeek'].forEach(function (id) { show(id, tab === 'graph'); });
     ['rkPeriodL', 'rkPeriod', 'rkRange'].forEach(function (id) { show(id, tab !== 'insight'); });
     if (tab === 'insight') show('rkSeason', false);
     var grp = feat('cat') && (tab === 'cat' || (tab === 'rank' && RK.kind.indexOf('item') === 0));
     show('rkGroupL', grp); show('rkGroup', grp); if (!grp) RK.group = '';
-    if (grp) rkChips('rkGroup', [['', '全部'], ['food', '🍙 食べ物だけ'], ['other', '🧴 それ以外だけ']], RK.group || '', function (v) { RK.group = v; });
+    if (grp) rkChips('rkGroup', [['', '全部'], ['food', '🍙 食料品'], ['other', '🧴 それ以外']], RK.group || '', function (v) { RK.group = v; });
     rkChips('rkTop', [['5', 'トップ5'], ['10', 'トップ10'], ['0', '全部']], RK.top, function (v) { RK.top = v; store.set('rkTop', v); });
     if (tab === 'insight') {
       if (RK.whoChanged || RK.lastBase !== state.month || !$('inBox').innerHTML) { RK.whoChanged = false; RK.lastBase = state.month; renderInsights(); }
       return;
     }
     var rg = rkRange(), my = ++RK.seq;
-    $('rkRange').textContent = '📅 ' + rg.label + (RK.period.indexOf('week') < 0 ? '(上の「◀ ▶」で月を変えられます)' : '');
+    $('rkRange').textContent = '📅 ' + rg.label;
     $('rkList').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>'; $('rkChart').innerHTML = '';
     var prg = tab === 'cat' ? rkPrevRange(rg) : null;
     rkLoad(rg.months.concat(prg ? prg.months.filter(function (m) { return rg.months.indexOf(m) < 0; }) : [])).then(function (all) {
@@ -1649,7 +1650,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     }).join('') + rkTopNote(allNames.length);
   }
 
-  /* ---------- 🏷 カテゴリ(品物の分け方)と「食べ物・それ以外」 ----------
+  /* ---------- 🏷 カテゴリ(品物の分け方)と「食料品・それ以外」 ----------
      読み取りのときに窓口(Gemini)が品物ごとに付ける。付いていない前の記録や手で入れた品物は、名前から見当を付ける */
   var ICATS = [
     ['野菜', '🥬', 'food'], ['果物', '🍎', 'food'], ['穀物', '🍚', 'food'], ['肉', '🥩', 'food'], ['魚', '🐟', 'food'], ['卵・乳製品', '🥚', 'food'],
@@ -1657,8 +1658,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     ['その他の食べ物', '🍙', 'food'],
     ['化粧品', '💄', 'other'], ['薬', '💊', 'other'], ['日用品', '🧻', 'other'], ['台所用品', '🍳', 'other'], ['衣類', '👕', 'other'], ['その他', '📦', 'other']
   ];
-  var CAT_LABEL = { '野菜': '野菜(きのこ・豆腐・納豆)', '魚': '魚(貝・海そう)', '穀物': '穀物(米・パン・麺)', '卵・乳製品': '卵・乳製品', '惣菜': 'お惣菜・お弁当・冷凍食品', 'スイーツ': 'スイーツ・お菓子', '調味料': '調味料・油', '化粧品': '化粧品・身だしなみ', '薬': '薬・健康', '日用品': '日用品(洗剤・ティッシュ)', '台所用品': '台所用品(鍋・食器)' };
-  var GROUPS = { food: ['🍙', '食べ物'], other: ['🧴', 'それ以外'] };
+  var CAT_LABEL = { 'その他の食べ物': 'その他の食料品', '野菜': '野菜(きのこ・豆腐・納豆)', '魚': '魚(貝・海そう)', '穀物': '穀物(米・パン・麺)', '卵・乳製品': '卵・乳製品', '惣菜': 'お惣菜・お弁当・冷凍食品', 'スイーツ': 'スイーツ・お菓子', '調味料': '調味料・油', '化粧品': '化粧品・身だしなみ', '薬': '薬・健康', '日用品': '日用品(洗剤・ティッシュ)', '台所用品': '台所用品(鍋・食器)' };
+  var GROUPS = { food: ['🍙', '食料品'], other: ['🧴', 'それ以外'] };
   function catInfo(c) { var x = ICATS.filter(function (k) { return k[0] === c; })[0] || ICATS[ICATS.length - 1]; return { name: x[0], icon: x[1], group: x[2], label: CAT_LABEL[x[0]] || x[0] }; }
   // 名前から見当を付ける(上から順に調べる。食べ物でないものを先に見る)
   var CAT_GUESS = [
@@ -1748,7 +1749,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     };
     var fp = pct(cur.g.food);
     var head = '<div class="card" style="background:var(--surface-2,var(--bg));margin-bottom:12px;padding:12px 14px">' + gRow('food') + gRow('other') +
-      '<div style="display:flex;height:16px;border-radius:8px;overflow:hidden;margin-top:6px" aria-label="食べ物とそれ以外の割合">' +
+      '<div style="display:flex;height:16px;border-radius:8px;overflow:hidden;margin-top:6px" aria-label="食料品とそれ以外の割合">' +
       '<div style="width:' + fp + '%;background:var(--primary)"></div><div style="flex:1;background:#D98A2B"></div></div></div>';
     var max = Math.max.apply(null, names.map(function (c) { return cur.by[c].sum; }).concat([1]));
     var rows = topN(names).map(function (c, i) {
@@ -1871,9 +1872,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   function openCatPick(i) {
     var it = state.draft.items[i]; if (!it) return;
     var cur = itemCat(it, state.draft);
-    var btn = function (c) { var ci = catInfo(c[0]); return '<button type="button" class="chip' + (ci.name === cur ? ' on' : '') + '" data-c="' + esc(ci.name) + '" style="font-size:17px;min-height:48px">' + ci.icon + ' ' + esc(ci.name) + '</button>'; };
+    var btn = function (c) { var ci = catInfo(c[0]); return '<button type="button" class="chip' + (ci.name === cur ? ' on' : '') + '" data-c="' + esc(ci.name) + '" style="font-size:17px;min-height:48px">' + ci.icon + ' ' + esc(ci.name === 'その他の食べ物' ? 'その他の食料品' : ci.name) + '</button>'; };
     openSheet('<div class="grip"></div><h2>🏷 「' + esc(it.name || '品物') + '」の分け方</h2>' +
-      '<div class="section-title">🍙 食べ物</div><div class="chips" style="flex-wrap:wrap">' + ICATS.filter(function (c) { return c[2] === 'food'; }).map(btn).join('') + '</div>' +
+      '<div class="section-title">🍙 食料品</div><div class="chips" style="flex-wrap:wrap">' + ICATS.filter(function (c) { return c[2] === 'food'; }).map(btn).join('') + '</div>' +
       '<div class="section-title">🧴 それ以外</div><div class="chips" style="flex-wrap:wrap">' + ICATS.filter(function (c) { return c[2] === 'other'; }).map(btn).join('') + '</div>' +
       '<button class="btn btn-tonal btn-block" id="cpkNo" style="margin-top:12px">やめる</button>');
     $('cpkNo').addEventListener('click', closeSheet);
@@ -2480,7 +2481,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     ['rank', '📊 ランキング・グラフ・気づき(集計の画面)'],
     ['points', '🎁 ポイントの残り'],
     ['shun', '🍎 旬と早見表(果物の早見表・今月の旬)'],
-    ['cat', '🏷 カテゴリ(食べ物・それ以外)の集計とランキング']
+    ['cat', '🏷 カテゴリ(食料品・それ以外)の集計とランキング']
   ];
   function feat(k) {
     var f; try { f = JSON.parse(store.get('features') || 'null'); } catch (e) { f = null; }
@@ -6828,8 +6829,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       steps: ['買物の画面の[🍎 旬と早見表]を押す', '品物の名前を押すと、説明と料理が出る', '料理の[作ってみたい]にチェックすると[📖 作ってみたい]に並ぶ'], open: function () { openShun('month'); } },
     { k: 'msg', icon: '💬', f: 'memo', t: '家族に伝言を送る(声も送れる)', why: '家族に頼みごとや知らせたいことがあるとき', res: '選んだ家族のアプリに届き、画面の上に揺れる📢と数字、メモのボタンに赤い数字、買物の画面にテロップが出ます。読むと、送った人の画面に「読みました(時刻)」と出て、こちらにも「📢 ○○さんが伝言を読みました」と知らせます。声は文字にもなります。',
       steps: ['下の[メモ]→[💬 伝言]を押す', '[＋ 伝言を書く・声で送る]を押す', '送る相手にチェックを付ける(何人でも。[👪 みんなを選ぶ]もある)', '文を入れるか、[🎤 声を録音する(1分まで)]で録音する(聞き直す・録り直す・声を消す ができる)', '[送る]を押す', '届いた声は[▶ 🔊 声の伝言を聞く]で聞ける。声の文字も下に出る', '届いた伝言には[↩ 返事をする]で返事ができる'], open: function () { NT.tab = 'msgs'; go('notes'); } },
-    { k: 'cat', icon: '🏷', f: 'cat', t: 'カテゴリ(食べ物・それ以外)で見る', why: '何にいくら使ったか、食べ物とそれ以外に分けて知りたいとき', res: '品物が野菜・果物・お惣菜・化粧品などに自動で分けられ、集計の画面で、お金を使った順のランキングとグラフが見られます。前の期間と比べた増え減りも出ます。',
-      steps: ['いつものようにレシートを撮る。品物の左のマーク(🥬 など)が分け方', '違っていたらマークを押して選び直し、[保存する]', '下の[集計]→ 上の[🏷 カテゴリ]のタブを押す', '期間・だれの・[🍙 食べ物だけ]などを選ぶ。[トップ5][トップ10][全部]で数を変えられる', 'カテゴリを押すと、品物ごとの内訳(金額の順・回数の順)と、週ごと・月ごとのグラフが出る', '前のレシートの品物は、カテゴリの順位の下の[🏷 まとめてカテ集計]で、まとめてカテゴリを付けられる(何度押しても二重にならない)'], open: function () { SUMTAB = 'cat'; store.set('sumTab', 'cat'); go('summary'); } },
+    { k: 'cat', icon: '🏷', f: 'cat', t: 'カテゴリ(食料品・それ以外)で見る', why: '何にいくら使ったか、食料品とそれ以外に分けて知りたいとき', res: '品物が野菜・果物・お惣菜・化粧品などに自動で分けられ、集計の画面で、お金を使った順のランキングとグラフが見られます。前の期間と比べた増え減りも出ます。',
+      steps: ['いつものようにレシートを撮る。品物の左のマーク(🥬 など)が分け方', '違っていたらマークを押して選び直し、[保存する]', '下の[集計]→ 上の[🏷 カテゴリ]のタブを押す', '期間・だれの・[🍙 食料品]などを選ぶ。[トップ5][トップ10][全部]で数を変えられる', 'カテゴリを押すと、品物ごとの内訳(金額の順・回数の順)と、週ごと・月ごとのグラフが出る', '前のレシートの品物は、カテゴリの順位の下の[🏷 まとめてカテ集計]で、まとめてカテゴリを付けられる(何度押しても二重にならない)'], open: function () { SUMTAB = 'cat'; store.set('sumTab', 'cat'); go('summary'); } },
     { k: 'family', icon: '👪', t: '家族で使えるようにするには', why: '家族みんなで同じ家計簿に記録したいとき', res: '家族のスマホにも同じ家計簿のアイコンができて、だれが入れたレシートも全員で見られます。入れた人の名前も残ります。',
       steps: ['【招待する人】⚙ →[💌 家族を招待する]を押して、招待リンクを LINE で送る', '【招待する人】家族のパスワードを、紙などで別に伝える', '【招待された人】LINE のリンクを押して、ブラウザ(Android は Chrome、iPhone は Safari)で開き直す', '【招待された人】ホーム画面にアイコンを作る(Android はボタン、iPhone は 共有 →「ホーム画面に追加」)', '【招待された人】アイコンから開いて、家族のパスワードを入れ、自分の名前を選ぶ'], open: function () { openInvite(); } },
     { k: 'where', icon: '📖', t: '家族で見られるもの・自分のスマホだけのもの', why: '家族で使うときに、何が共有されるか知りたいとき', res: '',
