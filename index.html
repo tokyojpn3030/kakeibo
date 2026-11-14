@@ -607,7 +607,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       <div class="amount" id="sumTotal">¥0</div>
       <div id="sumIncome" class="hidden" style="margin-top:8px;font-size:18px;line-height:1.6"></div>
     </div>
-    <div class="section-title">人ごと</div>
+    <div class="section-title" id="sumPeopleT">人ごと</div>
     <div class="card" id="sumPeople"></div>
     <div class="section-title">よく行くお店</div>
     <div class="card" id="sumStores"></div>
@@ -618,7 +618,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       <div class="rk-label" id="rkPeriodL">期間</div>
       <div class="chips" id="rkPeriod"></div>
       <div class="chips hidden" id="rkSeason" style="margin-top:8px"></div>
-      <div class="rk-label">だれの</div>
+      <div class="rk-label" id="rkWhoL">だれの</div>
       <div class="chips" id="rkWho"></div>
       <div class="rk-label" id="rkKindL">何のランキング</div>
       <div class="chips" id="rkKind"></div>
@@ -843,7 +843,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-14 16:40 版156';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-14 17:00 版157';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版137';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -1459,8 +1459,28 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   function sumTabs() { return SUM_TABS.filter(function (t) { return t[0] === 'total' || (t[0] === 'cat' ? feat('cat') : feat('rank')); }); }
   function setTopbarH() { var t = document.querySelector('.topbar'); if (t) document.documentElement.style.setProperty('--tbh', t.offsetHeight + 'px'); }
   window.addEventListener('resize', setTopbarH);
+  // この家計簿を使っているのが1人だけか(家族の名前が1人だけ、または最近1年の記録を入れているのが1人だけ)
+  // 1人だけなら「だれの」と「人ごと」を出さない。2人目が記録を入れたら、自動で出る
+  var SOLO = { v: null, key: '' };
+  function soloApply(solo) {
+    SOLO.v = solo;
+    ['rkWhoL', 'rkWho', 'sumPeopleT', 'sumPeople'].forEach(function (id) { show(id, !solo); });
+    if (solo && RK.who) { RK.who = ''; RK.whoChanged = true; if (SUMTAB && SUMTAB !== 'total') renderRank(); }
+  }
+  function checkSolo() {
+    if (MEMBERS.length <= 1) return soloApply(true);
+    var months = []; for (var i = 11; i >= 0; i--) months.push(shiftMonth(state.month, -i));
+    var key = state.month + '|' + (state.receipts || []).length;
+    if (SOLO.key === key && SOLO.v != null) return soloApply(SOLO.v);
+    SOLO.key = key;
+    if (SOLO.v != null) soloApply(SOLO.v);
+    rkLoad(months).then(function (all) {
+      var who = {}; all.concat(state.receipts || []).forEach(function (r) { if (r.person) who[r.person] = 1; });
+      soloApply(Object.keys(who).length <= 1);
+    }).catch(function () {});
+  }
   function applySumTab() {
-    setTopbarH();
+    setTopbarH(); checkSolo();
     var tabs = sumTabs();
     if (SUMTAB == null) SUMTAB = store.get('sumTab') || 'total';
     if (!tabs.some(function (t) { return t[0] === SUMTAB; })) SUMTAB = 'total';
@@ -1755,7 +1775,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       var max = Math.max.apply(null, names.map(function (k) { return CD.sort === 'n' ? by[k].n : by[k].sum; }).concat([1]));
       var chip = function (id, list, cur) { return '<div class="chips" id="' + id + '" style="margin-bottom:8px">' + list.map(function (x) { return '<button class="chip' + (String(x[0]) === String(cur) ? ' on' : '') + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
       openSheet('<div class="grip"></div><h2>' + ci.icon + ' ' + esc(ci.label) + '</h2>' +
-        '<div class="note" style="font-size:16px;margin-bottom:8px">📅 ' + esc(rg.label) + (RK.who ? ' ・ ' + esc(nm(RK.who)) + 'さん' : ' ・ 全員') + '<br><b style="font-size:20px;color:var(--text)">' + yen(Math.round(tot)) + '</b>(' + cnt + '品)</div>' +
+        '<div class="note" style="font-size:16px;margin-bottom:8px">📅 ' + esc(rg.label) + (RK.who ? ' ・ ' + esc(nm(RK.who)) + 'さん' : SOLO.v ? '' : ' ・ 全員') + '<br><b style="font-size:20px;color:var(--text)">' + yen(Math.round(tot)) + '</b>(' + cnt + '品)</div>' +
         chip('cdSort', [['sum', '金額の順'], ['n', '回数の順']], CD.sort) + chip('cdTop', [['5', 'トップ5'], ['10', 'トップ10'], ['0', '全部']], RK.top) +
         (names.length ? topN(names).map(function (k, i) {
           var v = by[k], val = CD.sort === 'n' ? v.n : v.sum;
