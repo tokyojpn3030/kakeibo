@@ -208,6 +208,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .input:focus { outline: 2px solid var(--primary); border-color: transparent; }
 .item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .item-row .name { flex: 1; min-width: 0; }
+.cat-btn { flex: none; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface, #fff); font-size: 22px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
 .item-row .price { width: 110px; text-align: right; }
 .item-row .del { flex: none; }
 .sum-line { display: flex; justify-content: space-between; font-size: 17px; color: var(--text-2); margin: 4px 2px; }
@@ -270,6 +271,13 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
 .nav-item { flex: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center;
   gap: 2px; font-size: 14px; color: var(--text-2); padding: 4px 0; }
 .nav-item .pill { width: 56px; height: 34px; border-radius: 17px; display: flex; align-items: center; justify-content: center; position: relative; }
+.msg-btn { position: relative; }
+.msg-btn .msg-ic { font-size: 24px; display: inline-block; transform-origin: 60% 80%; animation: msgWobble 4s ease-in-out infinite; }
+.msg-btn .msg-n { position: absolute; top: 0; right: -4px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--danger); color: #fff; font-size: 13px; font-weight: 700; line-height: 20px; text-align: center; padding: 0 4px; }
+@media (max-width: 430px) { .topbar.has-msg h1 { display: none; } }
+@keyframes msgWobble { 0%, 82%, 100% { transform: rotate(0); } 85% { transform: rotate(-14deg); } 89% { transform: rotate(12deg); } 93% { transform: rotate(-8deg); } 97% { transform: rotate(5deg); } }
+@media (prefers-reduced-motion: reduce) { .msg-btn .msg-ic { animation: none; } }
+.msg-banner { position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 60; background: var(--primary); color: #fff; font-size: 18px; font-weight: 700; padding: 14px 16px; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.25); cursor: pointer; }
 .nbadge { position: absolute; top: -4px; right: -2px; min-width: 22px; height: 22px; border-radius: 11px; background: var(--danger); color: #fff; font-size: 14px; font-weight: 700; line-height: 22px; text-align: center; padding: 0 5px; }
 .nav-item svg { width: 26px; height: 26px; }
 .nav-item.on { color: var(--text); font-weight: 700; }
@@ -411,6 +419,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
 <header class="topbar" style="flex-wrap:wrap">
   <div class="tb-left"><h1>お家の家計簿</h1><button type="button" class="home-pill" id="homeLabel" aria-label="家のアイコンを選ぶ"></button></div>
   <div style="display:flex;flex:none">
+    <button class="icon-btn msg-btn hidden" id="btnMsg" aria-label="読んでいない伝言があります"><span class="msg-ic">📢</span><span class="msg-n" id="btnMsgN">1</span></button>
     <button class="icon-btn" id="btnHelp" aria-label="使い方" style="font-size:24px;font-weight:700">❓</button>
     <button class="icon-btn" id="btnRefresh" aria-label="最新にする">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>
@@ -608,6 +617,10 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       <div class="chips" id="rkWho"></div>
       <div class="rk-label">何のランキング</div>
       <div class="chips" id="rkKind"></div>
+      <div class="rk-label" id="rkGroupL">食べ物・それ以外</div>
+      <div class="chips" id="rkGroup"></div>
+      <div class="rk-label">表示する数</div>
+      <div class="chips" id="rkTop"></div>
       <div id="rkRange" class="note" style="font-size:16px;margin:12px 0 4px"></div>
       <div id="rkChart"></div>
       <div id="rkList" style="margin-top:12px"></div>
@@ -615,8 +628,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       <div id="rkWeek"></div>
     </div>
 
-    <div class="section-title" style="margin-top:22px">🔎 気づき</div>
-    <div class="note" style="font-size:15px;margin:-4px 0 8px">集計で選んでいる月までの記録から見つけます。「だれの」はランキングと同じです。</div>
+    <div class="section-title" id="inTitle" style="margin-top:22px">🔎 気づき</div>
+    <div class="note" id="inNote" style="font-size:15px;margin:-4px 0 8px">集計で選んでいる月までの記録から見つけます。「だれの」はランキングと同じです。</div>
     <div id="inBox"></div>
     </div>
   </section>
@@ -814,6 +827,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
 
 <div class="sheet-back hidden" id="sheetBack"><div class="sheet" id="sheet"></div></div>
 <div class="toast hidden" id="toast"></div>
+<div class="msg-banner hidden" id="msgBanner" role="status"></div>
 <div class="sel-bar hidden" id="selBar">
   <button class="btn btn-danger" id="selDel" style="flex:1">選んだものを削除</button>
   <button class="btn btn-tonal" id="selCancel">やめる</button>
@@ -824,8 +838,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-04 18:15 版153';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版135';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-14 16:30 版154';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版136';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1105,12 +1119,18 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           var r = Object.assign({ id: String(Date.now()) }, data.receipt);
           list.push(r); demoSave(list); return resolve({ ok: true, id: r.id });
         }
-        if (/^(msgs|sendMsg|readMsg|deleteMsg)$/.test(action)) {
+        if (/^(msgs|sendMsg|readMsg|deleteMsg|msgVoice|heardMsg)$/.test(action)) {
           var MS; try { MS = JSON.parse(store.get('demoMsgs') || '[]'); } catch (e) { MS = []; }
           var mkeep = function () { store.set('demoMsgs', JSON.stringify(MS)); };
-          if (action === 'msgs') return resolve({ ok: true, msgs: MS.filter(function (x) { return (x.hidden || []).indexOf(data.person) < 0 && (x.from === data.person || x.to.indexOf(data.person) >= 0); }).slice().reverse() });
-          if (action === 'sendMsg') { var d0 = new Date(); MS.push(Object.assign({ id: String(Date.now()), at: d0.getFullYear() + '/' + pad(d0.getMonth() + 1) + '/' + pad(d0.getDate()) + ' ' + pad(d0.getHours()) + ':' + pad(d0.getMinutes()), read: [], hidden: [] }, data.msg)); mkeep(); return resolve({ ok: true }); }
-          if (action === 'readMsg') { MS.forEach(function (x) { if (data.ids.indexOf(x.id) >= 0 && x.read.indexOf(data.person) < 0) x.read.push(data.person); }); mkeep(); return resolve({ ok: true }); }
+          if (action === 'msgs') return resolve({ ok: true, msgs: MS.map(function (x) { var y = Object.assign({}, x); delete y.voiceData; return y; }).filter(function (x) { return (x.hidden || []).indexOf(data.person) < 0 && (x.from === data.person || x.to.indexOf(data.person) >= 0); }).slice().reverse() });
+          if (action === 'sendMsg') {
+            var d0 = new Date(), mm = Object.assign({ id: String(Date.now()), at: d0.getFullYear() + '/' + pad(d0.getMonth() + 1) + '/' + pad(d0.getDate()) + ' ' + pad(d0.getHours()) + ':' + pad(d0.getMinutes()), read: [], hidden: [], heard: [], readAt: {} }, data.msg);
+            if (mm.audio) { mm.voice = { sec: mm.audio.sec, text: '(仮の家なので、声の文字はありません)', expired: false }; mm.voiceData = mm.audio; delete mm.audio; }
+            MS.push(mm); mkeep(); return resolve({ ok: true });
+          }
+          if (action === 'msgVoice') { var mv = MS.filter(function (x) { return x.id === data.id; })[0]; return resolve(mv && mv.voiceData ? { ok: true, data: mv.voiceData.data, mime: mv.voiceData.mime } : { ok: false, error: '声がありません' }); }
+          if (action === 'heardMsg') { MS.forEach(function (x) { if (x.id === data.id && (x.heard = x.heard || []).indexOf(data.person) < 0) x.heard.push(data.person); }); mkeep(); return resolve({ ok: true }); }
+          if (action === 'readMsg') { MS.forEach(function (x) { if (data.ids.indexOf(x.id) >= 0 && x.read.indexOf(data.person) < 0) { x.read.push(data.person); var dn = new Date(); (x.readAt = x.readAt || {})[data.person] = dn.getFullYear() + '/' + pad(dn.getMonth() + 1) + '/' + pad(dn.getDate()) + ' ' + pad(dn.getHours()) + ':' + pad(dn.getMinutes()); } }); mkeep(); return resolve({ ok: true }); }
           if (action === 'deleteMsg') { MS = MS.filter(function (x) { if (x.id !== data.id) return true; if (x.from === data.person) return false; (x.hidden = x.hidden || []).push(data.person); return true; }); mkeep(); return resolve({ ok: true }); }
           return resolve({ ok: false, error: '不明な依頼です' });
         }
@@ -1286,6 +1306,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   });
   $('btnRefresh').addEventListener('click', function () { refreshMembers(); loadMonth(true); refreshMsgs(true); });
   $('btnHelp').addEventListener('click', function () { openHelp(); });
+  $('btnMsg').addEventListener('click', function () { NT.tab = 'msgs'; go('notes'); });
+  $('msgBanner').addEventListener('click', function () { show('msgBanner', false); NT.tab = 'msgs'; go('notes'); });
   $('histReload').addEventListener('click', function () { state.loadedMonth = null; refreshMembers(); loadMonth(true); toast('最新の記録を読み込みました'); });
   // アプリを開き直したとき・ほかのアプリから戻ってきたときは、最新の記録を読み込む
   document.addEventListener('visibilitychange', function () {
@@ -1422,9 +1444,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
 
   /* ---------- ランキング・グラフ ----------
      集計の画面で選んでいる月を基準に、期間をまとめて読み込んで数える */
-  var RK = { period: 'month', season: '', who: '', kind: 'storeSum', cache: {}, seq: 0 };
+  var RK = { period: 'month', season: '', who: '', kind: 'cat', group: '', top: null, cache: {}, seq: 0 };
   var RK_PERIODS = [['week', '今週'], ['lastweek', '先週'], ['month', 'この月'], ['m3', '3か月'], ['m6', '6か月'], ['m12', '1年(12か月)'], ['year', 'この年(1〜12月)'], ['season', '季節']];
-  var RK_KINDS = [['storeSum', 'お店(金額)'], ['storeCnt', 'お店(回数)'], ['itemCnt', '品物(回数)'], ['itemSum', '品物(金額)'], ['purpose', '何の支払い(分類)']];
+  var RK_KINDS = [['cat', '🏷 カテゴリ'], ['storeSum', 'お店(金額)'], ['storeCnt', 'お店(回数)'], ['itemCnt', '品物(回数)'], ['itemSum', '品物(金額)'], ['purpose', '何の支払い(分類)']];
   var RK_SEASONS = [['spring', '🌸 春(3〜5月)', [3, 4, 5]], ['summer', '🌻 夏(6〜8月)', [6, 7, 8]], ['autumn', '🍁 秋(9〜11月)', [9, 10, 11]], ['winter', '⛄ 冬(12〜2月)', [12, 1, 2]]];
   function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function seasonOf(m) { var mo = +m.slice(5, 7); return mo >= 3 && mo <= 5 ? 'spring' : mo <= 8 && mo >= 6 ? 'summer' : mo >= 9 && mo <= 11 ? 'autumn' : 'winter'; }
@@ -1484,16 +1506,28 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     show('rkSeason', RK.period === 'season');
     if (RK.period === 'season') rkChips('rkSeason', RK_SEASONS, RK.season || seasonOf(state.month), function (v) { RK.season = v; });
     rkChips('rkWho', who, RK.who, function (v) { RK.who = v; RK.whoChanged = true; });
-    rkChips('rkKind', RK_KINDS, RK.kind, function (v) { RK.kind = v; });
-    if (RK.whoChanged || RK.lastBase !== state.month || !$('inBox').innerHTML) { RK.whoChanged = false; RK.lastBase = state.month; renderInsights(); }
+    if (RK.top == null) RK.top = store.get('rkTop') || '5';
+    var kinds = RK_KINDS.filter(function (x) { return x[0] === 'cat' ? feat('cat') : feat('rank'); });
+    if (!kinds.some(function (x) { return x[0] === RK.kind; })) RK.kind = kinds[0][0];
+    rkChips('rkKind', kinds, RK.kind, function (v) { RK.kind = v; });
+    var grp = feat('cat') && (RK.kind === 'cat' || RK.kind.indexOf('item') === 0);
+    show('rkGroupL', grp); show('rkGroup', grp); if (!grp) RK.group = '';
+    if (grp) rkChips('rkGroup', [['', '全部'], ['food', '🍙 食べ物だけ'], ['other', '🧴 それ以外だけ']], RK.group || '', function (v) { RK.group = v; });
+    rkChips('rkTop', [['5', 'トップ5'], ['10', 'トップ10'], ['0', '全部']], RK.top, function (v) { RK.top = v; store.set('rkTop', v); });
+    ['inTitle', 'inNote', 'inBox'].forEach(function (id) { show(id, feat('rank')); });
+    if (feat('rank') && (RK.whoChanged || RK.lastBase !== state.month || !$('inBox').innerHTML)) { RK.whoChanged = false; RK.lastBase = state.month; renderInsights(); }
     var rg = rkRange(), my = ++RK.seq;
     $('rkRange').textContent = '📅 ' + rg.label + (RK.period.indexOf('week') < 0 ? '(上の「◀ ▶」で月を変えられます)' : '');
     $('rkList').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>'; $('rkChart').innerHTML = '';
-    rkLoad(rg.months).then(function (all) {
+    var prg = RK.kind === 'cat' ? rkPrevRange(rg) : null;
+    rkLoad(rg.months.concat(prg ? prg.months.filter(function (m) { return rg.months.indexOf(m) < 0; }) : [])).then(function (all) {
       if (my !== RK.seq) return;
       var rs = all.filter(function (r) { return r.date >= rg.from && r.date <= rg.to && (!RK.who || r.person === RK.who); });
+      var prs = prg ? all.filter(function (r) { return r.date >= prg.from && r.date <= prg.to && (!RK.who || r.person === RK.who); }) : null;
       $('rkChart').innerHTML = rkChart(rs, rg);
-      $('rkList').innerHTML = rkList(rs);
+      $('rkList').innerHTML = RK.kind === 'cat' ? catRanking(rs, prs, prg) : rkList(rs);
+      $('rkList').querySelectorAll('[data-cat]').forEach(function (b) { b.addEventListener('click', function () { openCatDetail(b.dataset.cat, rs, rg); }); });
+      $('rkList').querySelectorAll('.rk-up').forEach(function (b) { b.addEventListener('click', function () { $('rkBox').scrollIntoView({ behavior: 'smooth' }); }); });
       $('rkPie').innerHTML = rkPie(rs);
       $('rkWeek').innerHTML = rkWeek(rs);
     }).catch(function (e) { if (my === RK.seq) $('rkList').innerHTML = '<div class="error">' + esc(e.message) + '</div>'; });
@@ -1529,11 +1563,12 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       else if (k === 'purpose') add(r.purpose || '分類なし', spentOf(r), r.id);
       else (r.items || []).forEach(function (it, i) {
         var nmv = itemKey(it.name); if (!nmv || NOT_ITEM.test(nmv) || !(it.price > 0)) return;
+        if (RK.group && catInfo(itemCat(it, r)).group !== RK.group) return;
         add(nmv, Number(it.price) || 0, r.id + ':' + i);
       });
     });
     var byCount = k === 'storeCnt' || k === 'itemCnt';
-    var names = Object.keys(by).sort(function (a, b) { return byCount ? (by[b].n - by[a].n) || (by[b].sum - by[a].sum) : (by[b].sum - by[a].sum) || (by[b].n - by[a].n); }).slice(0, 20);
+    var allNames = Object.keys(by).sort(function (a, b) { return byCount ? (by[b].n - by[a].n) || (by[b].sum - by[a].sum) : (by[b].sum - by[a].sum) || (by[b].n - by[a].n); }), names = topN(allNames);
     if (!names.length) return '<div class="note" style="font-size:17px">この期間の記録はありません' + (k.indexOf('item') === 0 ? '(品物の名前が入ったレシートがありません)' : '') + '</div>';
     var max = Math.max.apply(null, names.map(function (n) { return byCount ? by[n].n : by[n].sum; }).concat([1]));
     var unit = k.indexOf('item') === 0 ? '回買った' : '回';
@@ -1543,7 +1578,195 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         '<div class="bar-head"><span>' + esc(n) + '</span><b style="font-size:18px;white-space:nowrap">' + (byCount ? v.n + unit : yen(v.sum)) + '</b></div>' +
         '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(3, Math.round(val / max * 100)) + '%;background:var(--primary)"></div></div>' +
         '<div class="bar-sub">' + (byCount ? yen(v.sum) : v.n + unit) + '</div></div></div>';
-    }).join('') + (Object.keys(by).length > 20 ? '<div class="note">上位20位まで表示しています</div>' : '');
+    }).join('') + rkTopNote(allNames.length);
+  }
+
+  /* ---------- 🏷 カテゴリ(品物の分け方)と「食べ物・それ以外」 ----------
+     読み取りのときに窓口(Gemini)が品物ごとに付ける。付いていない前の記録や手で入れた品物は、名前から見当を付ける */
+  var ICATS = [
+    ['野菜', '🥬', 'food'], ['果物', '🍎', 'food'], ['穀物', '🍚', 'food'], ['肉', '🥩', 'food'], ['魚', '🐟', 'food'], ['卵・乳製品', '🥚', 'food'],
+    ['惣菜', '🍱', 'food'], ['スイーツ', '🍰', 'food'], ['調味料', '🧂', 'food'], ['飲み物', '🥤', 'food'], ['お酒', '🍺', 'food'], ['外食', '🍽', 'food'],
+    ['その他の食べ物', '🍙', 'food'],
+    ['化粧品', '💄', 'other'], ['薬', '💊', 'other'], ['日用品', '🧻', 'other'], ['台所用品', '🍳', 'other'], ['衣類', '👕', 'other'], ['その他', '📦', 'other']
+  ];
+  var CAT_LABEL = { '野菜': '野菜(きのこ・豆腐・納豆)', '魚': '魚(貝・海そう)', '穀物': '穀物(米・パン・麺)', '卵・乳製品': '卵・乳製品', '惣菜': 'お惣菜・お弁当・冷凍食品', 'スイーツ': 'スイーツ・お菓子', '調味料': '調味料・油', '化粧品': '化粧品・身だしなみ', '薬': '薬・健康', '日用品': '日用品(洗剤・ティッシュ)', '台所用品': '台所用品(鍋・食器)' };
+  var GROUPS = { food: ['🍙', '食べ物'], other: ['🧴', 'それ以外'] };
+  function catInfo(c) { var x = ICATS.filter(function (k) { return k[0] === c; })[0] || ICATS[ICATS.length - 1]; return { name: x[0], icon: x[1], group: x[2], label: CAT_LABEL[x[0]] || x[0] }; }
+  // 名前から見当を付ける(上から順に調べる。食べ物でないものを先に見る)
+  var CAT_GUESS = [
+    ['化粧品', /化粧|ファンデ|口紅|リップ|マスカラ|アイシャド|アイライナ|チーク|ネイル|マニキュア|乳液|美容液|クレンジング|洗顔|日焼け?止|シャンプー|リンス|コンディショナ|トリートメント|ボディソープ|石鹸|せっけん|ハンドソープ|歯磨|歯みがき|ハミガキ|歯ブラシ|デンタル|制汗|デオドラント|カミソリ|髭剃|ヘアカラー|白髪染|整髪|ヘアスプレー|ハンドクリーム|ボディクリーム|綿棒|香水/],
+    ['薬', /薬|錠|カプセル|風邪|かぜ薬|ロキソ|バファリン|胃腸|目薬|湿布|絆創膏|ばんそうこう|バンドエイド|マスク|サプリ|体温計|消毒|包帯|ガーゼ|うがい/],
+    ['台所用品', /鍋|なべ|フライパン|やかん|包丁|まな板|食器|皿|茶碗|お椀|マグ|コップ|グラス|箸|スプーン|フォーク|ボウル|ざる|おたま|保存容器|タッパ|アルミホイル|クッキングシート|スポンジ(?!ケーキ)|水筒|弁当箱/],
+    ['衣類', /シャツ|靴下|くつした|ソックス|パンツ|ズボン|スカート|ブラウス|セーター|ニット|ジャケット|コート|下着|肌着|ブラジャー|ショーツ|ストッキング|タイツ|帽子|手袋|マフラー|スカーフ|スニーカー|サンダル|パジャマ|ベルト|ハンカチ|靴/],
+    ['日用品', /洗剤|柔軟剤|漂白|ティッシュ|トイレット|ペーパー|キッチンタオル|ゴミ袋|ごみ袋|ポリ袋|レジ袋|電池|電球|洗濯|掃除|クイックル|ウェット|消臭|芳香|殺虫|虫よけ|防虫|ハンガー|タオル|おむつ|オムツ|ナプキン|ライター|ろうそく|線香|ノート|ボールペン|テープ|封筒|切手|ラップ/],
+    ['調味料', /醤油|しょうゆ|しょう油|味噌|みそ|砂糖|さとう|酢|みりん|料理酒|ソース|ケチャップ|マヨ|ドレッシング|だし|出汁|ダシ|コンソメ|ブイヨン|鶏ガラ|ルウ|胡椒|こしょう|コショウ|唐辛子|七味|一味|わさび|からし|辛子|マスタード|スパイス|ごま油|サラダ油|オリーブ|油(?!揚)|ポン酢|めんつゆ|つゆ|たれ|タレ|ジャム|はちみつ|蜂蜜|食塩|塩$/],
+    ['お酒', /ビール|発泡酒|チューハイ|酎ハイ|サワー|ハイボール|ワイン|日本酒|清酒|焼酎|ウイスキー|ウィスキー|梅酒|酒|スーパードライ|一番搾り|黒ラベル|プレモル|金麦|のどごし|淡麗|ほろよい|氷結|ストロング|紹興酒|マッコリ|カクテル/],
+    ['スイーツ', /菓子|おかし|スイーツ|ケーキ|プリン|ゼリー|アイス(?!コーヒー|ティー|カフェ|ラテ)|ソフトクリーム|チョコ|クッキー|ビスケット|せんべい|煎餅|あられ|おかき|ポテチ|ポテトチップ|スナック|ガム|飴|キャンディ|グミ|ドーナツ|シュー|エクレア|タルト|パイ(?!ン)|大福|団子|だんご|まんじゅう|饅頭|羊羹|ようかん|どら焼|たい焼|カステラ|マカロン|ワッフル|クレープ|ティラミス|パフェ|最中|もなか|かりんとう|ポッキー|じゃがりこ|メロンパン/],
+    ['飲み物', /水(?!菜)|ウォーター|お茶|茶|烏龍|ウーロン|紅茶|コーヒー|珈琲|カフェ|ラテ|ジュース|サイダー|コーラ|ソーダ|炭酸|ポカリ|アクエリ|ドリンク|飲料|豆乳|ココア|伊右衛門|綾鷹|生茶|ミネラル|エナジー|レッドブル|甘酒|スムージー|ネクター/],
+    ['卵・乳製品', /卵|たまご|タマゴ|玉子|牛乳|ミルク|乳|ヨーグルト|ヨーグ|チーズ|バター|マーガリン|生クリーム|ホイップ|ヤクルト/],
+    ['惣菜', /弁当|べんとう|おにぎり|むすび|寿司|すし|惣菜|総菜|そうざい|サンド|コロッケ|からあげ|唐揚|天ぷら|てんぷら|フライ|とんかつ|カツ(?!オ)|餃子|ぎょうざ|シュウマイ|焼売|春巻|グラタン|ドリア|ピザ|冷凍|カップ|インスタント|レトルト|カレー|丼|おでん|煮物|サラダチキン|ポテサラ|お好み焼|たこ焼|中華まん|肉まん|あんまん|ハンバーグ/],
+    ['魚', /魚|鮭|さけ|サケ|サーモン|まぐろ|マグロ|鮪|ツナ|かつお|カツオ|鰹|ぶり|ブリ|鰤|さば|サバ|鯖|あじ|アジ|鯵|いわし|イワシ|鰯|さんま|サンマ|たら|タラ|鱈|ほっけ|ホッケ|鰆|かれい|カレイ|ひらめ|鯛|うなぎ|鰻|えび|エビ|海老|いか|イカ|たこ|タコ|ほたて|ホタテ|帆立|あさり|アサリ|しじみ|蜆|牡蠣|カキ|はまぐり|貝|しらす|シラス|ちりめん|明太|めんたい|たらこ|いくら|イクラ|刺身|さしみ|ちくわ|竹輪|かまぼこ|蒲鉾|はんぺん|さつま揚|わかめ|ワカメ|昆布|こんぶ|ひじき|海苔|もずく|めかぶ|干物/],
+    ['肉', /肉|牛|豚|鶏|チキン|ポーク|ビーフ|ひき|挽|ミンチ|ハム|ベーコン|ソーセージ|ウインナー|ウィンナー|サラミ|焼鳥|焼き鳥|ささみ|ササミ|手羽|レバー|ラム肉|ジンギスカン/],
+    ['穀物', /米|ごはん|ご飯|パン|ロール|ベーグル|クロワッサン|バゲット|うどん|そば|蕎麦|ラーメン|中華麺|焼そば|焼きそば|パスタ|スパゲ|マカロニ|そうめん|素麺|もち|餅|小麦粉|薄力粉|強力粉|片栗粉|オートミール|シリアル|グラノーラ|コーンフレーク|麺/],
+    ['果物', /果物|フルーツ|りんご|リンゴ|林檎|みかん|ミカン|蜜柑|オレンジ|バナナ|ぶどう|ブドウ|葡萄|シャインマスカット|いちご|イチゴ|苺|メロン|すいか|スイカ|西瓜|もも|モモ|桃|梨|洋梨|柿|キウイ|パイン|マンゴー|さくらんぼ|チェリー|ブルーベリー|グレープフルーツ|レモン|ライム|ゆず|柚子|すだち|かぼす|デコポン|はっさく|伊予柑|ネーブル|アボカド|プルーン|いちじく|無花果|びわ|栗/],
+    ['野菜', /野菜|キャベツ|レタス|白菜|はくさい|大根|だいこん|人参|にんじん|ニンジン|玉ねぎ|玉葱|たまねぎ|タマネギ|ねぎ|ネギ|葱|じゃがいも|ジャガイモ|さつまいも|里芋|長芋|山芋|ごぼう|れんこん|蓮根|かぼちゃ|南瓜|カボチャ|トマト|きゅうり|キュウリ|胡瓜|なす|ナス|茄子|ピーマン|パプリカ|ほうれん草|小松菜|水菜|春菊|ニラ|にら|もやし|モヤシ|ブロッコリー|カリフラワー|アスパラ|オクラ|ズッキーニ|セロリ|しょうが|生姜|ショウガ|にんにく|ニンニク|大葉|しそ|みつば|三つ葉|豆苗|かいわれ|枝豆|えだまめ|とうもろこし|コーン|きのこ|キノコ|しいたけ|椎茸|シイタケ|しめじ|シメジ|えのき|エノキ|まいたけ|舞茸|エリンギ|なめこ|マッシュルーム|豆腐|とうふ|トウフ|納豆|なっとう|油揚|厚揚|こんにゃく|蒟蒻|サラダ|ベビーリーフ|かぶ|カブ|ゴーヤ|いんげん|インゲン/]
+  ];
+  function purposeCat(p) { p = String(p || ''); return /外食/.test(p) ? '外食' : /食料|食品/.test(p) ? 'その他の食べ物' : /日用/.test(p) ? '日用品' : /衣/.test(p) ? '衣類' : /薬|医/.test(p) ? '薬' : /化粧/.test(p) ? '化粧品' : 'その他'; }
+  function guessCat(name, purpose) {
+    if (/外食/.test(String(purpose || ''))) return '外食';
+    var n = String(name || '').normalize('NFKC');
+    for (var i = 0; i < CAT_GUESS.length; i++) if (CAT_GUESS[i][1].test(n)) return CAT_GUESS[i][0];
+    return /食料|食品|外食/.test(String(purpose || '')) ? 'その他の食べ物' : '';
+  }
+  function itemCat(it, r) { return (it.cat && catInfo(it.cat).name === it.cat) ? it.cat : (guessCat(it.name, r && r.purpose) || 'その他'); }
+  // 1枚のレシートを、カテゴリごとの金額に分ける。値引きはすぐ上の品物へ、外税は金額に合わせて分け、割り勘などで引いた分も同じ割合で減らす
+  function catLines(r) {
+    var spent = spentOf(r); if (!spent) return [];
+    var out = [], tax = 0, last = null;
+    (r.items || []).forEach(function (it) {
+      var nmv = itemKey(it.name), p = Number(it.price) || 0;
+      if (!nmv || isShareItem(it) || /^🔗/.test(nmv)) return;
+      if (/外税/.test(nmv)) { tax += p; return; }
+      if (p < 0 || /値引|割引|クーポン/.test(nmv)) { if (last) last.price += p; return; }
+      if (NOT_ITEM.test(nmv) || !p) return;
+      last = { name: nmv, cat: itemCat(it, r), price: p, rid: r.id }; out.push(last);
+    });
+    var sum = out.reduce(function (a, x) { return a + Math.max(0, x.price); }, 0);
+    if (!sum) return [{ name: r.store || '品物の名前なし', cat: purposeCat(r.purpose), price: spent, rid: r.id, noItems: true }];
+    var k = spent / (sum + tax);
+    out.forEach(function (x) { x.price = Math.max(0, x.price) * (1 + tax / sum) * k; });
+    return out;
+  }
+  function catSums(rs) {
+    var by = {}, g = { food: 0, other: 0 };
+    rs.forEach(function (r) {
+      catLines(r).forEach(function (x) {
+        var c = by[x.cat] = by[x.cat] || { sum: 0, n: 0, ids: {} };
+        c.sum += x.price; if (!c.ids[x.rid]) { c.ids[x.rid] = 1; } c.n++;
+        g[catInfo(x.cat).group] += x.price;
+      });
+    });
+    return { by: by, g: g };
+  }
+  // 前の同じ長さの期間(今週→先週、この月→先月、3か月→その前の3か月、季節・この年→前の年)
+  function rkPrevRange(rg) {
+    if (rg.unit === 'day' && RK.period.indexOf('week') >= 0) {
+      var f = new Date(rg.from + 'T00:00:00'), t = new Date(rg.to + 'T00:00:00'); f.setDate(f.getDate() - 7); t.setDate(t.getDate() - 7);
+      var a = ymd(f), b = ymd(t), ms = [a.slice(0, 7)]; if (b.slice(0, 7) !== ms[0]) ms.push(b.slice(0, 7));
+      return { from: a, to: b, months: ms, label: '前の週' };
+    }
+    var n = (RK.period === 'season' || RK.period === 'year') ? 12 : rg.months.length;
+    var months = rg.months.map(function (m) { return shiftMonth(m, -n); }), last = months[months.length - 1];
+    return { from: months[0] + '-01', to: last + '-' + pad(new Date(+last.slice(0, 4), +last.slice(5, 7), 0).getDate()), months: months,
+      label: n === 12 && rg.months.length !== 12 ? '前の年の同じころ' : n === 12 ? '前の年' : n === 1 ? '前の月' : '前の' + n + 'か月' };
+  }
+  function diffTxt(now, before) {
+    var d = Math.round(now - before);
+    return !before && !now ? '' : (d > 0 ? '<span style="color:var(--danger)">+' + yen(d) + '</span>' : d < 0 ? '<span style="color:var(--primary)">−' + yen(-d) + '</span>' : '±0円');
+  }
+  function topN(list) { var t = Number(RK.top) || 0; return t ? list.slice(0, t) : list; }
+  function rkTopNote(total) { var t = Number(RK.top) || 0; return t && total > t ? '<div class="note" style="font-size:15px">上位' + t + 'まで表示しています(全部で' + total + ')。上の「全部」で、全部見られます</div>' : (total > 15 ? '<button class="btn btn-text btn-block rk-up" type="button">▲ 上へ戻る</button>' : ''); }
+  function catRanking(rs, prs, prg) {
+    var cur = catSums(rs), pre = catSums(prs || []);
+    var tot = cur.g.food + cur.g.other;
+    var names = Object.keys(cur.by).filter(function (c) { return !RK.group || catInfo(c).group === RK.group; })
+      .sort(function (a, b) { return cur.by[b].sum - cur.by[a].sum; });
+    if (!tot) return '<div class="note" style="font-size:17px">この期間の記録はありません</div>';
+    var pct = function (v) { return tot ? Math.round(v / tot * 100) : 0; };
+    var gRow = function (k) {
+      var gi = GROUPS[k];
+      return '<div class="in-line" style="border:none;padding:4px 0;font-size:18px"><span>' + gi[0] + ' <b>' + gi[1] + '</b> ' + yen(Math.round(cur.g[k])) + '(' + pct(cur.g[k]) + '%)</span>' +
+        '<span class="in-sub" style="font-size:15px;white-space:nowrap">' + esc(prg.label) + 'より ' + diffTxt(cur.g[k], pre.g[k]) + '</span></div>';
+    };
+    var fp = pct(cur.g.food);
+    var head = '<div class="card" style="background:var(--surface-2,var(--bg));margin-bottom:12px;padding:12px 14px">' + gRow('food') + gRow('other') +
+      '<div style="display:flex;height:16px;border-radius:8px;overflow:hidden;margin-top:6px" aria-label="食べ物とそれ以外の割合">' +
+      '<div style="width:' + fp + '%;background:var(--primary)"></div><div style="flex:1;background:#D98A2B"></div></div></div>';
+    var max = Math.max.apply(null, names.map(function (c) { return cur.by[c].sum; }).concat([1]));
+    var rows = topN(names).map(function (c, i) {
+      var v = cur.by[c], ci = catInfo(c), pv = pre.by[c] ? pre.by[c].sum : 0;
+      return '<button type="button" class="rk-row" data-cat="' + esc(c) + '" style="width:100%;background:none;border:none;font:inherit;color:inherit;text-align:left;cursor:pointer;padding:0">' +
+        '<div class="rk-no' + (i < 3 ? ' top' : '') + '">' + (i + 1) + '</div><div class="rk-body">' +
+        '<div class="bar-head"><span>' + ci.icon + ' ' + esc(ci.label) + '</span><b style="font-size:18px;white-space:nowrap">' + yen(Math.round(v.sum)) + '</b></div>' +
+        '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(3, Math.round(v.sum / max * 100)) + '%;background:' + (ci.group === 'food' ? 'var(--primary)' : '#D98A2B') + '"></div></div>' +
+        '<div class="bar-sub">' + v.n + '品 ・ ' + esc(prg.label) + 'より ' + diffTxt(v.sum, pv) + ' ・ 押すと内訳 ›</div></div></button>';
+    }).join('');
+    return head + rows + rkTopNote(names.length);
+  }
+  // カテゴリの内訳(品物ごと)と、週ごと・月ごとの移り変わり
+  var CD = { sort: 'sum', unit: 'week' };
+  function openCatDetail(c, rs, rg) {
+    var ci = catInfo(c);
+    var draw = function () {
+      var by = {};
+      rs.forEach(function (r) { catLines(r).forEach(function (x) { if (x.cat !== c) return; var k = x.noItems ? '(品物なし)' + x.name : x.name; var v = by[k] = by[k] || { sum: 0, n: 0 }; v.sum += x.price; v.n++; }); });
+      var names = Object.keys(by).sort(function (a, b) { return CD.sort === 'n' ? (by[b].n - by[a].n) || (by[b].sum - by[a].sum) : (by[b].sum - by[a].sum) || (by[b].n - by[a].n); });
+      var tot = names.reduce(function (a, k) { return a + by[k].sum; }, 0), cnt = names.reduce(function (a, k) { return a + by[k].n; }, 0);
+      var max = Math.max.apply(null, names.map(function (k) { return CD.sort === 'n' ? by[k].n : by[k].sum; }).concat([1]));
+      var chip = function (id, list, cur) { return '<div class="chips" id="' + id + '" style="margin-bottom:8px">' + list.map(function (x) { return '<button class="chip' + (String(x[0]) === String(cur) ? ' on' : '') + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
+      openSheet('<div class="grip"></div><h2>' + ci.icon + ' ' + esc(ci.label) + '</h2>' +
+        '<div class="note" style="font-size:16px;margin-bottom:8px">📅 ' + esc(rg.label) + (RK.who ? ' ・ ' + esc(nm(RK.who)) + 'さん' : ' ・ 全員') + '<br><b style="font-size:20px;color:var(--text)">' + yen(Math.round(tot)) + '</b>(' + cnt + '品)</div>' +
+        chip('cdSort', [['sum', '金額の順'], ['n', '回数の順']], CD.sort) + chip('cdTop', [['5', 'トップ5'], ['10', 'トップ10'], ['0', '全部']], RK.top) +
+        (names.length ? topN(names).map(function (k, i) {
+          var v = by[k], val = CD.sort === 'n' ? v.n : v.sum;
+          return '<div class="rk-row"><div class="rk-no' + (i < 3 ? ' top' : '') + '">' + (i + 1) + '</div><div class="rk-body"><div class="bar-head"><span>' + esc(k) + '</span><b style="font-size:18px;white-space:nowrap">' + (CD.sort === 'n' ? v.n + '回' : yen(Math.round(v.sum))) + '</b></div>' +
+            '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(3, Math.round(val / max * 100)) + '%;background:' + (ci.group === 'food' ? 'var(--primary)' : '#D98A2B') + '"></div></div>' +
+            '<div class="bar-sub">' + (CD.sort === 'n' ? yen(Math.round(v.sum)) : v.n + '回') + '</div></div></div>';
+        }).join('') + rkTopNote(names.length) : '<div class="note" style="font-size:17px">この期間には、このカテゴリの買い物はありません</div>') +
+        '<div class="section-title" style="margin-top:16px">📈 移り変わり</div>' + chip('cdUnit', [['week', '週ごと(最近8週)'], ['month', '月ごと(最近12か月)']], CD.unit) +
+        '<div id="cdChart"><div class="loading"><div class="spinner"></div>読み込み中…</div></div>' +
+        '<button class="btn btn-tonal btn-block" id="cdBack" style="margin-top:12px">← 戻る</button>');
+      $('cdBack').addEventListener('click', closeSheet);
+      $('sheet').querySelectorAll('.rk-up').forEach(function (b) { b.addEventListener('click', function () { $('sheet').scrollTop = 0; }); });
+      [['cdSort', function (v) { CD.sort = v; }], ['cdTop', function (v) { RK.top = v; store.set('rkTop', v); }], ['cdUnit', function (v) { CD.unit = v; }]].forEach(function (p) {
+        $(p[0]).querySelectorAll('.chip').forEach(function (b) { b.addEventListener('click', function () { p[1](b.dataset.v); draw(); }); });
+      });
+      catTrend(c);
+    };
+    draw();
+  }
+  function catTrend(c) {
+    var keys = [], labels = [], t = new Date(), months = [];
+    if (CD.unit === 'week') {
+      var mon = new Date(t.getFullYear(), t.getMonth(), t.getDate()); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+      for (var i = 7; i >= 0; i--) { var d = new Date(mon); d.setDate(d.getDate() - i * 7); keys.push(ymd(d)); labels.push((d.getMonth() + 1) + '/' + d.getDate()); }
+      for (var m = keys[0].slice(0, 7); m <= ymd(t).slice(0, 7); m = shiftMonth(m, 1)) months.push(m);
+    } else {
+      for (var j = 11; j >= 0; j--) { var mm = shiftMonth(state.month, -j); keys.push(mm); labels.push((+mm.slice(5)) + '月'); months.push(mm); }
+    }
+    rkLoad(months).then(function (all) {
+      if (!$('cdChart')) return;
+      var sum = {}; keys.forEach(function (k) { sum[k] = 0; });
+      all.forEach(function (r) {
+        if (RK.who && r.person !== RK.who) return;
+        var k;
+        if (CD.unit === 'week') { k = null; for (var i = keys.length - 1; i >= 0; i--) if (r.date >= keys[i]) { k = keys[i]; break; } var end = new Date(keys[keys.length - 1] + 'T00:00:00'); end.setDate(end.getDate() + 6); if (r.date > ymd(end)) k = null; }
+        else k = (r.date || '').slice(0, 7);
+        if (!k || !(k in sum)) return;
+        catLines(r).forEach(function (x) { if (x.cat === c) sum[k] += x.price; });
+      });
+      var max = Math.max.apply(null, keys.map(function (k) { return sum[k]; }).concat([1]));
+      var W = 340, H = 170, top = 18, bottom = 22, n = keys.length, bw = W / n, col = catInfo(c).group === 'food' ? 'var(--primary)' : '#D98A2B';
+      $('cdChart').innerHTML = '<svg class="rk-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="移り変わりの棒グラフ"><line x1="0" x2="' + W + '" y1="' + (H - bottom) + '" y2="' + (H - bottom) + '" stroke="var(--line)"/>' +
+        keys.map(function (k, i) {
+          var h = Math.round((H - top - bottom) * sum[k] / max), x = i * bw;
+          return '<rect x="' + (x + bw * 0.15).toFixed(1) + '" y="' + (H - bottom - h) + '" width="' + (bw * 0.7).toFixed(1) + '" height="' + h + '" rx="2" fill="' + col + '"><title>' + labels[i] + ' ' + yen(Math.round(sum[k])) + '</title></rect>' +
+            (n <= 8 || i % 2 === 0 || i === n - 1 ? '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + labels[i] + '</text>' : '') +
+            (sum[k] && (n <= 8 || sum[k] === max) ? '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + Math.max(12, H - bottom - h - 4) + '" text-anchor="middle" style="font-size:10px">' + (sum[k] >= 10000 ? (Math.round(sum[k] / 1000) / 10) + '万' : Math.round(sum[k]).toLocaleString()) + '</text>' : '') ;
+        }).join('') + '</svg>';
+    }).catch(function (e) { if ($('cdChart')) $('cdChart').innerHTML = '<div class="error">' + esc(e.message) + '</div>'; });
+  }
+  // 読み取りの確認の画面:品物のカテゴリを選ぶ
+  function openCatPick(i) {
+    var it = state.draft.items[i]; if (!it) return;
+    var cur = itemCat(it, state.draft);
+    var btn = function (c) { var ci = catInfo(c[0]); return '<button type="button" class="chip' + (ci.name === cur ? ' on' : '') + '" data-c="' + esc(ci.name) + '" style="font-size:17px;min-height:48px">' + ci.icon + ' ' + esc(ci.name) + '</button>'; };
+    openSheet('<div class="grip"></div><h2>🏷 「' + esc(it.name || '品物') + '」の分け方</h2>' +
+      '<div class="section-title">🍙 食べ物</div><div class="chips" style="flex-wrap:wrap">' + ICATS.filter(function (c) { return c[2] === 'food'; }).map(btn).join('') + '</div>' +
+      '<div class="section-title">🧴 それ以外</div><div class="chips" style="flex-wrap:wrap">' + ICATS.filter(function (c) { return c[2] === 'other'; }).map(btn).join('') + '</div>' +
+      '<button class="btn btn-tonal btn-block" id="cpkNo" style="margin-top:12px">やめる</button>');
+    $('cpkNo').addEventListener('click', closeSheet);
+    $('sheet').querySelectorAll('[data-c]').forEach(function (b) { b.addEventListener('click', function () { it.cat = b.dataset.c; closeSheet(); renderItems(); }); });
   }
 
   /* ---------- 気づき(季節・くらべる・そろそろ・値段) ----------
@@ -2145,11 +2368,12 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     ['net', '🛒 ネットで買った物の取り込み'],
     ['rank', '📊 ランキング・グラフ・気づき(集計の画面)'],
     ['points', '🎁 ポイントの残り'],
-    ['shun', '🍎 旬と早見表(果物の早見表・今月の旬)']
+    ['shun', '🍎 旬と早見表(果物の早見表・今月の旬)'],
+    ['cat', '🏷 カテゴリ(食べ物・それ以外)の集計とランキング']
   ];
   function feat(k) {
     var f; try { f = JSON.parse(store.get('features') || 'null'); } catch (e) { f = null; }
-    if (!f || !(k in f)) return !!G.get('adminCode');   // あとから増えた機能も、管理人のスマホでは最初はオン
+    if (!f || !(k in f)) return k === 'cat' || !!G.get('adminCode');   // カテゴリは、だれでも最初からオン   // あとから増えた機能も、管理人のスマホでは最初はオン
     return !!f[k];
   }
   function applyFeatures() {
@@ -2157,7 +2381,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     show('histIncomeBtn', feat('income'));
     if (!feat('income')) { show('histIncome', false); show('sumIncome', false); }
     show('amtRow', feat('pay')); show('cfPayField', feat('pay')); show('payWd', feat('pay'));
-    show('netBox', feat('net')); show('sumMore', feat('rank')); show('ptBtn', feat('points')); show('shunBtn', feat('shun')); show('payCard', feat('pay')); show('payCardReg', feat('pay'));
+    show('netBox', feat('net')); show('sumMore', feat('rank') || feat('cat')); show('ptBtn', feat('points')); show('shunBtn', feat('shun')); show('payCard', feat('pay')); show('payCardReg', feat('pay'));
     renderBalStrip();
     if (!feat('memo') && document.querySelector('#screen-notes.active')) go('history');
   }
@@ -2867,7 +3091,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     show('sheetBack', true); $('sheet').scrollTop = 0;
   }
   var SHEET_LOCK = false;   // LINE の中:案内を閉じられないようにする
-  function closeSheet() { if (SHEET_LOCK) return; show('sheetBack', false); }
+  function closeSheet() { if (SHEET_LOCK) return; show('sheetBack', false); if (typeof REC !== 'undefined' && (REC.stream || REC.blob)) recReset(); if (typeof msgStopAudio === 'function') msgStopAudio(); }
   $('sheetBack').addEventListener('click', function (e) { if (e.target === this) closeSheet(); });
 
   /* ---------- 撮影 ---------- */
@@ -3182,7 +3406,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   /* ---------- 確認フォーム ---------- */
   function openConfirm(r) {
     state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', payMethod: r.payMethod || '', payBalance: r.payBalance || 0, date: r.date || today(),
-      total: r.total || 0, items: (r.items || []).filter(function (it) { return !isShareItem(it); }).map(function (it) { return it.link ? { name: it.name, price: it.price, link: it.link } : { name: it.name, price: it.price }; }) };
+      total: r.total || 0, items: (r.items || []).filter(function (it) { return !isShareItem(it); }).map(function (it) { return it.link ? { name: it.name, price: it.price, link: it.link } : it.cat ? { name: it.name, price: it.price, cat: it.cat } : { name: it.name, price: it.price }; }) };
     state.editOrigDate = r.date || '';
     var rsh = r.share != null ? r : normRc({ items: (r.items || []).slice() });
     state.draft.adj = (rsh.adj || []).map(function (a) { return { name: a.name, amount: a.amount, who: a.who || '' }; });
@@ -4604,7 +4828,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   }
   function renderItems() {
     $('cfItems').innerHTML = state.draft.items.map(function (it, i) {
-      return '<div class="item-row">' +
+      var showCat = feat('cat') && !(Number(it.price) < 0) && !NOT_ITEM.test(itemKey(it.name));
+      return '<div class="item-row">' + (feat('cat') ? (showCat ? '<button type="button" class="cat-btn" data-cp="' + i + '" aria-label="分け方を選ぶ">' + catInfo(itemCat(it, state.draft)).icon + '</button>' : '<span class="cat-btn" style="border-color:transparent"></span>') : '') +
         '<input class="input name" data-i="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="品名">' +
         '<input class="input price" data-i="' + i + '" data-k="price" type="number" inputmode="numeric" value="' + (it.price || it.price === 0 ? it.price : '') + '">' +
         '<button class="icon-btn del" data-del="' + i + '" aria-label="この品目を消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
@@ -4613,9 +4838,11 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       inp.addEventListener('input', function () {
         var it = state.draft.items[+inp.dataset.i];
         it[inp.dataset.k] = inp.dataset.k === 'price' ? Math.round(Number(inp.value) || 0) : inp.value;
+        var cb = $('cfItems').querySelector('[data-cp="' + inp.dataset.i + '"]'); if (cb && !it.cat) cb.textContent = catInfo(itemCat(it, state.draft)).icon;
         updateSums();
       });
     });
+    $('cfItems').querySelectorAll('[data-cp]').forEach(function (b) { b.addEventListener('click', function () { openCatPick(+b.dataset.cp); }); });
     $('cfItems').querySelectorAll('[data-del]').forEach(function (b) {
       b.addEventListener('click', function () { state.draft.items.splice(+b.dataset.del, 1); renderItems(); });
     });
@@ -4695,6 +4922,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     d.total = Math.round(Number($('cfTotal').value) || 0);
     if (!d.total) d.total = itemsSum();
     d.items = d.items.filter(function (it) { return ((it.name || '').trim() || it.price) && !isShareItem(it); });
+    if (feat('cat')) d.items.forEach(function (it) { if (!it.cat && Number(it.price) > 0 && !NOT_ITEM.test(itemKey(it.name))) { var g = guessCat(it.name, d.purpose); if (g) it.cat = g; } });
     var adj = (d.adj || []).map(function (a) { return { name: String(a.name || '').trim().slice(0, 30) || '割り勘', amount: Math.round(Number(a.amount) || 0), who: a.who && a.who !== d.person ? a.who : '' }; }).filter(function (a) { return a.amount; });
     d.items = d.items.map(function (it) { return it.link ? { name: '🔗' + it.link + ' ' + String(it.name || '').replace(/^🔗\S+\s*/, ''), price: it.price } : it; });
     var share = adj.reduce(function (a, x) { return a + x.amount; }, 0);
@@ -6217,9 +6445,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     });
   }
 
-  /* ---------- 💬 伝言(同じ家の家族のあいだだけ・文字だけ・90日で自動で消える) ----------
+  /* ---------- 💬 伝言(同じ家の家族のあいだだけ・文字は90日、声は30日で自動で消える) ----------
      送った人と、あて先に選ばれた人だけに見える。メールでの知らせは、まだない */
-  var MSG = { list: null, at: 0, fresh: {}, busy: false };
+  var MSG = { list: null, at: 0, fresh: {}, busy: false, audio: {}, playing: null };
   function msgUnread() { return (MSG.list || []).filter(function (m) { return m.to.indexOf(state.owner) >= 0 && m.read.indexOf(state.owner) < 0; }); }
   function msgWhen(at) { var m = String(at || '').match(/^\d{4}\/(\d{2})\/(\d{2}) (\d{2}:\d{2})/); return m ? Number(m[1]) + '/' + Number(m[2]) + ' ' + m[3] : esc(at); }
   function msgBadge() {
@@ -6231,6 +6459,33 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     if ($('ntTabs') && NT.tab && document.querySelector('#ntTabs [data-t="msgs"]')) {
       var c = document.querySelector('#ntTabs [data-t="msgs"]'); c.textContent = '💬 伝言' + (n ? ' (' + n + ')' : '');
     }
+    // 画面の上の 📢(読んでいない伝言があるときだけ。少し揺れる)
+    if ($('btnMsg')) { $('btnMsg').classList.toggle('hidden', !n); document.querySelector('.topbar').classList.toggle('has-msg', !!n); $('btnMsgN').textContent = n > 9 ? '9+' : String(n); $('btnMsg').setAttribute('aria-label', '読んでいない伝言が ' + n + '件あります'); }
+    msgReadNotice();
+  }
+  // 自分が送った伝言を、相手が読んだら1回だけ知らせる
+  function msgReadNotice() {
+    var me = state.owner, seen, first = false;
+    try { seen = JSON.parse(store.get('msgSeenRead') || 'null'); } catch (e) { seen = null; }
+    if (!seen) { seen = {}; first = true; }
+    var news = [];
+    (MSG.list || []).forEach(function (m) {
+      if (m.from !== me) return;
+      var was = seen[m.id] || [];
+      m.read.forEach(function (p) { if (was.indexOf(p) < 0 && !first) news.push(p); });
+      seen[m.id] = m.read.slice();
+    });
+    Object.keys(seen).forEach(function (id) { if (!(MSG.list || []).some(function (m) { return m.id === id; })) delete seen[id]; });
+    store.set('msgSeenRead', JSON.stringify(seen));
+    if (news.length) {
+      var who = news.filter(function (x, i, a) { return a.indexOf(x) === i; }).map(function (p) { return nm(p) + 'さん'; }).join('・');
+      msgBanner('📢 ' + who + 'が、伝言を読みました');
+    }
+  }
+  function msgBanner(text) {
+    var b = $('msgBanner'); if (!b) return toast(text);
+    b.textContent = text; b.classList.remove('hidden');
+    clearTimeout(msgBanner.t); msgBanner.t = setTimeout(function () { b.classList.add('hidden'); }, 6000);
   }
   function refreshMsgs(force) {
     if (!feat('memo') || !state.owner || MSG.busy) return Promise.resolve();
@@ -6245,41 +6500,81 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     api('msgs', { person: state.owner }).then(function (r) {
       MSG.list = r.msgs || [];
       var un = msgUnread(); MSG.fresh = {}; un.forEach(function (m) { MSG.fresh[m.id] = true; });
-      drawMsgs();
+      drawMsgs(); msgReadNotice();
       if (un.length) api('readMsg', { ids: un.map(function (m) { return m.id; }), person: state.owner }).then(function () {
-        un.forEach(function (m) { m.read.push(state.owner); }); msgBadge();
+        var now = new Date(), at = now.getFullYear() + '/' + pad(now.getMonth() + 1) + '/' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+        un.forEach(function (m) { m.read.push(state.owner); (m.readAt = m.readAt || {})[state.owner] = at; }); msgBadge();
       }).catch(function () {});
     }).catch(function (e) {
       $('ntBody').innerHTML = '<div class="error">' + esc(e.message) + '</div>' + (/不明な依頼/.test(e.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください。</div>' : '');
     });
+  }
+  function msgStopAudio() { if (MSG.playing) { try { MSG.playing.a.pause(); } catch (e) {} var b = document.querySelector('[data-mp="' + MSG.playing.id + '"]'); if (b) b.textContent = b.dataset.lb; MSG.playing = null; } }
+  function msgPlay(m, btn) {
+    if (MSG.playing && MSG.playing.id === m.id) return msgStopAudio();
+    msgStopAudio();
+    var start = function (url) {
+      var a = new Audio(url); MSG.playing = { id: m.id, a: a }; btn.textContent = '■ 止める';
+      a.onended = function () {
+        msgStopAudio();
+        if (m.to.indexOf(state.owner) >= 0 && (m.heard || []).indexOf(state.owner) < 0) {
+          api('heardMsg', { id: m.id, person: state.owner }).then(function () { (m.heard = m.heard || []).push(state.owner); }).catch(function () {});
+        }
+      };
+      a.onerror = function () { msgStopAudio(); alert('このスマホでは、この声を再生できませんでした。下の「声の文字」で読んでください。'); };
+      var pr = a.play(); if (pr && pr.catch) pr.catch(function () { msgStopAudio(); });
+    };
+    if (MSG.audio[m.id]) return start(MSG.audio[m.id]);
+    btn.disabled = true; btn.textContent = '読み込み中…';
+    api('msgVoice', { id: m.id, person: state.owner }).then(function (r) {
+      var bin = atob(r.data), u8 = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      MSG.audio[m.id] = URL.createObjectURL(new Blob([u8], { type: r.mime || 'audio/mp4' }));
+      btn.disabled = false; start(MSG.audio[m.id]);
+    }).catch(function (e) { btn.disabled = false; btn.textContent = btn.dataset.lb; alert(e.message); });
   }
   function drawMsgs() {
     var me = state.owner, list = MSG.list || [];
     var card = function (m) {
       var mine = m.from === me, orig = m.reply ? list.filter(function (x) { return x.id === m.reply; })[0] : null;
       var head = mine ? '📤 ' + m.to.map(nm).join('・') + 'さんへ' : '📩 ' + nm(m.from) + 'さんから';
-      var readTxt = mine ? m.to.map(function (p) { return m.read.indexOf(p) >= 0 ? '✓ ' + nm(p) + 'さんが読みました' : '・' + nm(p) + 'さんはまだ'; }).join(' ') : '';
+      var allRead = mine && m.to.every(function (p) { return m.read.indexOf(p) >= 0; });
+      var readTxt = mine ? m.to.map(function (p) {
+        var t = (m.readAt || {})[p] ? '(' + msgWhen(m.readAt[p]) + ')' : '';
+        if (m.read.indexOf(p) < 0) return '<div>・' + nm(p) + 'さんは、まだ読んでいません</div>';
+        if (m.voice && !m.voice.expired && (m.heard || []).indexOf(p) >= 0) return '<div>🔊 ' + nm(p) + 'さんが聞きました' + t + '</div>';
+        return '<div>✓ ' + nm(p) + 'さんが読みました' + t + (m.voice && !m.voice.expired ? '(声はまだ聞いていません)' : '') + '</div>';
+      }).join('') : '';
+      var voice = '';
+      if (m.voice) {
+        var lb = '▶ 🔊 声の伝言を聞く(' + (m.voice.sec || '?') + '秒)';
+        voice = m.voice.expired ? '<div class="in-sub" style="margin-top:6px">🔇 声は30日たったので消えました</div>'
+          : '<button type="button" class="btn btn-tonal btn-block" data-mp="' + esc(m.id) + '" data-lb="' + esc(lb) + '" style="margin-top:8px">' + esc(lb) + '</button>';
+        if (m.voice.text) voice += '<div style="margin-top:6px;font-size:17px;line-height:1.6;white-space:pre-wrap;word-break:break-word"><span class="in-sub">📝 声の文字:</span>' + esc(m.voice.text) + '</div>';
+      }
       return '<div class="card nt-card"' + (MSG.fresh[m.id] ? ' style="border-left:6px solid var(--danger)"' : '') + '>' +
         '<div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + (MSG.fresh[m.id] ? '🆕 ' : '') + head + '</b><span class="in-sub" style="white-space:nowrap">' + msgWhen(m.at) + '</span></div>' +
-        (orig ? '<div class="in-sub" style="margin-top:4px">↩ 「' + esc(orig.text.slice(0, 30)) + (orig.text.length > 30 ? '…' : '') + '」への返事</div>' : '') +
-        '<div style="font-size:19px;line-height:1.6;margin-top:6px;white-space:pre-wrap;word-break:break-word">' + esc(m.text) + '</div>' +
-        (mine && m.to.length > 1 ? '<div class="in-sub" style="margin-top:4px">みんなに送った伝言です(' + m.to.length + '人)</div>' : '') +
-        (readTxt ? '<div class="in-sub" style="margin-top:6px">' + readTxt + '</div>' : '') +
+        (allRead ? '<div style="margin-top:4px;font-weight:700;color:var(--primary)">✅ みんな読みました</div>' : '') +
+        (orig ? '<div class="in-sub" style="margin-top:4px">↩ 「' + esc((orig.text || (orig.voice && orig.voice.text) || '声の伝言').slice(0, 30)) + '」への返事</div>' : '') +
+        (m.text ? '<div style="font-size:19px;line-height:1.6;margin-top:6px;white-space:pre-wrap;word-break:break-word">' + esc(m.text) + '</div>' : '') + voice +
+        (mine && m.to.length > 1 ? '<div class="in-sub" style="margin-top:4px">' + m.to.length + '人に送った伝言です</div>' : '') +
+        (readTxt ? '<div class="in-sub" style="margin-top:6px;line-height:1.7">' + readTxt + '</div>' : '') +
         '<div class="nt-btns">' + (mine ? '' : '<button class="btn btn-text" data-mr="' + esc(m.id) + '">↩ 返事をする</button>') +
         '<button class="btn btn-text" data-md="' + esc(m.id) + '">🗑 消す</button></div></div>';
     };
     var got = list.filter(function (m) { return m.from !== me; }), sent = list.filter(function (m) { return m.from === me; });
-    $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="msNew" style="margin-bottom:8px">＋ 伝言を書く</button>' +
-      '<div class="note" style="font-size:15px;margin-bottom:12px">伝言は、送った人と、選ばれた人だけに見えます。文字だけで、90日たつと自動で消えます。アプリを開いたときや 🔄 を押したときに届きます。</div>' +
+    $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="msNew" style="margin-bottom:8px">＋ 伝言を書く・声で送る</button>' +
+      '<div class="note" style="font-size:15px;margin-bottom:12px">伝言は、送った人と、選ばれた人だけに見えます。文字は90日、声は30日たつと自動で消えます。アプリを開いたときや 🔄 を押したときに届きます。</div>' +
       '<div class="section-title">届いた伝言(' + got.length + '件)</div>' + (got.map(card).join('') || '<div class="note" style="font-size:17px">届いた伝言はありません。</div>') +
       '<div class="section-title">送った伝言(' + sent.length + '件)</div>' + (sent.map(card).join('') || '<div class="note" style="font-size:17px">送った伝言はありません。</div>');
     $('msNew').addEventListener('click', function () { openMsgWrite(null); });
-    $('ntBody').querySelectorAll('[data-mr]').forEach(function (b) { b.addEventListener('click', function () { openMsgWrite(list.filter(function (m) { return m.id === b.dataset.mr; })[0]); }); });
+    $('ntBody').querySelectorAll('[data-mp]').forEach(function (b) { b.addEventListener('click', function () { msgPlay(list.filter(function (m) { return m.id === b.dataset.mp; })[0], b); }); });
+    $('ntBody').querySelectorAll('[data-mr]').forEach(function (b) { b.addEventListener('click', function () { msgStopAudio(); openMsgWrite(list.filter(function (m) { return m.id === b.dataset.mr; })[0]); }); });
     $('ntBody').querySelectorAll('[data-md]').forEach(function (b) {
       b.addEventListener('click', function () {
         var m = list.filter(function (x) { return x.id === b.dataset.md; })[0]; if (!m) return;
-        openSheet('<div class="grip"></div><h2>🗑 伝言を消す</h2><div class="card" style="font-size:18px;white-space:pre-wrap">' + esc(m.text) + '</div>' +
-          '<div class="note" style="font-size:17px;margin:10px 0">' + (m.from === state.owner ? '自分が送った伝言なので、<b>あて先の人の画面からも消えます</b>。' : '<b>自分の画面からだけ</b>消えます。送った人の画面には残ります。') + '</div>' +
+        msgStopAudio();
+        openSheet('<div class="grip"></div><h2>🗑 伝言を消す</h2><div class="card" style="font-size:18px;white-space:pre-wrap">' + esc(m.text || (m.voice ? '🔊 声の伝言' + (m.voice.text ? ':' + m.voice.text : '') : '')) + '</div>' +
+          '<div class="note" style="font-size:17px;margin:10px 0">' + (m.from === state.owner ? '自分が送った伝言なので、<b>あて先の人の画面からも消えます</b>' + (m.voice ? '(声も消えます)' : '') + '。' : '<b>自分の画面からだけ</b>消えます。送った人の画面には残ります。') + '</div>' +
           '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-danger btn-block" id="mdOk">消す</button><button class="btn btn-tonal btn-block" id="mdNo">やめる</button></div>');
         $('mdNo').addEventListener('click', closeSheet);
         $('mdOk').addEventListener('click', function () {
@@ -6289,37 +6584,107 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       });
     });
   }
+  /* 🎤 声の録音(1分まで)。録ったら 聞き直す・録り直す・声を消す ができる */
+  var REC = { rec: null, stream: null, chunks: [], blob: null, mime: '', sec: 0, t0: 0, timer: null, url: '', audio: null };
+  var REC_MAX = 60;
+  function recSupported() { return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+  function recMime() { var l = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']; for (var i = 0; i < l.length; i++) { try { if (MediaRecorder.isTypeSupported(l[i])) return l[i]; } catch (e) {} } return ''; }
+  function recReset() {
+    try { if (REC.rec && REC.rec.state !== 'inactive') { REC.rec.onstop = null; REC.rec.stop(); } } catch (e) {}
+    if (REC.stream) REC.stream.getTracks().forEach(function (t) { t.stop(); });
+    if (REC.audio) { try { REC.audio.pause(); } catch (e) {} }
+    if (REC.url) URL.revokeObjectURL(REC.url);
+    clearInterval(REC.timer);
+    REC = { rec: null, stream: null, chunks: [], blob: null, mime: '', sec: 0, t0: 0, timer: null, url: '', audio: null };
+  }
+  function recClock(s) { return Math.floor(s / 60) + ':' + pad(Math.floor(s % 60)); }
+  function recDraw() {
+    if (!$('mwRec')) return;
+    var st = REC.rec && REC.rec.state === 'recording' ? 'rec' : REC.blob ? 'done' : 'idle';
+    var b = function (id, t, cls) { return '<button type="button" class="btn ' + (cls || 'btn-tonal') + ' btn-block" id="' + id + '">' + t + '</button>'; };
+    $('mwRec').innerHTML = '<div class="card" style="padding:12px 14px;margin:6px 0 10px">' +
+      (st === 'idle' ? '<div class="note" style="font-size:16px;margin-bottom:8px">1分まで録音できます。押してから話してください。</div>' + b('rcStart', '● 録音を始める', 'btn-primary') :
+       st === 'rec' ? '<div style="font-size:22px;font-weight:700;text-align:center;color:var(--danger);margin-bottom:8px">● 録音中 <span id="rcClock">' + recClock(REC.sec) + '</span> / 1:00</div>' + b('rcStop', '■ 止める', 'btn-primary') :
+       '<div style="font-size:19px;font-weight:700;margin-bottom:8px">🎤 録音できました(' + Math.max(1, Math.round(REC.sec)) + '秒)</div>' +
+       '<div style="display:flex;flex-direction:column;gap:8px">' + b('rcPlay', REC.audio && !REC.audio.paused ? '■ 止める' : '▶ 聞き直す') + b('rcRedo', '🔄 録り直す') + b('rcDel', '🗑 声を消す(文字だけで送る)') + '</div>') +
+      (st !== 'done' ? '<button type="button" class="btn btn-text btn-block" id="rcCancel" style="margin-top:6px">✕ やめる</button>' : '') +
+      '<div class="error hidden" id="rcErr" style="margin-top:8px"></div></div>';
+    var on = function (id, f) { if ($(id)) $(id).addEventListener('click', f); };
+    on('rcStart', recStart); on('rcStop', recStop);
+    on('rcRedo', function () { recReset(); recStart(); });
+    on('rcDel', function () { recReset(); recClose(); });
+    on('rcCancel', function () { recReset(); recClose(); });
+    on('rcPlay', function () {
+      if (REC.audio && !REC.audio.paused) { REC.audio.pause(); REC.audio.currentTime = 0; return recDraw(); }
+      REC.audio = REC.audio || new Audio(REC.url); REC.audio.onended = recDraw; REC.audio.currentTime = 0;
+      var pr = REC.audio.play(); if (pr && pr.catch) pr.catch(function () {}); recDraw();
+    });
+  }
+  function recOpen() { show('mwRecBtn', false); show('mwRec', true); recDraw(); }
+  function recClose() { show('mwRec', false); show('mwRecBtn', true); $('mwRec').innerHTML = ''; }
+  function recStart() {
+    var err = function (t) { if ($('rcErr')) { $('rcErr').textContent = t; show('rcErr', true); } };
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      var mime = recMime(), opt = { audioBitsPerSecond: 32000 }; if (mime) opt.mimeType = mime;
+      var rec; try { rec = new MediaRecorder(stream, opt); } catch (e) { rec = new MediaRecorder(stream); }
+      REC.stream = stream; REC.rec = rec; REC.chunks = []; REC.mime = (rec.mimeType || mime || 'audio/mp4').split(';')[0];
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) REC.chunks.push(e.data); };
+      rec.onstop = function () {
+        clearInterval(REC.timer); REC.sec = Math.min(REC_MAX, (Date.now() - REC.t0) / 1000);
+        REC.blob = new Blob(REC.chunks, { type: REC.mime }); REC.url = URL.createObjectURL(REC.blob); REC.audio = null;
+        if (REC.stream) REC.stream.getTracks().forEach(function (t) { t.stop(); });
+        recDraw();
+      };
+      REC.t0 = Date.now(); REC.sec = 0; rec.start(1000);
+      REC.timer = setInterval(function () {
+        REC.sec = (Date.now() - REC.t0) / 1000; if ($('rcClock')) $('rcClock').textContent = recClock(REC.sec);
+        if (REC.sec >= REC_MAX) recStop();
+      }, 250);
+      recDraw();
+    }).catch(function () { err('マイクが使えません。スマホの設定で、このアプリ(ブラウザ)のマイクを許可してください。'); });
+  }
+  function recStop() { try { if (REC.rec && REC.rec.state === 'recording') REC.rec.stop(); } catch (e) {} }
+  function recBase64(blob) { return new Promise(function (ok, ng) { var fr = new FileReader(); fr.onload = function () { ok(String(fr.result).split(',')[1] || ''); }; fr.onerror = ng; fr.readAsDataURL(blob); }); }
   function openMsgWrite(reply) {
+    recReset();
     var me = state.owner, others = MEMBERS.map(function (m) { return m.name; }).filter(function (n) { return n !== me; });
     if (!others.length) {
       openSheet('<div class="grip"></div><h2>💬 伝言を書く</h2><div class="note" style="font-size:18px">この家計簿の家族が、まだ自分だけです。⚙ →「💌 家族を招待する」で家族を招待すると、伝言を送れるようになります。</div><button class="btn btn-tonal btn-block" id="mwX" style="margin-top:12px">閉じる</button>');
       return $('mwX').addEventListener('click', closeSheet);
     }
     var pre = reply ? [reply.from] : others.length === 1 ? others : [];
+    var rtext = reply ? (reply.text || (reply.voice && reply.voice.text) || '🔊 声の伝言') : '';
     openSheet('<div class="grip"></div><h2>' + (reply ? '↩ 返事をする' : '💬 伝言を書く') + '</h2>' +
-      (reply ? '<div class="card" style="font-size:16px;white-space:pre-wrap;margin-bottom:10px"><div class="in-sub">' + nm(reply.from) + 'さんの伝言</div>' + esc(reply.text) + '</div>' : '') +
+      (reply ? '<div class="card" style="font-size:16px;white-space:pre-wrap;margin-bottom:10px"><div class="in-sub">' + nm(reply.from) + 'さんの伝言</div>' + esc(rtext) + '</div>' : '') +
       '<div class="section-title">送る相手(何人でも選べます)</div>' +
       '<div id="mwTo">' + others.map(function (n) {
         return '<label class="in-line" style="font-size:19px;min-height:52px;cursor:pointer"><span>' + nm(n) + '</span><input type="checkbox" value="' + esc(n) + '"' + (pre.indexOf(n) >= 0 ? ' checked' : '') + ' style="width:28px;height:28px"></label>';
       }).join('') + '</div>' +
       (others.length > 1 ? '<button class="btn btn-text" id="mwAll" style="margin:4px 0 8px">👪 みんなを選ぶ</button>' : '') +
-      '<div class="section-title">伝言(500字まで)</div>' +
-      '<textarea class="input" id="mwText" maxlength="500" rows="5" style="width:100%;font-size:19px;line-height:1.6" placeholder="例:明日の夕方、牛乳を買ってきてください"></textarea>' +
+      (recSupported() ? '<div class="section-title">🎤 声で送る</div><button type="button" class="btn btn-tonal btn-block" id="mwRecBtn">🎤 声を録音する(1分まで)</button><div id="mwRec" class="hidden"></div>' : '') +
+      '<div class="section-title">伝言の文(500字まで。声だけなら空でも大丈夫)</div>' +
+      '<textarea class="input" id="mwText" maxlength="500" rows="4" style="width:100%;font-size:19px;line-height:1.6" placeholder="例:明日の夕方、牛乳を買ってきてください"></textarea>' +
       '<div class="in-sub" id="mwCnt" style="text-align:right">0 / 500</div>' +
       '<div class="error hidden" id="mwErr"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px"><button class="btn btn-primary btn-block" id="mwSend">送る</button><button class="btn btn-tonal btn-block" id="mwNo">やめる</button></div>');
     var boxes = function () { return Array.prototype.slice.call($('mwTo').querySelectorAll('input')); };
     if ($('mwAll')) $('mwAll').addEventListener('click', function () { var all = boxes().every(function (b) { return b.checked; }); boxes().forEach(function (b) { b.checked = !all; }); this.textContent = all ? '👪 みんなを選ぶ' : '👪 選ぶのをやめる'; });
+    if ($('mwRecBtn')) $('mwRecBtn').addEventListener('click', recOpen);
     $('mwText').addEventListener('input', function () { $('mwCnt').textContent = this.value.length + ' / 500'; });
     $('sheet').addEventListener('input', function () { show('mwErr', false); }); $('sheet').addEventListener('change', function () { show('mwErr', false); });
-    $('mwNo').addEventListener('click', closeSheet);
+    $('mwNo').addEventListener('click', function () { recReset(); closeSheet(); });
     $('mwSend').addEventListener('click', function () {
       var to = boxes().filter(function (b) { return b.checked; }).map(function (b) { return b.value; }), text = $('mwText').value.trim();
-      var err = !to.length ? '送る相手を選んでください' : !text ? '伝言の文を入れてください' : '';
+      if (REC.rec && REC.rec.state === 'recording') { $('mwErr').textContent = '録音中です。先に「■ 止める」を押してください'; return show('mwErr', true); }
+      var err = !to.length ? '送る相手を選んでください' : (!text && !REC.blob) ? '伝言の文を入れるか、声を録音してください' : '';
       if (err) { $('mwErr').textContent = err; show('mwErr', true); return; }
-      var b = this; b.disabled = true; b.textContent = '送っています…';
-      api('sendMsg', { msg: { from: me, to: to, text: text, reply: reply ? reply.id : '' } }).then(function () {
-        closeSheet(); toast(to.map(label).join('・') + 'さんに伝言を送りました');
+      var b = this; b.disabled = true; b.textContent = REC.blob ? '送っています…(声を文字にしています)' : '送っています…';
+      (REC.blob ? recBase64(REC.blob) : Promise.resolve('')).then(function (b64) {
+        var msg = { from: me, to: to, text: text, reply: reply ? reply.id : '' };
+        if (b64) msg.audio = { data: b64, mime: REC.mime, sec: Math.max(1, Math.round(REC.sec)) };
+        return api('sendMsg', { msg: msg });
+      }).then(function () {
+        recReset(); closeSheet(); toast(to.map(label).join('・') + 'さんに伝言を送りました');
         if (NT.tab === 'msgs' && document.querySelector('#screen-notes.active')) ntMsgs(); else refreshMsgs(true);
       }).catch(function (e) { b.disabled = false; b.textContent = '送る'; $('mwErr').textContent = e.message; show('mwErr', true); });
     });
@@ -6350,13 +6715,15 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       steps: ['いつものようにレシートを撮る(残りを見るだけなら、買物の画面の[🎁 ポイントの残り])', '確かめの画面の「🎁 ポイント」の欄を確かめる(名前はお店の名前から自動で入る)', '[保存する]→ 累計ポイントがあれば[上書きする]'], open: function () { openWallet('points'); } },
     { k: 'shun', icon: '🍎', f: 'shun', t: '旬と早見表・料理を見る', why: '今が旬のものや、果物の選び方を知りたいとき', res: '月や季節ごとの旬の果物・野菜・魚と、かんたんな料理の作り方が見られます。作ってみたい料理は一覧にできます。',
       steps: ['買物の画面の[🍎 旬と早見表]を押す', '品物の名前を押すと、説明と料理が出る', '料理の[作ってみたい]にチェックすると[📖 作ってみたい]に並ぶ'], open: function () { openShun('month'); } },
-    { k: 'msg', icon: '💬', f: 'memo', t: '家族に伝言を送る', why: '家族に頼みごとや知らせたいことがあるとき', res: '選んだ家族のアプリに届き、メモのボタンに赤い数字、買物の画面にテロップが出ます。読むと、送った人の画面に「読みました」と出ます。',
-      steps: ['下の[メモ]→[💬 伝言]を押す', '[＋ 伝言を書く]を押す', '送る相手にチェックを付ける(何人でも。[👪 みんなを選ぶ]もある)', '文を入れて[送る]を押す', '届いた伝言には[↩ 返事をする]で返事ができる'], open: function () { NT.tab = 'msgs'; go('notes'); } },
+    { k: 'msg', icon: '💬', f: 'memo', t: '家族に伝言を送る(声も送れる)', why: '家族に頼みごとや知らせたいことがあるとき', res: '選んだ家族のアプリに届き、画面の上に揺れる📢と数字、メモのボタンに赤い数字、買物の画面にテロップが出ます。読むと、送った人の画面に「読みました(時刻)」と出て、こちらにも「📢 ○○さんが伝言を読みました」と知らせます。声は文字にもなります。',
+      steps: ['下の[メモ]→[💬 伝言]を押す', '[＋ 伝言を書く・声で送る]を押す', '送る相手にチェックを付ける(何人でも。[👪 みんなを選ぶ]もある)', '文を入れるか、[🎤 声を録音する(1分まで)]で録音する(聞き直す・録り直す・声を消す ができる)', '[送る]を押す', '届いた声は[▶ 🔊 声の伝言を聞く]で聞ける。声の文字も下に出る', '届いた伝言には[↩ 返事をする]で返事ができる'], open: function () { NT.tab = 'msgs'; go('notes'); } },
+    { k: 'cat', icon: '🏷', f: 'cat', t: 'カテゴリ(食べ物・それ以外)で見る', why: '何にいくら使ったか、食べ物とそれ以外に分けて知りたいとき', res: '品物が野菜・果物・お惣菜・化粧品などに自動で分けられ、集計の画面で、お金を使った順のランキングとグラフが見られます。前の期間と比べた増え減りも出ます。',
+      steps: ['いつものようにレシートを撮る。品物の左のマーク(🥬 など)が分け方', '違っていたらマークを押して選び直し、[保存する]', '下の[集計]→ ランキングの[🏷 カテゴリ]を押す', '期間・だれの・[🍙 食べ物だけ]などを選ぶ。[トップ5][トップ10][全部]で数を変えられる', 'カテゴリを押すと、品物ごとの内訳(金額の順・回数の順)と、週ごと・月ごとのグラフが出る'], open: function () { RK.kind = 'cat'; go('summary'); } },
     { k: 'family', icon: '👪', t: '家族で使えるようにするには', why: '家族みんなで同じ家計簿に記録したいとき', res: '家族のスマホにも同じ家計簿のアイコンができて、だれが入れたレシートも全員で見られます。入れた人の名前も残ります。',
       steps: ['【招待する人】⚙ →[💌 家族を招待する]を押して、招待リンクを LINE で送る', '【招待する人】家族のパスワードを、紙などで別に伝える', '【招待された人】LINE のリンクを押して、ブラウザ(Android は Chrome、iPhone は Safari)で開き直す', '【招待された人】ホーム画面にアイコンを作る(Android はボタン、iPhone は 共有 →「ホーム画面に追加」)', '【招待された人】アイコンから開いて、家族のパスワードを入れ、自分の名前を選ぶ'], open: function () { openInvite(); } },
     { k: 'where', icon: '📖', t: '家族で見られるもの・自分のスマホだけのもの', why: '家族で使うときに、何が共有されるか知りたいとき', res: '',
       html: '<div class="section-title">① 家族みんなで同じものが見えるもの</div><ul class="hl-ul"><li>買物(レシート)と割り勘。「全員」「名前」のボタンで、だれの分かを切り替えられます</li><li>収入・年金</li><li>メモ(味の評価・お店の情報・買い物メモ)</li><li>家計簿の名前、家族の名前、家計簿を始めた日</li></ul>' +
-        '<div class="section-title">② 家計簿に入るけれど、自分の分だけが出るもの</div><ul class="hl-ul"><li>支払い(税金・保険料・振込など)。入れた人の分だけが支払いの画面に出ます。収入の残りを数えるときは、家族の分も数えます</li><li>予定と、お知らせメールの設定</li><li>伝言。送った人と、選ばれた人だけに見えます(90日で消えます)</li></ul>' +
+        '<div class="section-title">② 家計簿に入るけれど、自分の分だけが出るもの</div><ul class="hl-ul"><li>支払い(税金・保険料・振込など)。入れた人の分だけが支払いの画面に出ます。収入の残りを数えるときは、家族の分も数えます</li><li>予定と、お知らせメールの設定</li><li>伝言。送った人と、選ばれた人だけに見えます(文字は90日、声は30日で消えます)</li></ul>' +
         '<div class="section-title">③ このスマホだけのもの(家族には見えない・ほかのスマホに引き継がれない)</div><ul class="hl-ul"><li>カード・電子マネー・口座・ポイント</li><li>カード支払のくり返し、カードの請求額</li><li>年金の決まり</li><li>使う機能、テロップ・声、家のアイコン、作ってみたい料理</li><li>パスワードを覚えていること</li></ul>' +
         '<div class="note" style="font-size:16px;margin-top:8px">家族がそれぞれのスマホで使うときは、③は一人ずつ自分のスマホで入れます。機種変更や、LINE からアイコンに変えたときも、③は入れ直します。</div>' },
     { k: 'start', icon: '🗓', t: '家計簿を始めた日を決める', why: '途中から使い始めて、前の分をあとから入れたとき', res: 'その日より前の買い物や支払いは、記録として残るだけで、合計や収入の残りには数えません。家族みんなのスマホで同じ日になります。',
