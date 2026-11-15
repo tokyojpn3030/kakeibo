@@ -297,6 +297,12 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .med-all { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .sw { min-width: 76px; min-height: 46px; border-radius: 23px; border: 2px solid var(--line); background: var(--surface); color: var(--text-2); font-size: 18px; font-weight: 700; flex: none; }
 .sw.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.med-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.med-cw { text-align: center; font-size: 15px; color: var(--text-2); font-weight: 700; }
+.med-cd { min-height: 52px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 16px; padding: 2px 0; }
+.med-cd b { font-size: 16px; line-height: 1.1; min-height: 18px; }
+.med-cd.today { border: 2px solid var(--primary); }
+.med-cd.miss { background: var(--warn-soft); }
 .med-banner { position: fixed; left: 12px; right: 12px; bottom: calc(84px + var(--safe-b)); z-index: 59; background: var(--good); color: #fff; font-size: 18px; font-weight: 700; padding: 14px 16px; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.25); cursor: pointer; }
 /* 下のナビ */
 .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
@@ -888,7 +894,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-16 00:40 版165';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-16 00:45 版166';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版140';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -3595,9 +3601,12 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     $('cfDate').value = state.draft.date;
     $('cfTotal').value = state.draft.total || ''; drawShareNet();
     renderConfirmPerson(); renderItems(); window.scrollTo(0, 0);
+    // 💊 お薬の「受診の日」から来たとき:医療費・薬代にする
+    var fp = state.forcePurpose; state.forcePurpose = null;
+    if (fp && fp.until > Date.now()) { $('cfPurpose').value = fp.p; drawPurpose(); if (fp.store && !$('cfStore').value) $('cfStore').value = fp.store; }
   }
   // 何の支払い(分類):ボタンで選ぶか、文字で書く。買い物と支払いで同じ一覧を使う
-  var CATS = ['食料品', '日用品', '外食', '衣類', '医療費', '住民税', '社会保険料', 'ほかの税金', '公共料金', '通信費', 'その他'];
+  var CATS = ['食料品', '日用品', '外食', '衣類', '医療費', '薬代', '住民税', '社会保険料', 'ほかの税金', '公共料金', '通信費', 'その他'];
   // 分類:ボタンを押すと、選ぶ窓(ポップアップ)が開く。ほかの分類は窓の中で書ける
   function catPopup(cur, onPick) {
     var old = document.querySelector('.cat-pop'); if (old) old.remove();
@@ -6886,6 +6895,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     if (!('all' in m)) m.all = true;
     if (!('app' in m)) m.app = true;
     if (!('line' in m)) m.line = true;
+    // 残りのお知らせ:何日分になったら知らせるか(3週間前・1週間前・3日前・無くなる日)
+    m.stock = m.stock || { on: true, line: true, days: [{ d: 21, on: true }, { d: 7, on: true }, { d: 3, on: false }, { d: 0, on: true }] };
+    m.stockSeen = m.stockSeen || {}; m.visits = m.visits || {};
     return m;
   }
   function medSave(m) {
@@ -6907,6 +6919,50 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     var days = Math.floor(x.stock / d);
     return '残り ' + medFmt(x.stock) + esc(x.unit) + '(あと' + days + '日分)';
   }
+  function medAddDays(d, n) { var x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate()); }
+  function medAddMin(hm, n) { var a = hm.split(':'), v = Math.min(1439, +a[0] * 60 + +a[1] + n); return pad(Math.floor(v / 60)) + ':' + pad(v % 60); }
+  // 無くなる日:今の手持ち ÷ 1日に飲む数
+  function medRun(x) { var d = medDaily(x); if (!d) return null; var n = Math.floor(x.stock / d + 1e-9); return { left: n, date: medAddDays(today(), n) }; }
+  // 残りのお知らせ:ONの日数のうち、もう届いたいちばん近い段階
+  function medAlerts(m) {
+    m = m || medLoad(); if (!m.stock.on) return [];
+    var ds = m.stock.days.filter(function (a) { return a.on; }).map(function (a) { return a.d; }).sort(function (a, b) { return a - b; });
+    if (!ds.length) return [];
+    var out = [];
+    m.meds.forEach(function (x) {
+      var r = medRun(x); if (!r) return;
+      var hit = ds.filter(function (d) { return r.left <= d; })[0]; if (hit == null) return;
+      out.push({ x: x, d: hit, left: r.left, out: r.date });
+    });
+    return out.sort(function (a, b) { return a.left - b.left; });
+  }
+  function medAlertText(a) {
+    if (a.left <= 0) return '<b>' + esc(medJp(a.out)) + '(今日)でお薬が無くなります。</b>';
+    return esc(medJp(today())) + 'で残り <b>' + medFmt(a.x.stock) + esc(a.x.unit) + '</b>(あと' + a.left + '日分)になり、<b>残り少ないです</b>。<br><b>' + esc(medJp(a.out)) + 'に無くなります。</b>受診の予約をお忘れなく。';
+  }
+  function medNewAlerts(m) { m = m || medLoad(); return medAlerts(m).filter(function (a) { var s0 = m.stockSeen[a.x.id]; return s0 == null || s0 > a.d; }); }
+  // 受診の日(予定表から):病院の名前か「受診・病院・クリニック」などが入った予定
+  var MEDV = { plans: null, at: 0, later: {} };
+  var MED_VISIT_RE = /受診|通院|診察|病院|クリニック|医院|診療所|歯科|内科|外科|眼科|皮膚科|整形|耳鼻|婦人科|泌尿器/;
+  function medLoadPlans() {
+    if (!feat('med') || !state.owner || Date.now() - MEDV.at < 30 * 60000) return;
+    MEDV.at = Date.now();
+    api('plans', { person: state.owner }).then(function (r) { MEDV.plans = r.plans || []; medCheckBanner(); if (document.querySelector('#screen-med.active')) renderMed(); }).catch(function () { MEDV.at = 0; });
+  }
+  function medVisit(m) {
+    if (!MEDV.plans) return null;
+    m = m || medLoad();
+    var t = today(), now = medNow(), hos = medKey(m.places.hospital);
+    return MEDV.plans.filter(function (p) {
+      var d = medDays(p.date, t); if (d < 0 || d > 3) return false;
+      var txt = (p.title || '') + ' ' + (p.place || '');
+      if (!((hos && medKey(txt).indexOf(hos) >= 0) || MED_VISIT_RE.test(txt) || /🏥/.test(p.memo || ''))) return false;
+      if (d === 0 && !(now >= '16:00' || (p.time && now >= medAddMin(p.time, 120)))) return false;   // 受診のあと(夕方から)
+      var v = m.visits[p.id] || {};
+      if (v.skip || (v.med && v.hos && v.pha)) return false;
+      return !MEDV.later[p.id];
+    }).sort(function (a, b) { return a.date < b.date ? 1 : -1; })[0] || null;
+  }
   // 今、お知らせする時刻(ONで、時刻を過ぎていて、まだ飲んでいない)
   function medDue(m) {
     if (!feat('med')) return [];
@@ -6917,14 +6973,20 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   }
   function medCheckBanner() {
     if (!$('medBanner')) return;
-    var due = state.owner ? medDue() : [];
+    if (!MEDV) return;   // 読み込みの途中
+    if (!feat('med') || !state.owner) { show('medBanner', false); return; }
+    medLoadPlans();
+    var m = medLoad(), due = medDue(m), lines = [];
+    if (due.length) lines.push('💊 ' + due.map(medSlotName).join('・') + 'のお薬の時間です');
+    if (medNewAlerts(m).length) lines.push('📦 残りが少ないお薬があります');
+    if (medVisit(m)) lines.push('🏥 受診の日でした。お薬・領収書を登録しますか?');
     var onMed = !!document.querySelector('#screen-med.active');
-    if (!due.length || onMed) { show('medBanner', false); return; }
-    $('medBanner').textContent = '💊 ' + due.map(medSlotName).join('・') + 'のお薬の時間です(押すと開きます)';
+    if (!lines.length || onMed) { show('medBanner', false); return; }
+    $('medBanner').innerHTML = lines.map(esc).join('<br>') + '<div style="font-size:15px;font-weight:400;margin-top:2px">押すと開きます</div>';
     show('medBanner', true);
   }
-  function medTake(k, undo) {
-    var m = medLoad(), t = today();
+  function medTake(k, undo, date) {
+    var m = medLoad(), t = date || today();
     m.taken[t] = m.taken[t] || {};
     if (undo) {
       if (!m.taken[t][k]) return;
@@ -6932,11 +6994,12 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       medUsed(m, k).forEach(function (x) { x.stock = Math.round((x.stock + Number(x.dose[k])) * 100) / 100; });
     } else {
       if (m.taken[t][k]) return;
-      m.taken[t][k] = medNow();
+      m.taken[t][k] = t === today() ? medNow() : 'あとで記録';
       medUsed(m, k).forEach(function (x) { x.stock = Math.max(0, Math.round((x.stock - Number(x.dose[k])) * 100) / 100); });
     }
     medSave(m); renderMed(); medCheckBanner();
     toast(undo ? '「飲んだ」を取り消しました' : medSlotName(k) + 'のお薬を飲みました ✅');
+    if (date) medDay(date);
   }
 
   function renderMed() {
@@ -6946,10 +7009,30 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       '<button class="btn btn-primary btn-block" id="medShot">📷 お薬の説明書を撮って読む</button>' +
       '<div style="display:flex;gap:8px"><button class="btn btn-tonal" id="medAlbum" style="flex:1;white-space:nowrap;padding:0 8px">🖼 写真を選ぶ</button>' +
       '<button class="btn btn-tonal" id="medHand" style="flex:1;white-space:nowrap;padding:0 8px">✍ 手で足す</button></div>' +
-      '<button class="btn btn-tonal btn-block" id="medSet">⏰ お知らせの時刻・ON/OFF</button>' +
+      '<div style="display:flex;gap:8px"><button class="btn btn-tonal" id="medCal" style="flex:1;white-space:nowrap;padding:0 8px">📅 飲んだ記録</button>' +
+      '<button class="btn btn-tonal" id="medSet" style="flex:1;white-space:nowrap;padding:0 8px">⏰ お知らせ</button></div>' +
       '<input type="file" id="medFileCam" accept="image/*" capture="environment" class="hidden">' +
       '<input type="file" id="medFile" accept="image/*" multiple class="hidden"></div>';
     if (!m.all) h += '<div class="warn" style="font-size:17px">🔕 お知らせは全部お休み中です(⏰ お知らせ で戻せます)</div>';
+    // 🏥 受診の日でした
+    var vp = medVisit(m);
+    if (vp) {
+      var vv = m.visits[vp.id] || {};
+      var vb = function (k, label) { return '<button class="btn ' + (vv[k] ? 'btn-tonal' : 'btn-primary') + ' btn-block" data-mv="' + k + '">' + (vv[k] ? '✅ ' : '') + label + '</button>'; };
+      h += '<div class="card" style="border-left:6px solid var(--primary);margin-bottom:12px"><div style="font-size:19px;font-weight:700;margin-bottom:8px">🏥 ' +
+        (vp.date === t ? '今日' : esc(md(vp.date))) + 'は ' + esc(vp.place || vp.title) + ' の受診日でした</div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px">' + vb('med', '📷 お薬の説明書を読む') + vb('hos', '🧾 病院の領収書を読む(医療費)') + vb('pha', '🧾 薬局の領収書を読む(薬代)') +
+        '<div style="display:flex;gap:8px"><button class="btn btn-text" id="mvLater" style="flex:1">あとで</button><button class="btn btn-text" id="mvSkip" style="flex:1">今回はなし</button></div></div></div>';
+    }
+    // 📦 残りのお知らせ
+    var als = medAlerts(m);
+    if (als.length) {
+      h += '<div class="section-title">📦 残りのお知らせ</div>' + als.map(function (a, i) {
+        return '<div class="card" style="border-left:6px solid ' + (a.left <= 7 ? 'var(--danger)' : 'var(--warn, #e0a000)') + ';margin-bottom:10px;font-size:17px;line-height:1.7">' +
+          '<div style="font-size:18px;font-weight:700">💊 ' + esc(a.x.name) + '</div>' + medAlertText(a) +
+          '<button class="btn btn-tonal btn-block" data-mplan="' + i + '" style="margin-top:8px">📅 受診の予定を予定表に入れる</button></div>';
+      }).join('');
+    }
     if (!m.meds.length) {
       h += '<div class="card" style="font-size:18px;line-height:1.7">まだお薬が登録されていません。<br>薬局でもらった <b>お薬の説明書</b> を、表の全体が入るように撮ってください。<br>' +
         '<span class="note">お薬の記録は、このスマホの中だけに保存します。</span></div>';
@@ -6975,7 +7058,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         return '<button class="card med-item" data-mi="' + i + '">' +
           '<div class="med-name">' + esc(x.name) + '</div>' +
           '<div class="in-sub">' + esc(x.timing || '') + (when ? '(' + esc(when) + esc(x.unit) + ')' : '') + '</div>' +
-          '<div style="font-size:17px;margin-top:2px">' + medLeft(x) + '</div>' +
+          '<div style="font-size:17px;margin-top:2px">' + medLeft(x) + (als.some(function (a) { return a.x.id === x.id; }) ? ' <span style="color:var(--danger);font-weight:700">⚠ 残り少ない</span>' : '') + '</div>' +
           '<div class="note" style="margin-top:4px">▶ はたらき・副作用を見る</div></button>';
       }).join('');
       // 病院・薬局
@@ -6987,6 +7070,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           '<button class="btn btn-text" id="medPlaceEdit" style="min-height:40px">✏ 直す</button></div>';
       }
       if (m.hist.length) h += '<button class="btn btn-tonal btn-block" id="medHist" style="margin-top:12px">📜 前の処方(' + m.hist.length + '回分)</button>';
+      h += '<button class="btn btn-tonal btn-block" id="medCost" style="margin-top:10px">💴 医療費・薬代の1年の合計を見る</button>';
       h += '<div class="note" style="margin-top:12px">お薬の記録は、このスマホの中だけに保存しています。</div>';
     }
     $('medBody').innerHTML = h;
@@ -6997,6 +7081,33 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     });
     $('medHand').addEventListener('click', function () { medEditor({ date: today(), meds: [{ name: '', unit: '錠' }] }, true); });
     $('medSet').addEventListener('click', medSettings);
+    $('medCal').addEventListener('click', function () { medCal(today().slice(0, 7)); });
+    $('medBody').querySelectorAll('[data-mplan]').forEach(function (b) { b.addEventListener('click', function () {
+      var a = als[+b.dataset.mplan], hosp = m.places.hospital || '';
+      var dt = medAddDays(a.out, -7); if (dt <= today()) dt = medAddDays(today(), 1);
+      openPlan({ kind: '病院・予約', title: (hosp || '病院') + ' 受診(お薬)', place: hosp, date: dt, memo: '🏥 お薬が ' + medJp(a.out) + ' に無くなります' }, '受診の予定を入れる(日付を確かめてください)');
+      MEDV.at = 0;
+    }); });
+    if (vp) {
+      var mark = function (k) { var m2 = medLoad(); m2.visits[vp.id] = Object.assign(m2.visits[vp.id] || {}, k); medSave(m2); };
+      $('medBody').querySelectorAll('[data-mv]').forEach(function (b) { b.addEventListener('click', function () {
+        var k = b.dataset.mv, o = {}; o[k] = true; mark(o);
+        if (k === 'med') return $('medFileCam').click();
+        var m2 = medLoad();
+        state.forcePurpose = { p: k === 'hos' ? '医療費' : '薬代', store: k === 'hos' ? (m2.places.hospital || vp.place || '') : (m2.places.pharmacy || ''), until: Date.now() + 15 * 60000 };
+        go('capture'); $('fileInput').click();
+      }); });
+      $('mvLater').addEventListener('click', function () { MEDV.later[vp.id] = 1; renderMed(); toast('次にアプリを開いたときに、また出します'); });
+      $('mvSkip').addEventListener('click', function () { mark({ skip: true }); renderMed(); toast('今回の受診は登録しないことにしました'); });
+    }
+    if ($('medCost')) $('medCost').addEventListener('click', function () {
+      if (!feat('rank')) return toast('⚙ →「使う機能を選ぶ」で「📊 ランキング・グラフ・気づき」をオンにすると見られます');
+      RK.kind = 'purpose'; RK.rankKind = 'purpose'; RK.period = 'year'; SUMTAB = 'rank'; store.set('sumTab', 'rank'); go('summary');
+      toast('「何の支払い(分類)」の1年分です。医療費・薬代を見てください');
+    });
+    // 見た「残りのお知らせ」を覚える(同じ段階では、もう上に出さない)
+    var seen = {}; als.forEach(function (a) { seen[a.x.id] = a.d; });
+    if (JSON.stringify(seen) !== JSON.stringify(m.stockSeen)) { var m3 = medLoad(); m3.stockSeen = seen; medSave(m3); }
     $('medBody').querySelectorAll('[data-mtake]').forEach(function (b) { b.addEventListener('click', function () { medTake(b.dataset.mtake); }); });
     $('medBody').querySelectorAll('[data-mundo]').forEach(function (b) { b.addEventListener('click', function () { medTake(b.dataset.mundo, true); }); });
     $('medBody').querySelectorAll('[data-mi]').forEach(function (b) { b.addEventListener('click', function () { medDetail(+b.dataset.mi); }); });
@@ -7251,6 +7362,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       '<div class="section-title" style="margin-top:14px">🔢 数え直す</div>' +
       '<div style="display:flex;gap:8px;align-items:center"><input class="input" inputmode="decimal" id="mdCount" value="' + medFmt(x.stock) + '" style="flex:1"><span style="font-size:18px">' + esc(x.unit) + '</span>' +
       '<button class="btn btn-primary" id="mdCountSave">この数にする</button></div>' +
+      '<div class="section-title" style="margin-top:14px">＋ 補充(もらってきた数を足す)</div>' +
+      '<div style="display:flex;gap:8px;align-items:center"><input class="input" inputmode="decimal" id="mdAdd" placeholder="例:56" style="flex:1"><span style="font-size:18px">' + esc(x.unit) + '</span>' +
+      '<button class="btn btn-primary" id="mdAddSave">足す</button></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
       '<button class="btn btn-tonal btn-block" id="mdEdit">✏ 名前・飲む数を直す</button>' +
       '<button class="btn btn-tonal btn-block" id="mdDel" style="color:var(--danger)">🗑 このお薬をやめた(一覧から外す)</button>' +
@@ -7258,6 +7372,11 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     $('mdBack').addEventListener('click', closeSheet);
     $('mdCountSave').addEventListener('click', function () {
       var m2 = medLoad(), y = m2.meds[i]; y.stock = medNum($('mdCount').value); medSave(m2); renderMed(); medDetail(i); toast('手持ちを ' + medFmt(y.stock) + y.unit + ' にしました');
+    });
+    $('mdAddSave').addEventListener('click', function () {
+      var n = medNum($('mdAdd').value); if (!n) return toast('足す数を入れてください');
+      var m2 = medLoad(), y = m2.meds[i]; y.stock = Math.round((y.stock + n) * 100) / 100; medSave(m2); renderMed(); medCheckBanner(); medDetail(i);
+      toast(medFmt(n) + y.unit + ' 足しました(手持ち ' + medFmt(y.stock) + y.unit + ')');
     });
     $('mdEdit').addEventListener('click', function () {
       medEditor({ date: x.rxDate || today(), meds: [{ name: x.name, unit: x.unit, dose: x.dose, timing: x.timing, looks: x.looks, effect: x.effect, caution: x.caution, days: x.days, total: 0 }] }, true);
@@ -7274,6 +7393,53 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         var m2 = medLoad(); m2.meds.splice(i, 1); medSave(m2); closeSheet(); renderMed(); medCheckBanner(); toast('一覧から外しました');
       });
     });
+  }
+
+  // 📅 飲んだ記録(カレンダー)
+  function medDayState(m, d) {
+    var t = today(), now = medNow(), first = (m.meds.map(function (x) { return x.added || t; }).sort()[0]) || t;
+    var tk0 = Object.keys(m.taken).sort()[0]; if (tk0 && tk0 < first) first = tk0;
+    if (d > t || d < first) return '';
+    var need = MED_SLOTS.filter(function (s) { return medUsed(m, s[0]).length && (d < t || now >= m.slots[s[0]].t); }).map(function (s) { return s[0]; });
+    var tk = m.taken[d] || {}, got = need.filter(function (k) { return tk[k]; }).length;
+    if (!need.length) return Object.keys(tk).length ? 'ok' : '';
+    return got === need.length ? 'ok' : got ? 'part' : 'miss';
+  }
+  function medCal(ym) {
+    var m = medLoad(), y = +ym.slice(0, 4), mo = +ym.slice(5, 7), first = new Date(y, mo - 1, 1), days = new Date(y, mo, 0).getDate();
+    var cells = '', blank = first.getDay(), cnt = { ok: 0, part: 0, miss: 0 };
+    for (var b0 = 0; b0 < blank; b0++) cells += '<div></div>';
+    for (var d = 1; d <= days; d++) {
+      var ds = ym + '-' + pad(d), st = medDayState(m, ds); if (st) cnt[st]++;
+      cells += '<button class="med-cd ' + st + (ds === today() ? ' today' : '') + '" data-cd="' + ds + '"><span>' + d + '</span><b>' + (st === 'ok' ? '✅' : st === 'part' ? '🔸' : st === 'miss' ? '⚠' : '') + '</b></button>';
+    }
+    openSheet('<div class="grip"></div><h2>📅 飲んだ記録</h2>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin:6px 0 10px"><button class="btn btn-tonal" id="mcPrev">◀&#xFE0E;</button>' +
+      '<b style="font-size:20px">' + y + '年' + mo + '月</b><button class="btn btn-tonal" id="mcNext">▶&#xFE0E;</button></div>' +
+      '<div class="med-cal">' + '日月火水木金土'.split('').map(function (w) { return '<div class="med-cw">' + w + '</div>'; }).join('') + cells + '</div>' +
+      '<div class="note" style="font-size:16px;margin-top:8px">✅ 全部飲んだ ・ 🔸 一部だけ ・ ⚠ 飲み忘れ<br>この月:✅ ' + cnt.ok + '日 ・ 🔸 ' + cnt.part + '日 ・ ⚠ ' + cnt.miss + '日</div>' +
+      '<div class="note" style="margin-top:4px">日にちを押すと、その日の記録を見たり、あとから「飲んだ」にしたりできます。</div>' +
+      '<button class="btn btn-text btn-block" id="mcBack">← 戻る</button>');
+    $('mcPrev').addEventListener('click', function () { medCal(shiftMonth(ym, -1)); });
+    $('mcNext').addEventListener('click', function () { medCal(shiftMonth(ym, 1)); });
+    $('mcBack').addEventListener('click', closeSheet);
+    $('sheet').querySelectorAll('[data-cd]').forEach(function (b) { b.addEventListener('click', function () { if (b.dataset.cd <= today()) medDay(b.dataset.cd); }); });
+  }
+  function medDay(d) {
+    var m = medLoad(), tk = m.taken[d] || {};
+    var rows = MED_SLOTS.filter(function (s) { return medUsed(m, s[0]).length || tk[s[0]]; }).map(function (s) {
+      var list = medUsed(m, s[0]);
+      return '<div class="card med-slot' + (tk[s[0]] ? ' done' : '') + '"><div style="font-size:19px;font-weight:700">' + esc(s[1]) +
+        (tk[s[0]] ? ' <span style="color:var(--good);font-size:17px">✅ ' + esc(tk[s[0]]) + '</span>' : ' <span class="note" style="font-size:16px">飲んでいない</span>') + '</div>' +
+        '<ul class="med-ul">' + list.map(function (x) { return '<li>' + esc(x.name) + ' ' + medFmt(x.dose[s[0]]) + esc(x.unit) + '</li>'; }).join('') + '</ul>' +
+        (tk[s[0]] ? '<button class="btn btn-text" data-dundo="' + s[0] + '">取り消す</button>' : '<button class="btn btn-tonal btn-block" data-dtake="' + s[0] + '">あとから「飲んだ」にする</button>') + '</div>';
+    }).join('');
+    openSheet('<div class="grip"></div><h2>📅 ' + esc(medJp(d)) + '</h2>' + (rows || '<div class="note">この日のお薬はありません</div>') +
+      '<div class="note">「飲んだ」にすると手持ちが減り、取り消すと戻ります。</div>' +
+      '<button class="btn btn-text btn-block" id="mdyBack">← 戻る</button>');
+    $('mdyBack').addEventListener('click', function () { medCal(d.slice(0, 7)); });
+    $('sheet').querySelectorAll('[data-dtake]').forEach(function (b) { b.addEventListener('click', function () { medTake(b.dataset.dtake, false, d); }); });
+    $('sheet').querySelectorAll('[data-dundo]').forEach(function (b) { b.addEventListener('click', function () { medTake(b.dataset.dundo, true, d); }); });
   }
 
   function medPlaceEdit() {
@@ -7325,18 +7491,40 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           '<input class="input" type="time" data-st="' + s[0] + '" value="' + esc(c.t) + '" style="width:140px;flex:none;padding:8px 8px">' + sw('ms_' + s[0], c.on) + '</div>';
       }).join('') + '</div>' +
       '<div class="med-srow" style="margin-top:12px"><div style="flex:1;font-size:18px">アプリを開いた時に表示する</div>' + sw('msApp', m.app) + '</div>' +
+      '<h3 style="margin:22px 0 6px">📦 残りのお知らせ</h3>' +
+      '<div class="card med-all"><div style="font-size:19px;font-weight:700">残りのお知らせ</div>' + sw('msStock', m.stock.on) + '</div>' +
+      '<div class="note" style="margin:4px 0 6px">あと何日分になったら知らせるか。受診の予約に間に合うよう、早めの日を選んでおけます。</div>' +
+      '<div id="msDays">' + m.stock.days.map(function (a, i) { return msDayRow(a, i); }).join('') + '</div>' +
+      '<button class="btn btn-tonal btn-block" id="msDayAdd" style="margin-top:8px">＋ 日数を足す</button>' +
       '<div class="med-srow"><div style="flex:1;font-size:18px">LINEで知らせる<div class="note">LINEのお知らせは、これから作ります(第3段)。今は設定だけ覚えておきます。</div></div>' + sw('msLine', m.line) + '</div>' +
       '<button class="btn btn-primary btn-block" id="msSave" style="margin-top:16px">保存する</button>' +
       '<button class="btn btn-text btn-block" id="msBack">← 戻る</button>');
+    function msDayRow(a, i) {
+      return '<div class="med-srow" data-dr="' + i + '"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px;font-size:18px;white-space:nowrap">あと <input class="input" inputmode="numeric" data-dd value="' + a.d + '" style="width:76px;text-align:center;padding:8px 4px"> 日分</div>' +
+        '<div class="note" style="font-size:14px">' + (a.d === 0 ? '無くなる日' : a.d % 7 === 0 ? a.d / 7 + '週間前' : '') + '</div></div>' + sw('msd_' + i, a.on) + '</div>';
+    }
     function toggle(b) { var on = !b.classList.contains('on'); b.classList.toggle('on', on); b.textContent = on ? 'ON' : 'OFF'; b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
     $('sheet').querySelectorAll('.sw').forEach(function (b) { b.addEventListener('click', function () { toggle(b); }); });
     function setAll(on) { MED_SLOTS.forEach(function (s) { var b = $('ms_' + s[0]); if (b.classList.contains('on') !== on) toggle(b); }); }
     $('msOnAll').addEventListener('click', function () { setAll(true); });
+    $('msDayAdd').addEventListener('click', function () {
+      var n = $('msDays').querySelectorAll('[data-dr]').length, div = document.createElement('div');
+      div.innerHTML = msDayRow({ d: 10, on: true }, n); var row = div.firstChild; $('msDays').appendChild(row);
+      row.querySelector('.sw').addEventListener('click', function () { toggle(this); }); row.querySelector('[data-dd]').select();
+    });
     $('msOffAll').addEventListener('click', function () { setAll(false); });
     $('msBack').addEventListener('click', closeSheet);
     $('msSave').addEventListener('click', function () {
       var m2 = medLoad(), isOn = function (id) { return $(id).classList.contains('on'); };
       m2.all = isOn('msAll'); m2.app = isOn('msApp'); m2.line = isOn('msLine'); m2.slotsSet = true;
+      var days = [];
+      $('msDays').querySelectorAll('[data-dr]').forEach(function (r) {
+        var v = String(r.querySelector('[data-dd]').value).normalize('NFKC').trim(); if (v === '') return;
+        var d = Math.max(0, Math.min(180, Math.round(Number(v) || 0)));
+        if (days.every(function (x) { return x.d !== d; })) days.push({ d: d, on: r.querySelector('.sw').classList.contains('on') });
+      });
+      days.sort(function (a, b) { return b.d - a.d; });
+      m2.stock = { on: isOn('msStock'), line: m2.stock.line, days: days }; m2.stockSeen = {};
       MED_SLOTS.forEach(function (s) { var v = $('sheet').querySelector('[data-st="' + s[0] + '"]').value; m2.slots[s[0]] = { t: /^\d{2}:\d{2}$/.test(v) ? v : m2.slots[s[0]].t, on: isOn('ms_' + s[0]) }; });
       medSave(m2); closeSheet(); renderMed(); medCheckBanner(); toast(m2.all ? 'お知らせの設定を保存しました' : 'お知らせを全部お休みにしました');
     });
