@@ -894,8 +894,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-16 00:45 版166';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版140';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-16 01:10 版167';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版141';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1170,6 +1170,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           items: [{ name: '牛乳 1L', price: 238 }, { name: '食パン 6枚', price: 178 },
                   { name: 'たまご 10個', price: 298 }, { name: '豚こま切れ', price: 498 },
                   { name: 'バナナ', price: 158 }, { name: '値引', price: -82 }] } });
+        if (action === 'setMedAlerts') return resolve({ ok: true, mail: !!(data.med || {}).mail, count: ((data.med || {}).alerts || []).length, hasEmail: false });
+        if (action === 'testMedMail') return resolve({ ok: false, error: '仮の家では、メールは送れません' });
         if (action === 'analyzeMed' && (demoApi.mc = (demoApi.mc || 0) + 1) % 2 === 0) return resolve({ ok: true, med: { date: '2026-11-01', hospital: '', doctor: '', hospitalTel: '', pharmacy: '', pharmacyTel: '',
           meds: [{ name: '(仮)ねむる前の薬', wake: 0, morning: 0, noon: 0, evening: 0, bed: 1, timing: '寝る前', unit: '錠', days: 56, total: 56, looks: '', effect: '(仮)ねむりを助ける薬です。', caution: '' }] } });
         if (action === 'analyzeMed') return resolve({ ok: true, med: { date: '2026-11-01', hospital: '(仮)みどり内科クリニック', doctor: '山田 太郎', hospitalTel: '03-0000-0000', pharmacy: '(仮)さくら薬局', pharmacyTel: '03-1111-1111',
@@ -6897,6 +6899,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     if (!('line' in m)) m.line = true;
     // 残りのお知らせ:何日分になったら知らせるか(3週間前・1週間前・3日前・無くなる日)
     m.stock = m.stock || { on: true, line: true, days: [{ d: 21, on: true }, { d: 7, on: true }, { d: 3, on: false }, { d: 0, on: true }] };
+    if (!('mail' in m.stock)) m.stock.mail = true;
     m.stockSeen = m.stockSeen || {}; m.visits = m.visits || {};
     return m;
   }
@@ -6904,6 +6907,30 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     // 飲んだ記録は 400日分まで
     var ks = Object.keys(m.taken).sort(); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(function (k) { delete m.taken[k]; });
     store.set('med', JSON.stringify(m));
+    clearTimeout(medSave.t); medSave.t = setTimeout(function () { try { medSync(); } catch (e) {} }, 2500);
+  }
+  // 📧 残りのお知らせの予定を窓口に送る(薬の名前は送らない:日付・その日の残り・単位・無くなる日だけ)
+  function medPlan(m) {
+    var t = today(), out = [];
+    if (!m.stock.on) return out;
+    var ds = m.stock.days.filter(function (a) { return a.on; }).map(function (a) { return a.d; }).sort(function (a, b) { return a - b; });
+    m.meds.forEach(function (x) {
+      var daily = medDaily(x), r = medRun(x); if (!r) return;
+      var cur = ds.filter(function (d) { return r.left <= d; })[0];
+      ds.forEach(function (d) {
+        var date = medAddDays(r.date, -d), k = String(x.id).replace(/[^A-Za-z0-9]/g, '').slice(0, 16) + '|' + (x.cyc || 0) + '|' + d;
+        if (date >= t) out.push({ k: k, d: d, date: date, count: Math.round(d * daily * 100) / 100, unit: x.unit, out: r.date });
+        else if (d === cur) out.push({ k: k, d: d, date: t, count: x.stock, unit: x.unit, out: r.date });   // もう過ぎた段階は、今日1回だけ
+      });
+    });
+    return out;
+  }
+  function medSync(force) {
+    if (!feat('med') || !state.owner) return Promise.resolve(null);
+    var m = medLoad(), body = { mail: !!(m.stock.on && m.stock.mail), alerts: m.stock.on && m.stock.mail ? medPlan(m) : [] };
+    var h = today() + JSON.stringify(body);
+    if (!force && store.get('medSyncH') === h) return Promise.resolve(null);
+    return api('setMedAlerts', { person: state.owner, med: body }).then(function (r) { store.set('medSyncH', h); return r; }).catch(function (e) { if (force) throw e; return null; });
   }
   function medDaily(x) { return MED_SLOTS.reduce(function (a, s) { return a + (Number(x.dose[s[0]]) || 0); }, 0); }
   function medNum(v) { var n = Math.round((Number(String(v == null ? '' : v).normalize('NFKC').replace(/[^\d.]/g, '')) || 0) * 100) / 100; return n > 0 ? n : 0; }
@@ -6976,6 +7003,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     if (!MEDV) return;   // 読み込みの途中
     if (!feat('med') || !state.owner) { show('medBanner', false); return; }
     medLoadPlans();
+    if (!medCheckBanner.synced) { medCheckBanner.synced = 1; setTimeout(function () { try { medSync(); } catch (e) {} }, 3000); }
     var m = medLoad(), due = medDue(m), lines = [];
     if (due.length) lines.push('💊 ' + due.map(medSlotName).join('・') + 'のお薬の時間です');
     if (medNewAlerts(m).length) lines.push('📦 残りが少ないお薬があります');
@@ -7324,7 +7352,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         var d = medDaily(o), prevX = old[medKey(o.name)];
         return { id: prevX ? prevX.id : 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           name: o.name, unit: o.unit, dose: o.dose, timing: o.timing, looks: o.looks, effect: o.effect, caution: o.caution,
-          stock: Math.max(0, Math.round((o.got + o.prev - (n ? d * n : 0)) * 100) / 100), rxDate: date, days: o.days, added: today() };
+          stock: Math.max(0, Math.round((o.got + o.prev - (n ? d * n : 0)) * 100) / 100), rxDate: date, days: o.days, added: prevX && prevX.added || today(),
+          cyc: prevX ? (prevX.cyc || 0) + (o.got > 0 ? 1 : 0) : 0 };
       });
       if (hand || append) meds = m2.meds.filter(function (x) { return meds.every(function (y) { return medKey(y.name) !== medKey(x.name); }); }).concat(meds);
       else meds = meds.concat(keep.map(function (x) { return m2.meds.filter(function (y) { return y.id === x.id; })[0]; }).filter(Boolean));
@@ -7371,11 +7400,11 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       '<button class="btn btn-text btn-block" id="mdBack">← 戻る</button></div>');
     $('mdBack').addEventListener('click', closeSheet);
     $('mdCountSave').addEventListener('click', function () {
-      var m2 = medLoad(), y = m2.meds[i]; y.stock = medNum($('mdCount').value); medSave(m2); renderMed(); medDetail(i); toast('手持ちを ' + medFmt(y.stock) + y.unit + ' にしました');
+      var m2 = medLoad(), y = m2.meds[i], nv = medNum($('mdCount').value); if (nv > y.stock) y.cyc = (y.cyc || 0) + 1; y.stock = nv; medSave(m2); renderMed(); medDetail(i); toast('手持ちを ' + medFmt(y.stock) + y.unit + ' にしました');
     });
     $('mdAddSave').addEventListener('click', function () {
       var n = medNum($('mdAdd').value); if (!n) return toast('足す数を入れてください');
-      var m2 = medLoad(), y = m2.meds[i]; y.stock = Math.round((y.stock + n) * 100) / 100; medSave(m2); renderMed(); medCheckBanner(); medDetail(i);
+      var m2 = medLoad(), y = m2.meds[i]; y.stock = Math.round((y.stock + n) * 100) / 100; y.cyc = (y.cyc || 0) + 1; medSave(m2); renderMed(); medCheckBanner(); medDetail(i);
       toast(medFmt(n) + y.unit + ' 足しました(手持ち ' + medFmt(y.stock) + y.unit + ')');
     });
     $('mdEdit').addEventListener('click', function () {
@@ -7496,7 +7525,12 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       '<div class="note" style="margin:4px 0 6px">あと何日分になったら知らせるか。受診の予約に間に合うよう、早めの日を選んでおけます。</div>' +
       '<div id="msDays">' + m.stock.days.map(function (a, i) { return msDayRow(a, i); }).join('') + '</div>' +
       '<button class="btn btn-tonal btn-block" id="msDayAdd" style="margin-top:8px">＋ 日数を足す</button>' +
-      '<div class="med-srow"><div style="flex:1;font-size:18px">LINEで知らせる<div class="note">LINEのお知らせは、これから作ります(第3段)。今は設定だけ覚えておきます。</div></div>' + sw('msLine', m.line) + '</div>' +
+      '<div class="med-srow" style="margin-top:10px"><div style="flex:1;font-size:18px">📧 メールで知らせる<div class="note">毎朝8時ごろ。お薬の名前はメールに書きません。</div></div>' + sw('msMail', m.stock.mail) + '</div>' +
+      '<div id="msMailTo" class="note" style="font-size:16px;margin:6px 0">送り先を調べています…</div>' +
+      '<button class="btn btn-tonal btn-block" id="msMailTest">📧 確認のメールを送る</button>' +
+      '<div class="med-srow" style="margin-top:6px"><div style="flex:1;font-size:18px">💬 LINEで知らせる<div class="note">LINEで受け取りたいときは、作成者(管理人)に頼んでください。</div></div></div>' +
+      '<div class="note" style="margin-top:6px">飲む時刻のお知らせは、アプリを開いたときに出ます(メールでは送りません)。</div>' +
+
       '<button class="btn btn-primary btn-block" id="msSave" style="margin-top:16px">保存する</button>' +
       '<button class="btn btn-text btn-block" id="msBack">← 戻る</button>');
     function msDayRow(a, i) {
@@ -7507,6 +7541,21 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     $('sheet').querySelectorAll('.sw').forEach(function (b) { b.addEventListener('click', function () { toggle(b); }); });
     function setAll(on) { MED_SLOTS.forEach(function (s) { var b = $('ms_' + s[0]); if (b.classList.contains('on') !== on) toggle(b); }); }
     $('msOnAll').addEventListener('click', function () { setAll(true); });
+    var mailTo = function () {
+      (DEMO ? Promise.resolve({ notify: { email: '' } }) : api('getNotify', { person: state.owner })).then(function (r) {
+        var e = (r.notify || {}).email;
+        $('msMailTo').innerHTML = e ? '送り先:' + esc(e) + '(「💴 支払いの設定・お知らせ」と同じアドレス)'
+          : '<span style="color:var(--danger)">メールアドレスが登録されていません。</span> <button class="btn btn-text" id="msMailReg" style="min-height:36px;padding:0 4px">✉ 登録する</button>';
+        if ($('msMailReg')) $('msMailReg').addEventListener('click', openPaySettings);
+      }).catch(function () { $('msMailTo').textContent = '送り先を調べられませんでした'; });
+    };
+    mailTo();
+    $('msMailTest').addEventListener('click', function () {
+      var b = this; b.disabled = true; b.textContent = '送っています…';
+      medSync(true).then(function () { return api('testMedMail', { person: state.owner }); })
+        .then(function () { toast('確認のメールを送りました'); }).catch(function (e) { toast(e.message); })
+        .then(function () { b.disabled = false; b.textContent = '📧 確認のメールを送る'; });
+    });
     $('msDayAdd').addEventListener('click', function () {
       var n = $('msDays').querySelectorAll('[data-dr]').length, div = document.createElement('div');
       div.innerHTML = msDayRow({ d: 10, on: true }, n); var row = div.firstChild; $('msDays').appendChild(row);
@@ -7516,7 +7565,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     $('msBack').addEventListener('click', closeSheet);
     $('msSave').addEventListener('click', function () {
       var m2 = medLoad(), isOn = function (id) { return $(id).classList.contains('on'); };
-      m2.all = isOn('msAll'); m2.app = isOn('msApp'); m2.line = isOn('msLine'); m2.slotsSet = true;
+      m2.all = isOn('msAll'); m2.app = isOn('msApp'); m2.slotsSet = true;
       var days = [];
       $('msDays').querySelectorAll('[data-dr]').forEach(function (r) {
         var v = String(r.querySelector('[data-dd]').value).normalize('NFKC').trim(); if (v === '') return;
@@ -7524,7 +7573,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         if (days.every(function (x) { return x.d !== d; })) days.push({ d: d, on: r.querySelector('.sw').classList.contains('on') });
       });
       days.sort(function (a, b) { return b.d - a.d; });
-      m2.stock = { on: isOn('msStock'), line: m2.stock.line, days: days }; m2.stockSeen = {};
+      m2.stock = { on: isOn('msStock'), line: m2.stock.line, mail: isOn('msMail'), days: days }; m2.stockSeen = {};
       MED_SLOTS.forEach(function (s) { var v = $('sheet').querySelector('[data-st="' + s[0] + '"]').value; m2.slots[s[0]] = { t: /^\d{2}:\d{2}$/.test(v) ? v : m2.slots[s[0]].t, on: isOn('ms_' + s[0]) }; });
       medSave(m2); closeSheet(); renderMed(); medCheckBanner(); toast(m2.all ? 'お知らせの設定を保存しました' : 'お知らせを全部お休みにしました');
     });
