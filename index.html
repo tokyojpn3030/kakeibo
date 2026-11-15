@@ -278,6 +278,26 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .in-down { color: var(--good); font-weight: 700; }
 .dot { display: inline-block; width: 14px; height: 14px; border-radius: 7px; margin-right: 8px; vertical-align: -1px; }
 
+.med-slot { margin-bottom: 10px; border-left: 6px solid var(--line); }
+.med-slot.due { border-left-color: var(--danger); background: var(--warn-soft); }
+.med-slot.done { border-left-color: var(--good); }
+.med-ul { margin: 6px 0 8px; padding-left: 1.3em; font-size: 18px; line-height: 1.7; }
+.med-item { display: block; width: 100%; text-align: left; margin-bottom: 10px; font: inherit; color: inherit; cursor: pointer; }
+.med-name { font-size: 20px; font-weight: 700; word-break: break-all; }
+.med-ed { margin-bottom: 12px; }
+.med-ed.skip { opacity: .45; }
+.med-dose { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.med-dose label { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 16px; font-weight: 700; }
+.med-dose .input { text-align: center; padding: 8px 4px; }
+.med-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.med-count { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; background: var(--primary-soft); color: var(--on-primary-soft); border-radius: 12px; padding: 10px; }
+.med-count label { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 700; }
+.med-sum { grid-column: 1 / -1; font-size: 18px; }
+.med-srow { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.med-all { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sw { min-width: 76px; min-height: 46px; border-radius: 23px; border: 2px solid var(--line); background: var(--surface); color: var(--text-2); font-size: 18px; font-weight: 700; flex: none; }
+.sw.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.med-banner { position: fixed; left: 12px; right: 12px; bottom: calc(84px + var(--safe-b)); z-index: 59; background: var(--good); color: #fff; font-size: 18px; font-weight: 700; padding: 14px 16px; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.25); cursor: pointer; }
 /* 下のナビ */
 .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
   display: flex; justify-content: space-around; background: var(--surface);
@@ -761,6 +781,11 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     <div class="chips" id="ntTabs" style="margin-bottom:12px"></div>
     <div id="ntBody"></div>
   </section>
+  <!-- 💊 お薬 -->
+  <section class="screen" id="screen-med">
+    <div class="section-title" style="margin-top:4px">💊 お薬(このスマホの中だけ)</div>
+    <div id="medBody"></div>
+  </section>
 </main>
 
 <nav class="bottom-nav">
@@ -778,6 +803,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   </button>
   <button class="nav-item" data-screen="notes">
     <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></span>メモ
+  </button>
+  <button class="nav-item hidden" data-screen="med" id="navMed">
+    <span class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(-45 12 12)"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M12 8v8"/></g></svg></span>お薬
   </button>
 </nav>
 
@@ -849,6 +877,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
 <div class="sheet-back hidden" id="sheetBack"><div class="sheet" id="sheet"></div></div>
 <div class="toast hidden" id="toast"></div>
 <div class="msg-banner hidden" id="msgBanner" role="status"></div>
+<div class="med-banner hidden" id="medBanner" role="status"></div>
 <div class="sel-bar hidden" id="selBar">
   <button class="btn btn-danger" id="selDel" style="flex:1">選んだものを削除</button>
   <button class="btn btn-tonal" id="selCancel">やめる</button>
@@ -859,8 +888,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-15 21:20 版162';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版139';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-16 00:30 版163';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版140';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1135,6 +1164,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           items: [{ name: '牛乳 1L', price: 238 }, { name: '食パン 6枚', price: 178 },
                   { name: 'たまご 10個', price: 298 }, { name: '豚こま切れ', price: 498 },
                   { name: 'バナナ', price: 158 }, { name: '値引', price: -82 }] } });
+        if (action === 'analyzeMed') return resolve({ ok: true, med: { date: '2026-11-01', hospital: '(仮)みどり内科クリニック', doctor: '山田 太郎', hospitalTel: '03-0000-0000', pharmacy: '(仮)さくら薬局', pharmacyTel: '03-1111-1111',
+          meds: [{ name: '(仮)ビタミン錠10mg', wake: 0, morning: 0, noon: 0, evening: 1, bed: 0, timing: '夕食後', unit: '錠', days: 56, total: 56, looks: '白の錠剤', effect: '(仮)体の調子を整える薬です。', caution: '▲(仮)気になることがあれば薬局に相談してください。' },
+                 { name: '(仮)おなかの薬', wake: 0, morning: 1, noon: 0, evening: 1, bed: 0, timing: '朝・夕食後', unit: '包', days: 28, total: 56, looks: '白い粉', effect: '(仮)おなかの調子を整える薬です。', caution: '' }] } });
         if (action === 'analyzePlan') return resolve({ ok: true, plan: { title: '(仮)新宿内科耳鼻科クリニック 内科の定期受診', place: '新宿内科耳鼻科クリニック', date: '2026-11-10', time: '09:30', endTime: '10:00', kind: '病院・予約', memo: '問診票を先に入力する' } });
         if (action === 'save') {
           var r = Object.assign({ id: String(Date.now()) }, data.receipt);
@@ -1320,6 +1352,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     if (name === 'capture' && !keep) resetCapture();
     if (name === 'pay' && !keep) { payView('main'); loadPayments(false); renderCpNotice(); }
     if (name === 'notes') openNotes();
+    if (name === 'med') { renderMed(); show('medBanner', false); } else if (typeof medCheckBanner === 'function') medCheckBanner();
   }
   document.querySelectorAll('.nav-item').forEach(function (b) {
     b.addEventListener('click', function () { go(b.dataset.screen); });
@@ -2499,7 +2532,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     ['rank', '📊 ランキング・グラフ・気づき(集計の画面)'],
     ['points', '🎁 ポイントの残り'],
     ['shun', '🍎 旬と早見表(果物の早見表・今月の旬)'],
-    ['cat', '🏷 カテゴリ(食料品・それ以外)の集計とランキング']
+    ['cat', '🏷 カテゴリ(食料品・それ以外)の集計とランキング'],
+    ['med', '💊 お薬(飲む薬・残り・お知らせ。このスマホの中だけに保存)']
   ];
   function feat(k) {
     var f; try { f = JSON.parse(store.get('features') || 'null'); } catch (e) { f = null; }
@@ -2508,6 +2542,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   }
   function applyFeatures() {
     document.querySelectorAll('.nav-item[data-screen="notes"]').forEach(function (b) { b.classList.toggle('hidden', !feat('memo')); });
+    show('navMed', feat('med'));
+    if (!feat('med')) { show('medBanner', false); if (document.querySelector('#screen-med.active')) go('history'); }
     show('histIncomeBtn', feat('income'));
     if (!feat('income')) { show('histIncome', false); show('sumIncome', false); }
     show('amtRow', feat('pay')); show('cfPayField', feat('pay')); show('payWd', feat('pay'));
@@ -3517,11 +3553,11 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   $('pcToReceipt').addEventListener('click', function () { rereadAs('receipt'); });
 
   /* 送る前に写真を小さくする(通信を軽く、速くするため) */
-  function shrinkImage(url) {
+  function shrinkImage(url, maxSide) {
     return new Promise(function (resolve, reject) {
       var img = new Image();
       img.onload = function () {
-        var MAX = 1600, w = img.naturalWidth, h = img.naturalHeight;
+        var MAX = maxSide || 1600, w = img.naturalWidth, h = img.naturalHeight;
         var s = Math.min(1, MAX / Math.max(w, h));
         var c = document.createElement('canvas');
         c.width = Math.round(w * s); c.height = Math.round(h * s);
@@ -6836,7 +6872,409 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
 
   /* ---------- ❓ 使い方(目的ごと:こんなときに・使うとこうなる・手順・この画面を開く) ----------
      手順の中の [ボタン名] は、黄色の印で出す */
+  /* ---------- 💊 お薬(このスマホの中だけに保存。窓口には送らない) ----------
+     説明書の読み取りだけ、写真を窓口→Gemini に送って読む(写真は残さない) */
+  var MED_SLOTS = [['wake', '起きたとき', '起', '06:30'], ['morning', '朝', '朝', '08:00'], ['noon', '昼', '昼', '12:00'], ['evening', '夜(夕食後)', '夕', '19:00'], ['bed', '寝る前', '寝', '22:00']];
+  function medLoad() {
+    var m; try { m = JSON.parse(store.get('med') || 'null'); } catch (e) { m = null; }
+    m = m || {};
+    m.meds = m.meds || []; m.hist = m.hist || []; m.places = m.places || {}; m.taken = m.taken || {};
+    m.slots = m.slots || {};
+    MED_SLOTS.forEach(function (s) { if (!m.slots[s[0]]) m.slots[s[0]] = { t: s[3], on: false }; });
+    if (!('all' in m)) m.all = true;
+    if (!('app' in m)) m.app = true;
+    if (!('line' in m)) m.line = true;
+    return m;
+  }
+  function medSave(m) {
+    // 飲んだ記録は 400日分まで
+    var ks = Object.keys(m.taken).sort(); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(function (k) { delete m.taken[k]; });
+    store.set('med', JSON.stringify(m));
+  }
+  function medDaily(x) { return MED_SLOTS.reduce(function (a, s) { return a + (Number(x.dose[s[0]]) || 0); }, 0); }
+  function medNum(v) { var n = Math.round((Number(String(v == null ? '' : v).normalize('NFKC').replace(/[^\d.]/g, '')) || 0) * 100) / 100; return n > 0 ? n : 0; }
+  function medFmt(n) { return String(Math.round(n * 100) / 100); }
+  function medJp(d) { var m = String(d || '').match(/^(\d+)-(\d+)-(\d+)$/); return m ? m[1] + '年' + Number(m[2]) + '月' + Number(m[3]) + '日' : ''; }
+  function medDays(from, to) { var a = new Date(from + 'T00:00:00'), b = new Date(to + 'T00:00:00'); return Math.round((b - a) / 86400000); }
+  function medNow() { var d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function medKey(n) { return String(n || '').normalize('NFKC').replace(/[「」『』\s]/g, '').toLowerCase(); }
+  function medSlotName(k) { return MED_SLOTS.filter(function (s) { return s[0] === k; })[0][1]; }
+  function medUsed(m, k) { return m.meds.filter(function (x) { return Number(x.dose[k]) > 0; }); }
+  function medLeft(x) {
+    var d = medDaily(x); if (!d) return '残り ' + medFmt(x.stock) + esc(x.unit);
+    var days = Math.floor(x.stock / d);
+    return '残り ' + medFmt(x.stock) + esc(x.unit) + '(あと' + days + '日分)';
+  }
+  // 今、お知らせする時刻(ONで、時刻を過ぎていて、まだ飲んでいない)
+  function medDue(m) {
+    if (!feat('med')) return [];
+    m = m || medLoad();
+    if (!m.all || !m.app) return [];
+    var t = today(), now = medNow(), tk = m.taken[t] || {};
+    return MED_SLOTS.filter(function (s) { var c = m.slots[s[0]]; return c.on && now >= c.t && !tk[s[0]] && medUsed(m, s[0]).length; }).map(function (s) { return s[0]; });
+  }
+  function medCheckBanner() {
+    if (!$('medBanner')) return;
+    var due = state.owner ? medDue() : [];
+    var onMed = !!document.querySelector('#screen-med.active');
+    if (!due.length || onMed) { show('medBanner', false); return; }
+    $('medBanner').textContent = '💊 ' + due.map(medSlotName).join('・') + 'のお薬の時間です(押すと開きます)';
+    show('medBanner', true);
+  }
+  function medTake(k, undo) {
+    var m = medLoad(), t = today();
+    m.taken[t] = m.taken[t] || {};
+    if (undo) {
+      if (!m.taken[t][k]) return;
+      delete m.taken[t][k];
+      medUsed(m, k).forEach(function (x) { x.stock = Math.round((x.stock + Number(x.dose[k])) * 100) / 100; });
+    } else {
+      if (m.taken[t][k]) return;
+      m.taken[t][k] = medNow();
+      medUsed(m, k).forEach(function (x) { x.stock = Math.max(0, Math.round((x.stock - Number(x.dose[k])) * 100) / 100); });
+    }
+    medSave(m); renderMed(); medCheckBanner();
+    toast(undo ? '「飲んだ」を取り消しました' : medSlotName(k) + 'のお薬を飲みました ✅');
+  }
+
+  function renderMed() {
+    var m = medLoad(), t = today(), tk = m.taken[t] || {}, due = medDue(m);
+    var h = '';
+    h += '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">' +
+      '<button class="btn btn-primary btn-block" id="medShot">📷 お薬の説明書を撮って読む</button>' +
+      '<div style="display:flex;gap:8px"><button class="btn btn-tonal" id="medAlbum" style="flex:1;white-space:nowrap;padding:0 8px">🖼 写真を選ぶ</button>' +
+      '<button class="btn btn-tonal" id="medHand" style="flex:1;white-space:nowrap;padding:0 8px">✍ 手で足す</button></div>' +
+      '<button class="btn btn-tonal btn-block" id="medSet">⏰ お知らせの時刻・ON/OFF</button>' +
+      '<input type="file" id="medFileCam" accept="image/*" capture="environment" class="hidden">' +
+      '<input type="file" id="medFile" accept="image/*" class="hidden"></div>';
+    if (!m.all) h += '<div class="warn" style="font-size:17px">🔕 お知らせは全部お休み中です(⏰ お知らせ で戻せます)</div>';
+    if (!m.meds.length) {
+      h += '<div class="card" style="font-size:18px;line-height:1.7">まだお薬が登録されていません。<br>薬局でもらった <b>お薬の説明書</b> を、表の全体が入るように撮ってください。<br>' +
+        '<span class="note">お薬の記録は、このスマホの中だけに保存します。家族にも窓口にも送りません。</span></div>';
+    } else {
+      // 今日のお薬
+      h += '<div class="section-title">📅 今日のお薬(' + esc(md(t)) + ')</div>';
+      MED_SLOTS.forEach(function (s) {
+        var list = medUsed(m, s[0]); if (!list.length) return;
+        var c = m.slots[s[0]], done = tk[s[0]], isDue = due.indexOf(s[0]) >= 0;
+        h += '<div class="card med-slot' + (done ? ' done' : isDue ? ' due' : '') + '">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
+          '<div style="font-size:20px;font-weight:700">' + esc(s[1]) + ' <span class="note" style="font-size:16px">' + (c.on && m.all ? '⏰ ' + esc(c.t) : '🔕 お知らせなし') + '</span></div>' +
+          (done ? '<div style="font-size:17px;color:var(--good);font-weight:700">✅ ' + esc(done) + ' 飲みました</div>' : '') + '</div>' +
+          '<ul class="med-ul">' + list.map(function (x) { return '<li>' + esc(x.name) + ' <b>' + medFmt(x.dose[s[0]]) + esc(x.unit) + '</b></li>'; }).join('') + '</ul>' +
+          (done ? '<button class="btn btn-text" data-mundo="' + s[0] + '" style="min-height:40px">取り消す</button>'
+                : '<button class="btn btn-primary btn-block" data-mtake="' + s[0] + '">飲んだ ✅</button>') +
+          '</div>';
+      });
+      // 飲んでいる薬の一覧
+      h += '<div class="section-title" style="margin-top:16px">💊 飲んでいるお薬(' + m.meds.length + ')</div>';
+      h += m.meds.map(function (x, i) {
+        var when = MED_SLOTS.filter(function (s) { return Number(x.dose[s[0]]) > 0; }).map(function (s) { return s[2] + medFmt(x.dose[s[0]]); }).join('・');
+        return '<button class="card med-item" data-mi="' + i + '">' +
+          '<div class="med-name">' + esc(x.name) + '</div>' +
+          '<div class="in-sub">' + esc(x.timing || '') + (when ? '(' + esc(when) + esc(x.unit) + ')' : '') + '</div>' +
+          '<div style="font-size:17px;margin-top:2px">' + medLeft(x) + '</div>' +
+          '<div class="note" style="margin-top:4px">▶ はたらき・副作用を見る</div></button>';
+      }).join('');
+      // 病院・薬局
+      var p = m.places;
+      if (p.hospital || p.pharmacy) {
+        h += '<div class="section-title" style="margin-top:16px">🏥 病院・薬局</div><div class="card" style="font-size:18px;line-height:1.8">' +
+          (p.hospital ? '<div>🏥 ' + esc(p.hospital) + (p.doctor ? '(' + esc(p.doctor) + ' 先生)' : '') + '</div>' + (p.hospitalTel ? '<div>' + telLink(p.hospitalTel) + '</div>' : '') : '') +
+          (p.pharmacy ? '<div style="margin-top:6px">💊 ' + esc(p.pharmacy) + '</div>' + (p.pharmacyTel ? '<div>' + telLink(p.pharmacyTel) + '</div>' : '') : '') +
+          '<button class="btn btn-text" id="medPlaceEdit" style="min-height:40px">✏ 直す</button></div>';
+      }
+      if (m.hist.length) h += '<button class="btn btn-tonal btn-block" id="medHist" style="margin-top:12px">📜 前の処方(' + m.hist.length + '回分)</button>';
+      h += '<div class="note" style="margin-top:12px">お薬の記録は、このスマホの中だけに保存しています。家族にも窓口にも送りません。</div>';
+    }
+    $('medBody').innerHTML = h;
+    $('medShot').addEventListener('click', function () { $('medFileCam').click(); });
+    $('medAlbum').addEventListener('click', function () { $('medFile').click(); });
+    ['medFileCam', 'medFile'].forEach(function (id) {
+      $(id).addEventListener('change', function () { var f = this.files && this.files[0]; this.value = ''; if (f) medRead(f); });
+    });
+    $('medHand').addEventListener('click', function () { medEditor({ date: today(), meds: [{ name: '', unit: '錠' }] }, true); });
+    $('medSet').addEventListener('click', medSettings);
+    $('medBody').querySelectorAll('[data-mtake]').forEach(function (b) { b.addEventListener('click', function () { medTake(b.dataset.mtake); }); });
+    $('medBody').querySelectorAll('[data-mundo]').forEach(function (b) { b.addEventListener('click', function () { medTake(b.dataset.mundo, true); }); });
+    $('medBody').querySelectorAll('[data-mi]').forEach(function (b) { b.addEventListener('click', function () { medDetail(+b.dataset.mi); }); });
+    if ($('medPlaceEdit')) $('medPlaceEdit').addEventListener('click', medPlaceEdit);
+    if ($('medHist')) $('medHist').addEventListener('click', medHistory);
+  }
+
+  // 説明書の写真を読む
+  function medRead(file) {
+    $('medBody').innerHTML = '<div class="loading"><div class="spinner"></div>お薬の説明書を読み取り中…<br><span class="note">20〜40秒ほどかかります</span></div>';
+    var url = URL.createObjectURL(file);
+    shrinkImage(url, 2200).then(function (b64) {
+      return api('analyzeMed', { image: b64, mimeType: 'image/jpeg' });
+    }).then(function (res) {
+      URL.revokeObjectURL(url); renderMed(); medEditor(res.med, false);
+    }).catch(function (e) {
+      URL.revokeObjectURL(url); renderMed();
+      var msg = e.message;
+      if (/不明な依頼/.test(msg)) msg = '窓口(Apps Script)がまだ古い版です。窓口を新しい版にしてください。';
+      openSheet('<div class="grip"></div><h2>読み取れませんでした</h2><div class="error" style="white-space:pre-line">' + esc(msg) +
+        (/上限|無料枠|休んで/.test(msg) ? '\n' + RESET_NOTE : '') + '</div>' +
+        '<button class="btn btn-tonal btn-block" id="medErrHand" style="margin-top:12px">✍ 手で入れる</button>' +
+        '<button class="btn btn-text btn-block" id="medErrX">閉じる</button>');
+      $('medErrHand').addEventListener('click', function () { medEditor({ date: today(), meds: [{ name: '', unit: '錠' }] }, true); });
+      $('medErrX').addEventListener('click', closeSheet);
+    });
+  }
+
+  // 読み取った内容(または手で入れる内容)を確かめて登録する
+  function medEditor(r, hand) {
+    var m = medLoad(), t = today();
+    var have = {}; m.meds.forEach(function (x) { have[medKey(x.name)] = x; });
+    var rows = (r.meds || []).map(function (x) {
+      var dose = {}; MED_SLOTS.forEach(function (s) { dose[s[0]] = medNum(x[s[0]] != null ? x[s[0]] : (x.dose || {})[s[0]]); });
+      var o = { name: x.name || '', unit: x.unit || '錠', dose: dose, timing: x.timing || '', looks: x.looks || '', effect: x.effect || '', caution: x.caution || '', days: medNum(x.days) };
+      var d = medDaily(o);
+      o.got = medNum(x.total) || (d && o.days ? d * o.days : 0);
+      var old = have[medKey(o.name)];
+      o.prev = old ? old.stock : 0;
+      return o;
+    });
+    var newKeys = rows.map(function (o) { return medKey(o.name); });
+    var gone = m.meds.filter(function (x) { return newKeys.indexOf(medKey(x.name)) < 0; });
+    var p = Object.assign({}, m.places, hand ? {} : { hospital: r.hospital || m.places.hospital || '', doctor: r.doctor || '', hospitalTel: r.hospitalTel || m.places.hospitalTel || '', pharmacy: r.pharmacy || m.places.pharmacy || '', pharmacyTel: r.pharmacyTel || m.places.pharmacyTel || '' });
+    var rxDate = r.date || t;
+
+    function rowHtml(o, i) {
+      return '<div class="card med-ed" data-row="' + i + '">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:18px">' + (i + 1) + '.</b>' +
+        '<label class="check" style="font-size:16px;margin:0"><input type="checkbox" data-f="skip"> <span>登録しない</span></label></div>' +
+        '<div class="section-title">薬の名前</div><input class="input" data-f="name" value="' + esc(o.name) + '" placeholder="例:フォシーガ錠5mg">' +
+        '<div class="section-title">1回に飲む数(飲まない時は 0)</div>' +
+        '<div class="med-dose">' + MED_SLOTS.map(function (s) {
+          return '<label><span>' + s[2] + '</span><input class="input" inputmode="decimal" data-d="' + s[0] + '" value="' + (o.dose[s[0]] ? medFmt(o.dose[s[0]]) : '0') + '"></label>';
+        }).join('') + '</div>' +
+        '<div class="med-two"><label><div class="section-title">単位</div><input class="input" data-f="unit" value="' + esc(o.unit) + '"></label>' +
+        '<label><div class="section-title">何日分</div><input class="input" inputmode="numeric" data-f="days" value="' + (o.days || '') + '"></label></div>' +
+        '<div class="section-title">飲むタイミング</div><input class="input" data-f="timing" value="' + esc(o.timing) + '" placeholder="例:朝食後">' +
+        '<div class="med-count">' +
+        '<label><span>今回もらった数</span><input class="input" inputmode="decimal" data-f="got" value="' + medFmt(o.got) + '"></label>' +
+        '<label><span>前からの残り</span><input class="input" inputmode="decimal" data-f="prev" value="' + medFmt(o.prev) + '"></label>' +
+        '<div class="med-sum" data-f="sum"></div></div>' +
+        '<details style="margin-top:8px"><summary style="font-size:17px;min-height:40px">はたらき・注意・副作用(説明書の文)</summary>' +
+        '<div class="section-title">見た目</div><input class="input" data-f="looks" value="' + esc(o.looks) + '">' +
+        '<div class="section-title">はたらき</div><textarea class="input" rows="2" data-f="effect">' + esc(o.effect) + '</textarea>' +
+        '<div class="section-title">注意・副作用</div><textarea class="input" rows="4" data-f="caution">' + esc(o.caution) + '</textarea></details>' +
+        '</div>';
+    }
+    var elapsed = rxDate < t ? medDays(rxDate, t) : 0;
+    openSheet('<div class="grip"></div><h2>💊 ' + (hand ? 'お薬を手で足す' : '読み取ったお薬を確かめる') + '</h2>' +
+      (hand ? '' : '<div class="meta" style="font-size:16px">違うところを直してから[登録する]を押してください。名前(患者)は登録しません。</div>') +
+      '<div class="section-title">処方日(もらった日)</div><input class="input" type="date" id="meDate" value="' + esc(rxDate) + '">' +
+      '<details' + (hand ? '' : ' open') + ' style="margin-top:8px"><summary style="font-size:17px;min-height:40px">🏥 病院・薬局</summary>' +
+      '<div class="section-title">病院</div><input class="input" id="meHos" value="' + esc(p.hospital || '') + '">' +
+      '<div class="med-two"><label><div class="section-title">先生</div><input class="input" id="meDoc" value="' + esc(p.doctor || '') + '"></label>' +
+      '<label><div class="section-title">病院の電話</div><input class="input" inputmode="tel" id="meHosTel" value="' + esc(p.hospitalTel || '') + '"></label></div>' +
+      '<div class="section-title">薬局</div><input class="input" id="mePha" value="' + esc(p.pharmacy || '') + '">' +
+      '<div class="section-title">薬局の電話</div><input class="input" inputmode="tel" id="mePhaTel" value="' + esc(p.pharmacyTel || '') + '"></details>' +
+      '<label class="check hidden" id="meElWrap" style="font-size:17px;margin:12px 0"><input type="checkbox" id="meEl"> <span id="meElT"></span></label>' +
+      '<div id="meRows">' + rows.map(rowHtml).join('') + '</div>' +
+      '<button class="btn btn-tonal btn-block" id="meAdd" style="margin-top:8px">＋ お薬を足す</button>' +
+      (gone.length ? '<div class="section-title" style="margin-top:14px">今回の説明書にない、前からのお薬</div><div class="note">続けて飲むものにチェックを残してください。外したものは「前の処方」に移します。</div>' +
+        gone.map(function (x, i) { return '<label class="check" style="font-size:17px;margin:8px 0"><input type="checkbox" data-keep="' + i + '" checked> <span>' + esc(x.name) + '(' + medLeft(x) + ')</span></label>'; }).join('') : '') +
+      '<button class="btn btn-primary btn-block" id="meSave" style="margin-top:16px">登録する</button>' +
+      '<button class="btn btn-text btn-block" id="meCancel">登録しないで閉じる</button>');
+
+    function rowVals(el) {
+      var v = function (f) { var e = el.querySelector('[data-f="' + f + '"]'); return e ? e.value : ''; };
+      var dose = {}; el.querySelectorAll('[data-d]').forEach(function (e) { dose[e.dataset.d] = medNum(e.value); });
+      return { skip: el.querySelector('[data-f="skip"]').checked, name: v('name').trim(), unit: v('unit').trim() || '錠', dose: dose, days: medNum(v('days')),
+        timing: v('timing').trim(), looks: v('looks').trim(), effect: v('effect').trim(), caution: v('caution').trim(), got: medNum(v('got')), prev: medNum(v('prev')) };
+    }
+    function elDays() {
+      var d = $('meDate').value, n = d && d < today() ? medDays(d, today()) : 0;
+      show('meElWrap', n > 0);
+      if (n > 0) $('meElT').textContent = 'もらった日(' + medJp(d).replace(/^\d+年/, '') + ')から今日までの ' + n + '日分 の飲んだ数を引く';
+      return n > 0 && $('meEl').checked ? n : 0;
+    }
+    function calc() {
+      var n = elDays();
+      $('meRows').querySelectorAll('.med-ed').forEach(function (el) {
+        var o = rowVals(el), d = medDaily(o), have = Math.max(0, o.got + o.prev - (n ? d * n : 0));
+        el.querySelector('[data-f="sum"]').innerHTML = '今の手持ち <b>' + medFmt(have) + esc(o.unit) + '</b>' + (d ? '(あと' + Math.floor(have / d) + '日分)' : '') +
+          (n && d ? '<div class="note">もらった数から ' + medFmt(d * n) + esc(o.unit) + ' を引いています。実際に数えて違うときは「前からの残り」で合わせてください。</div>' : '');
+        el.classList.toggle('skip', o.skip);
+      });
+    }
+    function bind() {
+      $('meRows').querySelectorAll('input,textarea').forEach(function (e) { e.oninput = calc; e.onchange = calc; });
+      // 1日の数×日数 が変わったら、もらった数も合わせる(手で直していなければ)
+      $('meRows').querySelectorAll('.med-ed').forEach(function (el) {
+        var got = el.querySelector('[data-f="got"]');
+        got.addEventListener('input', function () { got.dataset.hand = '1'; });
+        el.querySelectorAll('[data-d],[data-f="days"]').forEach(function (e) {
+          e.addEventListener('input', function () { if (got.dataset.hand) return; var o = rowVals(el), d = medDaily(o); if (d && o.days) { got.value = medFmt(d * o.days); calc(); } });
+        });
+      });
+      calc();
+    }
+    bind();
+    $('meDate').addEventListener('change', calc); $('meEl').addEventListener('change', calc);
+    $('meAdd').addEventListener('click', function () {
+      var vals = []; $('meRows').querySelectorAll('.med-ed').forEach(function (el) { vals.push(rowVals(el)); });
+      var div = document.createElement('div'); div.innerHTML = rowHtml({ name: '', unit: '錠', dose: {}, got: 0, prev: 0, days: 0 }, vals.length);
+      $('meRows').appendChild(div.firstChild); bind();
+      $('meRows').lastChild.querySelector('[data-f="name"]').focus();
+    });
+    $('meCancel').addEventListener('click', closeSheet);
+    $('meSave').addEventListener('click', function () {
+      var n = elDays(), list = [];
+      var bad = '';
+      $('meRows').querySelectorAll('.med-ed').forEach(function (el) {
+        var o = rowVals(el); if (o.skip) return;
+        if (!o.name) { if (medDaily(o) || o.got) bad = '薬の名前が入っていないものがあります'; return; }
+        list.push(o);
+      });
+      if (bad) return toast(bad);
+      if (!list.length) return toast('登録するお薬がありません');
+      var m2 = medLoad(), date = $('meDate').value || today();
+      var keep = []; $('sheet').querySelectorAll('[data-keep]').forEach(function (c) { if (c.checked) keep.push(gone[+c.dataset.keep]); });
+      var dropped = gone.filter(function (x) { return keep.indexOf(x) < 0; });
+      var old = {}; m2.meds.forEach(function (x) { old[medKey(x.name)] = x; });
+      var firstTime = !m2.meds.length;
+      var meds = list.map(function (o) {
+        var d = medDaily(o), prevX = old[medKey(o.name)];
+        return { id: prevX ? prevX.id : 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          name: o.name, unit: o.unit, dose: o.dose, timing: o.timing, looks: o.looks, effect: o.effect, caution: o.caution,
+          stock: Math.max(0, Math.round((o.got + o.prev - (n ? d * n : 0)) * 100) / 100), rxDate: date, days: o.days, added: today() };
+      });
+      if (hand) meds = m2.meds.filter(function (x) { return meds.every(function (y) { return medKey(y.name) !== medKey(x.name); }); }).concat(meds);
+      else meds = meds.concat(keep.map(function (x) { return m2.meds.filter(function (y) { return y.id === x.id; })[0]; }).filter(Boolean));
+      m2.meds = meds;
+      m2.places = { hospital: $('meHos').value.trim(), doctor: $('meDoc').value.trim().replace(/先生$/, ''), hospitalTel: $('meHosTel').value.trim(), pharmacy: $('mePha').value.trim(), pharmacyTel: $('mePhaTel').value.trim() };
+      if (!hand) {
+        m2.hist.unshift({ date: date, hospital: m2.places.hospital, pharmacy: m2.places.pharmacy, read: today(),
+          meds: list.map(function (o) { return { name: o.name, unit: o.unit, dose: o.dose, days: o.days, timing: o.timing }; }),
+          stopped: dropped.map(function (x) { return x.name; }) });
+        m2.hist = m2.hist.slice(0, 30);
+      }
+      // 初めての登録:飲む時刻のお知らせを、使う時刻だけONにする
+      if (firstTime && !m2.slotsSet) MED_SLOTS.forEach(function (s) { m2.slots[s[0]].on = medUsed(m2, s[0]).length > 0; });
+      medSave(m2); closeSheet(); renderMed(); medCheckBanner();
+      toast('お薬を登録しました(' + list.length + '種類)');
+    });
+  }
+
+  function medDetail(i) {
+    var m = medLoad(), x = m.meds[i]; if (!x) return;
+    var when = MED_SLOTS.filter(function (s) { return Number(x.dose[s[0]]) > 0; }).map(function (s) { return s[1] + ' ' + medFmt(x.dose[s[0]]) + esc(x.unit); }).join('、');
+    var cau = esc(x.caution || '').replace(/\\n|\n/g, '<br>');
+    openSheet('<div class="grip"></div><h2>💊 ' + esc(x.name) + '</h2>' +
+      '<div class="card" style="font-size:18px;line-height:1.7">' +
+      (when ? '<div>🕒 ' + when + (x.timing ? '(' + esc(x.timing) + ')' : '') + '</div>' : '') +
+      '<div>📦 ' + medLeft(x) + '</div>' +
+      (x.rxDate ? '<div class="note">処方日 ' + esc(medJp(x.rxDate)) + (x.days ? '・' + x.days + '日分' : '') + '</div>' : '') +
+      (x.looks ? '<div class="note">見た目:' + esc(x.looks) + '</div>' : '') + '</div>' +
+      '<div class="section-title" style="margin-top:12px">はたらき</div><div class="card" style="font-size:18px;line-height:1.7">' + (x.effect ? esc(x.effect) : '<span class="note">書いてありません</span>') + '</div>' +
+      '<div class="section-title" style="margin-top:12px">注意・副作用</div><div class="card" style="font-size:17px;line-height:1.8">' + (cau || '<span class="note">書いてありません</span>') + '</div>' +
+      '<div class="note" style="margin-top:6px">薬局の説明書の文です。気になることは、薬局か病院に聞いてください。</div>' +
+      '<div class="section-title" style="margin-top:14px">🔢 数え直す</div>' +
+      '<div style="display:flex;gap:8px;align-items:center"><input class="input" inputmode="decimal" id="mdCount" value="' + medFmt(x.stock) + '" style="flex:1"><span style="font-size:18px">' + esc(x.unit) + '</span>' +
+      '<button class="btn btn-primary" id="mdCountSave">この数にする</button></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">' +
+      '<button class="btn btn-tonal btn-block" id="mdEdit">✏ 名前・飲む数を直す</button>' +
+      '<button class="btn btn-tonal btn-block" id="mdDel" style="color:var(--danger)">🗑 このお薬をやめた(一覧から外す)</button>' +
+      '<button class="btn btn-text btn-block" id="mdBack">← 戻る</button></div>');
+    $('mdBack').addEventListener('click', closeSheet);
+    $('mdCountSave').addEventListener('click', function () {
+      var m2 = medLoad(), y = m2.meds[i]; y.stock = medNum($('mdCount').value); medSave(m2); renderMed(); medDetail(i); toast('手持ちを ' + medFmt(y.stock) + y.unit + ' にしました');
+    });
+    $('mdEdit').addEventListener('click', function () {
+      medEditor({ date: x.rxDate || today(), meds: [{ name: x.name, unit: x.unit, dose: x.dose, timing: x.timing, looks: x.looks, effect: x.effect, caution: x.caution, days: x.days, total: 0 }] }, true);
+      // 直すときは「前からの残り」に今の手持ちが入り、もらった数は0から
+      var g = $('sheet').querySelector('[data-f="got"]'); if (g) { g.value = '0'; g.dataset.hand = '1'; g.dispatchEvent(new Event('input')); }
+    });
+    $('mdDel').addEventListener('click', function () {
+      openSheet('<div class="grip"></div><h2>「' + esc(x.name) + '」を一覧から外しますか?</h2>' +
+        '<div class="meta" style="font-size:17px">飲むお知らせからも外れます。「前の処方」には残ります。</div>' +
+        '<button class="btn btn-primary btn-block" id="mdDelYes" style="margin-top:12px">外す</button>' +
+        '<button class="btn btn-text btn-block" id="mdDelNo">← 戻る</button>');
+      $('mdDelNo').addEventListener('click', function () { medDetail(i); });
+      $('mdDelYes').addEventListener('click', function () {
+        var m2 = medLoad(); m2.meds.splice(i, 1); medSave(m2); closeSheet(); renderMed(); medCheckBanner(); toast('一覧から外しました');
+      });
+    });
+  }
+
+  function medPlaceEdit() {
+    var p = medLoad().places;
+    openSheet('<div class="grip"></div><h2>🏥 病院・薬局を直す</h2>' +
+      '<div class="section-title">病院</div><input class="input" id="mpHos" value="' + esc(p.hospital || '') + '">' +
+      '<div class="section-title">先生</div><input class="input" id="mpDoc" value="' + esc(p.doctor || '') + '">' +
+      '<div class="section-title">病院の電話</div><input class="input" inputmode="tel" id="mpHosTel" value="' + esc(p.hospitalTel || '') + '">' +
+      '<div class="section-title">薬局</div><input class="input" id="mpPha" value="' + esc(p.pharmacy || '') + '">' +
+      '<div class="section-title">薬局の電話</div><input class="input" inputmode="tel" id="mpPhaTel" value="' + esc(p.pharmacyTel || '') + '">' +
+      '<button class="btn btn-primary btn-block" id="mpSave" style="margin-top:14px">保存する</button>' +
+      '<button class="btn btn-text btn-block" id="mpBack">← 戻る</button>');
+    $('mpBack').addEventListener('click', closeSheet);
+    $('mpSave').addEventListener('click', function () {
+      var m = medLoad();
+      m.places = { hospital: $('mpHos').value.trim(), doctor: $('mpDoc').value.trim().replace(/先生$/, ''), hospitalTel: $('mpHosTel').value.trim(), pharmacy: $('mpPha').value.trim(), pharmacyTel: $('mpPhaTel').value.trim() };
+      medSave(m); closeSheet(); renderMed(); toast('保存しました');
+    });
+  }
+
+  function medHistory() {
+    var m = medLoad();
+    openSheet('<div class="grip"></div><h2>📜 前の処方</h2>' +
+      m.hist.map(function (hh) {
+        return '<div class="card" style="margin-bottom:10px;font-size:17px;line-height:1.7"><b>' + esc(medJp(hh.date)) + '</b>' +
+          (hh.hospital ? '<div class="note">🏥 ' + esc(hh.hospital) + (hh.pharmacy ? ' / 💊 ' + esc(hh.pharmacy) : '') + '</div>' : '') +
+          '<ul class="med-ul">' + hh.meds.map(function (o) {
+            var w = MED_SLOTS.filter(function (s) { return Number(o.dose[s[0]]) > 0; }).map(function (s) { return s[2] + medFmt(o.dose[s[0]]); }).join('・');
+            return '<li>' + esc(o.name) + (w ? '(' + esc(w) + esc(o.unit) + ')' : '') + (o.days ? ' ' + o.days + '日分' : '') + '</li>';
+          }).join('') + '</ul>' +
+          (hh.stopped && hh.stopped.length ? '<div class="note">この時にやめた:' + esc(hh.stopped.join('、')) + '</div>' : '') + '</div>';
+      }).join('') +
+      '<button class="btn btn-text btn-block" id="mhBack">← 戻る</button>');
+    $('mhBack').addEventListener('click', closeSheet);
+  }
+
+  // ⏰ お知らせの設定
+  function medSettings() {
+    var m = medLoad();
+    function sw(id, on) { return '<button type="button" class="sw' + (on ? ' on' : '') + '" id="' + id + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? 'ON' : 'OFF') + '</button>'; }
+    openSheet('<div class="grip"></div><h2>⏰ お薬のお知らせ</h2>' +
+      '<div class="card med-all"><div style="font-size:20px;font-weight:700">お知らせ全部</div>' + sw('msAll', m.all) + '</div>' +
+      '<div class="note" style="margin:4px 0 10px">OFFにすると全部お休みになります。下の時刻ごとのON・OFFは覚えておくので、ONに戻すと元のとおりに動きます。</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn btn-tonal" id="msOnAll" style="flex:1">全部ON</button><button class="btn btn-tonal" id="msOffAll" style="flex:1">全部OFF</button></div>' +
+      '<div id="msSlots">' + MED_SLOTS.map(function (s) {
+        var c = m.slots[s[0]], n = medUsed(m, s[0]).length;
+        return '<div class="med-srow"><div style="flex:1;min-width:0"><div style="font-size:18px;font-weight:700">' + esc(s[1]) + '</div>' +
+          '<div class="note">' + (n ? n + '種類のお薬' : 'この時刻のお薬はありません') + '</div></div>' +
+          '<input class="input" type="time" data-st="' + s[0] + '" value="' + esc(c.t) + '" style="width:140px;flex:none;padding:8px 8px">' + sw('ms_' + s[0], c.on) + '</div>';
+      }).join('') + '</div>' +
+      '<div class="med-srow" style="margin-top:12px"><div style="flex:1;font-size:18px">アプリを開いた時に表示する</div>' + sw('msApp', m.app) + '</div>' +
+      '<div class="med-srow"><div style="flex:1;font-size:18px">LINEで知らせる<div class="note">LINEのお知らせは、これから作ります(第3段)。今は設定だけ覚えておきます。</div></div>' + sw('msLine', m.line) + '</div>' +
+      '<button class="btn btn-primary btn-block" id="msSave" style="margin-top:16px">保存する</button>' +
+      '<button class="btn btn-text btn-block" id="msBack">← 戻る</button>');
+    function toggle(b) { var on = !b.classList.contains('on'); b.classList.toggle('on', on); b.textContent = on ? 'ON' : 'OFF'; b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    $('sheet').querySelectorAll('.sw').forEach(function (b) { b.addEventListener('click', function () { toggle(b); }); });
+    function setAll(on) { MED_SLOTS.forEach(function (s) { var b = $('ms_' + s[0]); if (b.classList.contains('on') !== on) toggle(b); }); }
+    $('msOnAll').addEventListener('click', function () { setAll(true); });
+    $('msOffAll').addEventListener('click', function () { setAll(false); });
+    $('msBack').addEventListener('click', closeSheet);
+    $('msSave').addEventListener('click', function () {
+      var m2 = medLoad(), isOn = function (id) { return $(id).classList.contains('on'); };
+      m2.all = isOn('msAll'); m2.app = isOn('msApp'); m2.line = isOn('msLine'); m2.slotsSet = true;
+      MED_SLOTS.forEach(function (s) { var v = $('sheet').querySelector('[data-st="' + s[0] + '"]').value; m2.slots[s[0]] = { t: /^\d{2}:\d{2}$/.test(v) ? v : m2.slots[s[0]].t, on: isOn('ms_' + s[0]) }; });
+      medSave(m2); closeSheet(); renderMed(); medCheckBanner(); toast(m2.all ? 'お知らせの設定を保存しました' : 'お知らせを全部お休みにしました');
+    });
+  }
+  $('medBanner').addEventListener('click', function () { show('medBanner', false); go('med'); });
+  setInterval(function () { try { medCheckBanner(); } catch (e) {} }, 60000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(function () { try { medCheckBanner(); } catch (e) {} }, 800); });
+  setTimeout(function () { try { medCheckBanner(); } catch (e) {} }, 2500);
+
   var HELP = [
+    { k: 'med', icon: '💊', t: 'お薬を登録して、飲む時間に知らせる', why: '飲んでいる薬を把握したいとき・飲み忘れを防ぎたいとき', res: '薬の名前・飲む時刻・残りの数・はたらき・副作用を、このスマホの中だけに保存します。飲む時刻にアプリを開くと「お薬の時間です」と出ます。',
+      steps: ['⚙ →[🧩 使う機能を選ぶ]で「💊 お薬」にチェックを付ける(下に[お薬]が出る)', '下の[お薬]→[📷 お薬の説明書を撮って読む]で、薬局の説明書を撮る', '読み取った内容を確かめる。前からの残りがあれば「前からの残り」に数を入れる', '[登録する]を押す', '[⏰ お知らせ]で、時刻ごとのON・OFFや時刻を決める', '飲んだら[飲んだ ✅]を押す(残りの数が減る)'], open: function () { if (feat('med')) go('med'); else openFeatures(); } },
     { k: 'receipt', icon: '🧾', t: 'レシートを撮って入れる', why: '買い物をしたとき', res: 'お店・日付・品物・金額をAIが読み取って、買物の一覧と合計に入ります。カードや電子マネーで払ったときは、その残高や引き落としにも入ります。',
       steps: ['下の[撮影]を押す', '[レシート・納付書を撮る]を押して、レシート全体が入るように撮る(撮ってある写真なら[アルバムの写真から選ぶ])', '読み取った内容を見て、違うところを直す', '[保存する]を押す'], open: function () { go('capture'); } },
     { k: 'manual', icon: '✍', t: 'レシートがないときに手で入れる', why: 'レシートをもらわなかったとき・なくしたとき', res: '手で入れた買い物も、レシートと同じように一覧と合計に入ります。',
