@@ -888,7 +888,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-16 00:30 版163';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-16 00:15 版164';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版140';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -6950,7 +6950,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     if (!m.all) h += '<div class="warn" style="font-size:17px">🔕 お知らせは全部お休み中です(⏰ お知らせ で戻せます)</div>';
     if (!m.meds.length) {
       h += '<div class="card" style="font-size:18px;line-height:1.7">まだお薬が登録されていません。<br>薬局でもらった <b>お薬の説明書</b> を、表の全体が入るように撮ってください。<br>' +
-        '<span class="note">お薬の記録は、このスマホの中だけに保存します。家族にも窓口にも送りません。</span></div>';
+        '<span class="note">お薬の記録は、このスマホの中だけに保存します。</span></div>';
     } else {
       // 今日のお薬
       h += '<div class="section-title">📅 今日のお薬(' + esc(md(t)) + ')</div>';
@@ -6985,7 +6985,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           '<button class="btn btn-text" id="medPlaceEdit" style="min-height:40px">✏ 直す</button></div>';
       }
       if (m.hist.length) h += '<button class="btn btn-tonal btn-block" id="medHist" style="margin-top:12px">📜 前の処方(' + m.hist.length + '回分)</button>';
-      h += '<div class="note" style="margin-top:12px">お薬の記録は、このスマホの中だけに保存しています。家族にも窓口にも送りません。</div>';
+      h += '<div class="note" style="margin-top:12px">お薬の記録は、このスマホの中だけに保存しています。</div>';
     }
     $('medBody').innerHTML = h;
     $('medShot').addEventListener('click', function () { $('medFileCam').click(); });
