@@ -209,11 +209,20 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .item-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 .item-row .name { flex: 1; min-width: 0; padding-left: 10px; padding-right: 8px; }
 .cat-btn { flex: none; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface, #fff); font-size: 22px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
-.item-row .price { flex: none; width: 88px; text-align: right; padding-left: 6px; padding-right: 8px; }
+.item-row .price { width: 100%; text-align: right; padding-left: 6px; padding-right: 30px; }
+.item-row .price.neg { color: var(--danger); font-weight: 700; }
+.yen-wrap { position: relative; flex: none; width: 104px; display: block; }
+.yen-wrap > span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 16px; color: var(--text-2); pointer-events: none; }
+.qty-wrap { flex: none; width: 70px; display: flex; align-items: center; gap: 2px; }
+.qty-wrap .qty { width: 48px; padding: 6px 4px; text-align: center; font-size: 18px; }
+.qty-wrap > span { font-size: 15px; color: var(--text-2); }
+.item-head { display: flex; gap: 6px; font-size: 14px; color: var(--text-2); margin: 0 0 4px; padding-left: 50px; }
+.item-head .h-name { flex: 1; } .item-head .h-qty { width: 70px; } .item-head .h-price { width: 104px; text-align: right; padding-right: 50px; box-sizing: content-box; }
 @media (max-width: 430px) {
-  .item-row { display: grid; grid-template-columns: 40px 110px 1fr 40px; grid-template-areas: "cat name name name" ". price . del"; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-  .item-row .cat-btn { grid-area: cat; width: 40px; } .item-row .name { grid-area: name; } .item-row .price { grid-area: price; width: auto; } .item-row .del { grid-area: del; width: 40px; min-width: 40px; padding: 0; }
-  .item-row:not(:has(.cat-btn)) { grid-template-areas: "name name name name" "price price . del"; }
+  .item-row { display: grid; grid-template-columns: 40px 76px 1fr 40px; grid-template-areas: "cat name name name" ". qty price del"; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .item-row .cat-btn { grid-area: cat; width: 40px; } .item-row .name { grid-area: name; } .item-row .qty-wrap { grid-area: qty; } .item-row .yen-wrap { grid-area: price; width: auto; max-width: 150px; justify-self: end; } .item-row .del { grid-area: del; width: 40px; min-width: 40px; padding: 0; }
+  .item-row:not(:has(.cat-btn)) { grid-template-areas: "name name name name" "qty qty price del"; }
+  .item-head { display: none; }
 }
 .item-row .del { flex: none; }
 .sum-line { display: flex; justify-content: space-between; font-size: 17px; color: var(--text-2); margin: 4px 2px; }
@@ -849,8 +858,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-15 20:55 版160';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版138';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-15 21:30 版161';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版139';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1634,14 +1643,14 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   }
   function rkList(rs) {
     var k = RK.kind, by = {};
-    var add = function (name, money, id) { var x = by[name] = by[name] || { sum: 0, n: 0, ids: {} }; x.sum += money; if (!x.ids[id]) { x.ids[id] = 1; x.n++; } };
+    var add = function (name, money, id, q) { var x = by[name] = by[name] || { sum: 0, n: 0, q: 0, ids: {} }; x.sum += money; x.q += q || 1; if (!x.ids[id]) { x.ids[id] = 1; x.n++; } };
     rs.forEach(function (r) {
       if (k === 'storeSum' || k === 'storeCnt') add(r.store || 'お店の名前なし', spentOf(r), r.id);
       else if (k === 'purpose') add(r.purpose || '分類なし', spentOf(r), r.id);
       else (r.items || []).forEach(function (it, i) {
         var nmv = itemKey(it.name); if (!nmv || NOT_ITEM.test(nmv) || !(it.price > 0)) return;
         if (RK.group && catInfo(itemCat(it, r)).group !== RK.group) return;
-        add(nmv, Number(it.price) || 0, r.id + ':' + i);
+        add(nmv, Number(it.price) || 0, r.id + ':' + i, Math.max(1, Number(it.qty) || 1));
       });
     });
     var byCount = k === 'storeCnt' || k === 'itemCnt';
@@ -1654,7 +1663,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       return '<div class="rk-row"><div class="rk-no' + (i < 3 ? ' top' : '') + '">' + (i + 1) + '</div><div class="rk-body">' +
         '<div class="bar-head"><span>' + esc(n) + '</span><b style="font-size:18px;white-space:nowrap">' + (byCount ? v.n + unit : yen(v.sum)) + '</b></div>' +
         '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(3, Math.round(val / max * 100)) + '%;background:var(--primary)"></div></div>' +
-        '<div class="bar-sub">' + (byCount ? yen(v.sum) : v.n + unit) + '</div></div></div>';
+        '<div class="bar-sub">' + (byCount ? yen(v.sum) : v.n + unit) + (k.indexOf('item') === 0 && v.q > v.n ? '(' + v.q + '個)' : '') + '</div></div></div>';
     }).join('') + rkTopNote(allNames.length);
   }
 
@@ -1706,7 +1715,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       if (/外税/.test(nmv)) { tax += p; return; }
       if (p < 0 || /値引|割引|クーポン/.test(nmv)) { if (last) last.price += p; return; }
       if (NOT_ITEM.test(nmv) || !p) return;
-      last = { name: nmv, cat: itemCat(it, r), price: p, rid: r.id }; out.push(last);
+      last = { name: nmv, cat: itemCat(it, r), price: p, rid: r.id, q: Math.max(1, Number(it.qty) || 1) }; out.push(last);
     });
     var sum = out.reduce(function (a, x) { return a + Math.max(0, x.price); }, 0);
     if (!sum) return [{ name: r.store || '品物の名前なし', cat: purposeCat(r.purpose), price: spent, rid: r.id, noItems: true }];
@@ -1778,7 +1787,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     var ci = catInfo(c);
     var draw = function () {
       var by = {};
-      rs.forEach(function (r) { catLines(r).forEach(function (x) { if (x.cat !== c) return; var k = x.noItems ? '(品物なし)' + x.name : x.name; var v = by[k] = by[k] || { sum: 0, n: 0 }; v.sum += x.price; v.n++; }); });
+      rs.forEach(function (r) { catLines(r).forEach(function (x) { if (x.cat !== c) return; var k = x.noItems ? '(品物なし)' + x.name : x.name; var v = by[k] = by[k] || { sum: 0, n: 0, q: 0 }; v.sum += x.price; v.n++; v.q += x.q || 1; }); });
       var names = Object.keys(by).sort(function (a, b) { return CD.sort === 'n' ? (by[b].n - by[a].n) || (by[b].sum - by[a].sum) : (by[b].sum - by[a].sum) || (by[b].n - by[a].n); });
       var tot = names.reduce(function (a, k) { return a + by[k].sum; }, 0), cnt = names.reduce(function (a, k) { return a + by[k].n; }, 0);
       var max = Math.max.apply(null, names.map(function (k) { return CD.sort === 'n' ? by[k].n : by[k].sum; }).concat([1]));
@@ -1790,7 +1799,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           var v = by[k], val = CD.sort === 'n' ? v.n : v.sum;
           return '<div class="rk-row"><div class="rk-no' + (i < 3 ? ' top' : '') + '">' + (i + 1) + '</div><div class="rk-body"><div class="bar-head"><span>' + esc(k) + '</span><b style="font-size:18px;white-space:nowrap">' + (CD.sort === 'n' ? v.n + '回' : yen(Math.round(v.sum))) + '</b></div>' +
             '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(3, Math.round(val / max * 100)) + '%;background:' + (ci.group === 'food' ? 'var(--primary)' : '#D98A2B') + '"></div></div>' +
-            '<div class="bar-sub">' + (CD.sort === 'n' ? yen(Math.round(v.sum)) : v.n + '回') + '</div></div></div>';
+            '<div class="bar-sub">' + (CD.sort === 'n' ? yen(Math.round(v.sum)) : v.n + '回') + (v.q > v.n ? '(' + v.q + '個)' : '') + '</div></div></div>';
         }).join('') + rkTopNote(names.length) : '<div class="note" style="font-size:17px">この期間には、このカテゴリの買い物はありません</div>') +
         '<div class="section-title" style="margin-top:16px">📈 移り変わり</div>' + chip('cdUnit', [['week', '週ごと(最近8週)'], ['month', '月ごと(最近12か月)']], CD.unit) +
         '<div id="cdChart"><div class="loading"><div class="spinner"></div>読み込み中…</div></div>' +
@@ -3526,7 +3535,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   /* ---------- 確認フォーム ---------- */
   function openConfirm(r) {
     state.draft = { person: state.person, store: r.store || '', purpose: r.purpose || '', payMethod: r.payMethod || '', payBalance: r.payBalance || 0, date: r.date || today(),
-      total: r.total || 0, items: (r.items || []).filter(function (it) { return !isShareItem(it); }).map(function (it) { return it.link ? { name: it.name, price: it.price, link: it.link } : it.cat ? { name: cleanItemName(it.name), price: it.price, cat: it.cat } : { name: cleanItemName(it.name), price: it.price }; }) };
+      total: r.total || 0, items: (r.items || []).filter(function (it) { return !isShareItem(it); }).map(function (it) { var o = it.link ? { name: it.name, price: it.price, link: it.link } : { name: cleanItemName(it.name), price: it.price }; if (it.cat && !it.link) o.cat = it.cat; if (Number(it.qty) > 1) o.qty = Number(it.qty); return o; }) };
     state.editOrigDate = r.date || '';
     var rsh = r.share != null ? r : normRc({ items: (r.items || []).slice() });
     state.draft.adj = (rsh.adj || []).map(function (a) { return { name: a.name, amount: a.amount, who: a.who || '' }; });
@@ -4949,16 +4958,25 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     });
   }
   function renderItems() {
-    $('cfItems').innerHTML = state.draft.items.map(function (it, i) {
+    $('cfItems').innerHTML = (state.draft.items.length ? '<div class="item-head"><span class="h-name">品名</span><span class="h-qty">数量</span><span class="h-price">金額</span></div>' : '') + state.draft.items.map(function (it, i) {
       var showCat = feat('cat') && !(Number(it.price) < 0) && !NOT_ITEM.test(itemKey(it.name));
       return '<div class="item-row">' + (feat('cat') ? (showCat ? '<button type="button" class="cat-btn" data-cp="' + i + '" aria-label="分け方を選ぶ">' + catInfo(itemCat(it, state.draft)).icon + '</button>' : '<span class="cat-btn" style="border-color:transparent"></span>') : '') +
         '<input class="input name" data-i="' + i + '" data-k="name" value="' + esc(it.name) + '" placeholder="品名">' +
-        '<input class="input price" data-i="' + i + '" data-k="price" type="number" inputmode="numeric" value="' + (it.price || it.price === 0 ? it.price : '') + '">' +
+        (showCat || !feat('cat') ? '<span class="qty-wrap"><input class="input qty" data-i="' + i + '" data-k="qty" type="number" inputmode="numeric" min="1" value="' + (Number(it.qty) > 1 ? it.qty : 1) + '" aria-label="数量"><span>個</span></span>' : '<span class="qty-wrap"></span>') +
+        '<span class="yen-wrap"><input class="input price' + (Number(it.price) < 0 ? ' neg' : '') + '" data-i="' + i + '" data-k="price" type="number" inputmode="numeric" value="' + (it.price || it.price === 0 ? it.price : '') + '" aria-label="金額"><span>円</span></span>' +
         '<button class="icon-btn del" data-del="' + i + '" aria-label="この品目を消す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
     }).join('');
     $('cfItems').querySelectorAll('input').forEach(function (inp) {
       inp.addEventListener('input', function () {
         var it = state.draft.items[+inp.dataset.i];
+        if (inp.dataset.k === 'qty') {
+          // 数量を変えたら、1個の値段 × 数量 で金額を計算し直す
+          var oq = Math.max(1, Number(it.qty) || 1), nq = Math.max(1, Math.round(Number(inp.value) || 0)), unitP = it.unit || (Number(it.price) || 0) / oq;
+          it.unit = unitP; it.qty = nq; it.price = Math.round(unitP * nq);
+          var pi = $('cfItems').querySelector('input.price[data-i="' + inp.dataset.i + '"]'); if (pi) pi.value = it.price;
+          return updateSums();
+        }
+        if (inp.dataset.k === 'price') { it.unit = null; inp.classList.toggle('neg', Number(inp.value) < 0); }
         it[inp.dataset.k] = inp.dataset.k === 'price' ? Math.round(Number(inp.value) || 0) : inp.value;
         var cb = $('cfItems').querySelector('[data-cp="' + inp.dataset.i + '"]'); if (cb && !it.cat) cb.textContent = catInfo(itemCat(it, state.draft)).icon;
         updateSums();
@@ -5044,7 +5062,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     d.total = Math.round(Number($('cfTotal').value) || 0);
     if (!d.total) d.total = itemsSum();
     d.items = d.items.filter(function (it) { return ((it.name || '').trim() || it.price) && !isShareItem(it); });
-    d.items.forEach(function (it) { if (!it.link && it.name) it.name = cleanItemName(it.name); });
+    d.items.forEach(function (it) { if (!it.link && it.name) it.name = cleanItemName(it.name); delete it.unit; if (!(Number(it.qty) > 1)) delete it.qty; else it.qty = Math.round(Number(it.qty)); });
     if (feat('cat')) d.items.forEach(function (it) { if (!it.cat && Number(it.price) > 0 && !NOT_ITEM.test(itemKey(it.name))) { var g = guessCat(it.name, d.purpose); if (g) it.cat = g; } });
     var adj = (d.adj || []).map(function (a) { return { name: String(a.name || '').trim().slice(0, 30) || '割り勘', amount: Math.round(Number(a.amount) || 0), who: a.who && a.who !== d.person ? a.who : '' }; }).filter(function (a) { return a.amount; });
     d.items = d.items.map(function (it) { return it.link ? { name: '🔗' + it.link + ' ' + String(it.name || '').replace(/^🔗\S+\s*/, ''), price: it.price } : it; });
