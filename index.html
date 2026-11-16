@@ -297,6 +297,7 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .med-all { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .sw { min-width: 76px; min-height: 46px; border-radius: 23px; border: 2px solid var(--line); background: var(--surface); color: var(--text-2); font-size: 18px; font-weight: 700; flex: none; }
 .sw.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.vm-text { font-size: 18px; line-height: 1.6; margin-top: 6px; white-space: pre-wrap; word-break: break-word; max-height: 9.6em; overflow: hidden; }
 .med-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .med-cw { text-align: center; font-size: 15px; color: var(--text-2); font-weight: 700; }
 .med-cd { min-height: 52px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 16px; padding: 2px 0; }
@@ -894,8 +895,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-16 02:00 版168';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版142';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-16 12:40 版169';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版143';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1170,6 +1171,16 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           items: [{ name: '牛乳 1L', price: 238 }, { name: '食パン 6枚', price: 178 },
                   { name: 'たまご 10個', price: 298 }, { name: '豚こま切れ', price: 498 },
                   { name: 'バナナ', price: 158 }, { name: '値引', price: -82 }] } });
+        if (action === 'vmemos') return resolve({ ok: true, memos: JSON.parse(store.get('demoVm') || '[]') });
+        if (action === 'saveVmemo') { var vl = JSON.parse(store.get('demoVm') || '[]'), mm = data.memo, now = new Date(), at = now.getFullYear() + '/' + pad(now.getMonth() + 1) + '/' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+          var old = vl.filter(function (x) { return x.id === mm.id; })[0];
+          var o = old || { id: 'v' + Date.now().toString(36), at: at, ms: now.getTime(), person: mm.person, title: '', text: '', voice: null };
+          if (mm.audio) { o.text = '(仮)声を文字にした内容です。牛乳とパンを買う。'; o.voice = { sec: mm.audio.sec, expired: false }; }
+          else if (mm.text != null) o.text = mm.text;
+          if (mm.title != null) o.title = mm.title || o.text.slice(0, 20); if (!o.title) o.title = o.text.slice(0, 20);
+          vl = [o].concat(vl.filter(function (x) { return x.id !== o.id; })); store.set('demoVm', JSON.stringify(vl)); return resolve({ ok: true, memo: o }); }
+        if (action === 'deleteVmemo') { store.set('demoVm', JSON.stringify(JSON.parse(store.get('demoVm') || '[]').filter(function (x) { return x.id !== data.id; }))); return resolve({ ok: true, done: true }); }
+        if (action === 'vmemoVoice') return resolve({ ok: false, error: '仮の家では、声は再生できません' });
         if (action === 'setMedAlerts') return resolve({ ok: true, mail: !!(data.med || {}).mail, count: ((data.med || {}).alerts || []).length, hasEmail: false });
         if (action === 'testMedMail') return resolve({ ok: false, error: '仮の家では、メールは送れません' });
         if (action === 'analyzeMed' && (demoApi.mc = (demoApi.mc || 0) + 1) % 2 === 0) return resolve({ ok: true, med: { date: '2026-11-01', hospital: '', doctor: '', hospitalTel: '', pharmacy: '', pharmacyTel: '',
@@ -2135,14 +2146,19 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   function openNotes() {
     if (msgUnread().length) NT.tab = 'msgs';   // 読んでいない伝言があれば、伝言のタブを開く
     $('ntBody').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
-    if (NT.tab === 'plans' || NT.tab === 'msgs') { renderNotes(); loadNotes(true).catch(function () {}); return; }
+    if (NT.tab === 'plans' || NT.tab === 'msgs' || NT.tab === 'vmemo' || !feat('memo')) { renderNotes(); if (feat('memo')) loadNotes(true).catch(function () {}); return; }
     loadNotes(true).then(renderNotes).catch(function (e) {
       $('ntBody').innerHTML = '<div class="error">' + esc(e.message) + '</div>' +
         (/不明な依頼/.test(e.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。新しいプログラムに入れ替えてデプロイしてください。</div>' : '');
     });
   }
   function renderNotes() {
-    var tabs = [['plans', '📅 予定'], ['msgs', '💬 伝言'], ['list', '😋 評価'], ['rank', '🏆 ランキング'], ['shop', '🛒 買い物メモ'], ['stores', '🏪 お店の情報']];
+    var tabs = [['plans', '📅 予定'], ['msgs', '💬 伝言'], ['vmemo', '🎙 音声メモ'], ['list', '😋 評価'], ['rank', '🏆 ランキング'], ['shop', '🛒 買い物メモ'], ['stores', '🏪 お店の情報']].filter(function (t) {
+      if (t[0] === 'vmemo') return feat('vmemo');
+      if (!feat('memo')) return false;
+      return t[0] !== 'msgs' || MEMBERS.length > 1;   // 家族が1人だけの家計簿では、伝言は出さない(送る相手がいない)
+    });
+    if (!tabs.some(function (t) { return t[0] === NT.tab; })) NT.tab = tabs.length ? tabs[0][0] : 'plans';
     $('ntTabs').innerHTML = tabs.map(function (t) {
       var badge = t[0] === 'shop' && NT.data ? NT.data.shop.filter(function (x) { return !x.done; }).length : t[0] === 'msgs' ? msgUnread().length : 0;
       return '<button class="chip' + (NT.tab === t[0] ? ' on' : '') + '" data-t="' + t[0] + '">' + t[1] + (badge ? ' (' + badge + ')' : '') + '</button>';
@@ -2150,6 +2166,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     $('ntTabs').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () { NT.tab = c.dataset.t; renderNotes(); }); });
     if (NT.tab === 'plans') return ntPlans();
     if (NT.tab === 'msgs') return ntMsgs();
+    if (NT.tab === 'vmemo') return ntVmemos();
     if (!NT.data) return;
     ({ list: ntList, rank: ntRank, shop: ntShop, stores: ntStores })[NT.tab]();
   }
@@ -2543,7 +2560,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     ['points', '🎁 ポイントの残り'],
     ['shun', '🍎 旬と早見表(果物の早見表・今月の旬)'],
     ['cat', '🏷 カテゴリ(食料品・それ以外)の集計とランキング'],
-    ['med', '💊 お薬(飲む薬・残り・お知らせ。このスマホの中だけに保存)']
+    ['med', '💊 お薬(飲む薬・残り・お知らせ。このスマホの中だけに保存)'],
+    ['vmemo', '🎙 音声メモ(話して覚え書きを残す・自分だけ。「メモ」の中に出ます)']
   ];
   function feat(k) {
     var f; try { f = JSON.parse(store.get('features') || 'null'); } catch (e) { f = null; }
@@ -2551,7 +2569,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     return !!f[k];
   }
   function applyFeatures() {
-    document.querySelectorAll('.nav-item[data-screen="notes"]').forEach(function (b) { b.classList.toggle('hidden', !feat('memo')); });
+    document.querySelectorAll('.nav-item[data-screen="notes"]').forEach(function (b) { b.classList.toggle('hidden', !feat('memo') && !feat('vmemo')); });
     show('navMed', feat('med'));
     if (!feat('med')) { show('medBanner', false); if (document.querySelector('#screen-med.active')) go('history'); }
     show('histIncomeBtn', feat('income'));
@@ -6644,7 +6662,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   function msgUnread() { return (MSG.list || []).filter(function (m) { return m.to.indexOf(state.owner) >= 0 && m.read.indexOf(state.owner) < 0; }); }
   function msgWhen(at) { var m = String(at || '').match(/^\d{4}\/(\d{2})\/(\d{2}) (\d{2}:\d{2})/); return m ? Number(m[1]) + '/' + Number(m[2]) + ' ' + m[3] : esc(at); }
   function msgBadge() {
-    var n = feat('memo') ? msgUnread().length : 0;
+    var n = feat('memo') && MEMBERS.length > 1 ? msgUnread().length : 0;
     document.querySelectorAll('.nav-item[data-screen="notes"] .pill').forEach(function (p) {
       var b = p.querySelector('.nbadge'); if (!b) { b = document.createElement('span'); b.className = 'nbadge'; p.appendChild(b); }
       b.textContent = n > 9 ? '9+' : String(n); b.classList.toggle('hidden', !n);
@@ -6777,9 +6795,119 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       });
     });
   }
+  /* ---------- 🎙 音声メモ(自分だけの覚え書き。文字はずっと、声は半年で消える) ---------- */
+  var VM = { list: null, q: '', audio: {}, playing: null, busy: false };
+  function vmStop() { if (VM.playing) { try { VM.playing.a.pause(); } catch (e) {} var b = document.querySelector('[data-vp="' + VM.playing.id + '"]'); if (b) b.textContent = b.dataset.lb; VM.playing = null; } }
+  function vmPlay(m, btn) {
+    if (VM.playing && VM.playing.id === m.id) return vmStop();
+    vmStop(); msgStopAudio();
+    var start = function (url) {
+      var a = new Audio(url); VM.playing = { id: m.id, a: a }; btn.textContent = '■ 止める';
+      a.onended = vmStop;
+      a.onerror = function () { vmStop(); toast('このスマホでは、この声を再生できませんでした'); };
+      var pr = a.play(); if (pr && pr.catch) pr.catch(function () { vmStop(); });
+    };
+    if (VM.audio[m.id]) return start(VM.audio[m.id]);
+    btn.disabled = true; btn.textContent = '読み込み中…';
+    api('vmemoVoice', { id: m.id, person: state.owner }).then(function (r) {
+      var bin = atob(r.data), u8 = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      VM.audio[m.id] = URL.createObjectURL(new Blob([u8], { type: r.mime || 'audio/mp4' }));
+      btn.disabled = false; start(VM.audio[m.id]);
+    }).catch(function (e) { btn.disabled = false; btn.textContent = btn.dataset.lb; toast(e.message); });
+  }
+  function vmWhen(at) { var m = String(at || '').match(/^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}:\d{2})/); return m ? Number(m[2]) + '月' + Number(m[3]) + '日 ' + m[4] : esc(at); }
+  function vmDrop(id) { if (VM.audio[id]) { URL.revokeObjectURL(VM.audio[id]); delete VM.audio[id]; } }
+  function ntVmemos(force) {
+    if (VM.list && !force) return drawVmemos();
+    $('ntBody').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+    api('vmemos', { person: state.owner }).then(function (r) { VM.list = r.memos || []; if (NT.tab === 'vmemo') drawVmemos(); }).catch(function (e) {
+      $('ntBody').innerHTML = '<div class="error">' + esc(e.message) + '</div>' + (/不明な依頼/.test(e.message) ? '<div class="note">窓口(Apps Script)がまだ古い版です。窓口を新しい版にしてください。</div>' : '');
+    });
+  }
+  function drawVmemos() {
+    var q = VM.q.trim().normalize('NFKC').toLowerCase(), all = VM.list || [];
+    var list = q ? all.filter(function (m) { return (m.title + ' ' + m.text).normalize('NFKC').toLowerCase().indexOf(q) >= 0; }) : all;
+    var card = function (m) {
+      var lb = '▶ 🔊 聞く(' + (m.voice ? recClock(m.voice.sec || 0) : '') + ')';
+      return '<div class="card nt-card">' +
+        '<div class="in-line" style="border:none;padding:0;align-items:flex-start"><b style="font-size:19px;word-break:break-word">🎙 ' + esc(m.title || '(題名なし)') + '</b><span class="in-sub" style="white-space:nowrap">' + vmWhen(m.at) + '</span></div>' +
+        (m.text ? '<div class="vm-text">' + esc(m.text) + '</div>' : '') +
+        (m.voice ? (m.voice.expired ? '<div class="in-sub" style="margin-top:6px">🔇 声は保存期間(半年)が過ぎたので消えました。文字は残っています。</div>'
+          : '<button type="button" class="btn btn-tonal btn-block" data-vp="' + esc(m.id) + '" data-lb="' + esc(lb) + '" style="margin-top:8px">' + esc(lb) + '</button>') : '') +
+        '<div class="nt-btns"><button class="btn btn-text" data-ve="' + esc(m.id) + '">✏ 直す</button><button class="btn btn-text" data-vd="' + esc(m.id) + '">🗑 消す</button></div></div>';
+    };
+    $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="vmNew" style="margin-bottom:8px">🎤 声でメモする</button>' +
+      '<button class="btn btn-tonal btn-block" id="vmNewText" style="margin-bottom:10px">✍ 文字でメモする</button>' +
+      '<input class="input" id="vmQ" type="search" placeholder="🔍 文字で探す" value="' + esc(VM.q) + '" style="margin-bottom:8px">' +
+      '<div class="note" style="font-size:15px;margin-bottom:12px">音声メモは自分だけに見えます。文字はずっと残り、声は半年たつと自動で消えます。</div>' +
+      '<div class="section-title">音声メモ(' + (q ? list.length + ' / ' : '') + all.length + '件)</div>' +
+      (list.map(card).join('') || '<div class="note" style="font-size:17px">' + (q ? '見つかりませんでした。' : 'まだ音声メモはありません。「🎤 声でメモする」を押して話してみてください。') + '</div>');
+    $('vmNew').addEventListener('click', function () { vmEdit(null, true); });
+    $('vmNewText').addEventListener('click', function () { vmEdit(null, false); });
+    $('vmQ').addEventListener('input', function () { VM.q = this.value; var pos = this.selectionStart; drawVmemos(); var e = $('vmQ'); e.focus(); try { e.setSelectionRange(pos, pos); } catch (x) {} });
+    var byId = function (id) { return all.filter(function (m) { return m.id === id; })[0]; };
+    $('ntBody').querySelectorAll('[data-vp]').forEach(function (b) { b.addEventListener('click', function () { vmPlay(byId(b.dataset.vp), b); }); });
+    $('ntBody').querySelectorAll('[data-ve]').forEach(function (b) { b.addEventListener('click', function () { vmStop(); vmEdit(byId(b.dataset.ve), false); }); });
+    $('ntBody').querySelectorAll('[data-vd]').forEach(function (b) { b.addEventListener('click', function () {
+      var m = byId(b.dataset.vd); if (!m) return; vmStop();
+      openSheet('<div class="grip"></div><h2>🗑 音声メモを消す</h2><div class="card" style="font-size:18px;white-space:pre-wrap;word-break:break-word"><b>' + esc(m.title) + '</b>\n' + esc((m.text || '').slice(0, 200)) + '</div>' +
+        '<div class="note" style="font-size:17px;margin:10px 0">文字も声も消えて、元に戻せません。</div>' +
+        '<div style="display:flex;flex-direction:column;gap:10px"><button class="btn btn-danger btn-block" id="vdOk">消す</button><button class="btn btn-tonal btn-block" id="vdNo">やめる</button></div>');
+      $('vdNo').addEventListener('click', closeSheet);
+      $('vdOk').addEventListener('click', function () {
+        this.disabled = true;
+        api('deleteVmemo', { id: m.id, person: state.owner }).then(function () {
+          vmDrop(m.id); VM.list = VM.list.filter(function (x) { return x.id !== m.id; }); closeSheet(); toast('音声メモを消しました'); drawVmemos();
+        }).catch(function (e) { toast(e.message); closeSheet(); });
+      });
+    }); });
+  }
+  // 作る(m なし)・直す(m あり)。rec=true なら最初から録音の画面を開く
+  function vmEdit(m, rec) {
+    recReset(); REC_MAX = 180; REC_DEL = m ? '🗑 録り直しをやめる' : '🗑 声を消す';
+    var isNew = !m, hasVoice = m && m.voice && !m.voice.expired;
+    openSheet('<div class="grip"></div><h2>' + (isNew ? (rec ? '🎤 声でメモする' : '✍ 文字でメモする') : '✏ 音声メモを直す') + '</h2>' +
+      (isNew && rec ? '<div class="note" style="font-size:16px;margin-bottom:6px">3分まで録音できます。保存すると、話した言葉を自動で文字にします。</div>' : '') +
+      (recSupported() ? (isNew && !rec ? '' : '<button type="button" class="btn btn-tonal btn-block" id="mwRecBtn">' + (isNew ? '🎤 録音する(3分まで)' : hasVoice ? '🎤 声を録り直す(文字も作り直します)' : '🎤 声を録音する(文字も作り直します)') + '</button>') + '<div id="mwRec" class="hidden"></div>' : '<div class="note">このスマホでは録音できません。文字でメモしてください。</div>') +
+      (hasVoice ? '<button type="button" class="btn btn-text btn-block" id="veListen" data-vp="' + esc(m.id) + '" data-lb="▶ 🔊 今の声を聞く">▶ 🔊 今の声を聞く</button>' : '') +
+      '<div class="section-title">題名' + (isNew ? '(空なら、文字の最初から自動で付けます)' : '') + '</div>' +
+      '<input class="input" id="veTitle" maxlength="60" value="' + esc(m ? m.title : '') + '" placeholder="例:病院で聞いたこと">' +
+      ((isNew && rec) ? '' : '<div class="section-title">文字</div><textarea class="input" id="veText" rows="8" maxlength="4000" style="width:100%;font-size:18px;line-height:1.6">' + esc(m ? m.text : '') + '</textarea>') +
+      '<div class="error hidden" id="veErr"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button class="btn btn-primary btn-block" id="veSave">保存する</button><button class="btn btn-tonal btn-block" id="veNo">やめる</button></div>');
+    if ($('mwRecBtn')) $('mwRecBtn').addEventListener('click', recOpen);
+    if ($('veListen')) $('veListen').addEventListener('click', function () { vmPlay(m, this); });
+    if (isNew && rec && recSupported()) { recOpen(); recStart(); }
+    $('veNo').addEventListener('click', function () { recReset(); vmStop(); closeSheet(); });
+    $('veSave').addEventListener('click', function () {
+      var err = function (t) { $('veErr').textContent = t; show('veErr', true); };
+      if (REC.rec && REC.rec.state === 'recording') return err('録音中です。先に「■ 止める」を押してください');
+      var title = $('veTitle').value.trim(), text = $('veText') ? $('veText').value.trim() : null;
+      if (isNew && !REC.blob && !text) return err(rec ? '録音してから保存してください' : '文字を入れてください');
+      if (!isNew && !REC.blob && !text && !(m.voice && !m.voice.expired)) return err('文字を入れてください');
+      var b = this; b.disabled = true; b.textContent = REC.blob ? '保存しています…(声を文字にしています)' : '保存しています…';
+      var send = function (audio) {
+        var memo = { person: state.owner, title: title };
+        if (m) memo.id = m.id;
+        if (text != null) memo.text = text;
+        if (audio) memo.audio = audio;
+        return api('saveVmemo', { memo: memo });
+      };
+      (REC.blob ? recBase64(REC.blob).then(function (d) { return send({ data: d, mime: REC.mime, sec: Math.max(1, Math.round(REC.sec)) }); }) : send(null)).then(function (r) {
+        var nm2 = r.memo, had = !!REC.blob; recReset(); vmStop();
+        if (m) vmDrop(m.id);
+        VM.list = [nm2].concat((VM.list || []).filter(function (x) { return x.id !== nm2.id; })).sort(function (a, c) { return c.ms - a.ms; });
+        closeSheet(); drawVmemos();
+        toast(had ? (nm2.text ? '保存しました(声を文字にしました)' : '保存しました(文字にできませんでした。✏ 直す で書けます)') : '保存しました');
+        // 声から作ったばかりのメモは、文字を確かめられるように直す画面を開く
+        if (had && isNew) vmEdit(nm2, false);
+      }).catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
+    });
+  }
+
   /* 🎤 声の録音(1分まで)。録ったら 聞き直す・録り直す・声を消す ができる */
   var REC = { rec: null, stream: null, chunks: [], blob: null, mime: '', sec: 0, t0: 0, timer: null, url: '', audio: null };
-  var REC_MAX = 60;
+  var REC_MAX = 60, REC_DEL = '🗑 声を消す(文字だけで送る)';   // 伝言は1分、音声メモは3分
   function recSupported() { return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
   function recMime() { var l = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']; for (var i = 0; i < l.length; i++) { try { if (MediaRecorder.isTypeSupported(l[i])) return l[i]; } catch (e) {} } return ''; }
   function recReset() {
@@ -6796,10 +6924,10 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     var st = REC.rec && REC.rec.state === 'recording' ? 'rec' : REC.blob ? 'done' : 'idle';
     var b = function (id, t, cls) { return '<button type="button" class="btn ' + (cls || 'btn-tonal') + ' btn-block" id="' + id + '">' + t + '</button>'; };
     $('mwRec').innerHTML = '<div class="card" style="padding:12px 14px;margin:6px 0 10px">' +
-      (st === 'idle' ? '<div class="note" style="font-size:16px;margin-bottom:8px">1分まで録音できます。押してから話してください。</div>' + b('rcStart', '● 録音を始める', 'btn-primary') :
-       st === 'rec' ? '<div style="font-size:22px;font-weight:700;text-align:center;color:var(--danger);margin-bottom:8px">● 録音中 <span id="rcClock">' + recClock(REC.sec) + '</span> / 1:00</div>' + b('rcStop', '■ 止める', 'btn-primary') :
+      (st === 'idle' ? '<div class="note" style="font-size:16px;margin-bottom:8px">' + (REC_MAX / 60) + '分まで録音できます。押してから話してください。</div>' + b('rcStart', '● 録音を始める', 'btn-primary') :
+       st === 'rec' ? '<div style="font-size:22px;font-weight:700;text-align:center;color:var(--danger);margin-bottom:8px">● 録音中 <span id="rcClock">' + recClock(REC.sec) + '</span> / ' + recClock(REC_MAX) + '</div>' + b('rcStop', '■ 止める', 'btn-primary') :
        '<div style="font-size:19px;font-weight:700;margin-bottom:8px">🎤 録音できました(' + Math.max(1, Math.round(REC.sec)) + '秒)</div>' +
-       '<div style="display:flex;flex-direction:column;gap:8px">' + b('rcPlay', REC.audio && !REC.audio.paused ? '■ 止める' : '▶ 聞き直す') + b('rcRedo', '🔄 録り直す') + b('rcDel', '🗑 声を消す(文字だけで送る)') + '</div>') +
+       '<div style="display:flex;flex-direction:column;gap:8px">' + b('rcPlay', REC.audio && !REC.audio.paused ? '■ 止める' : '▶ 聞き直す') + b('rcRedo', '🔄 録り直す') + b('rcDel', REC_DEL) + '</div>') +
       (st !== 'done' ? '<button type="button" class="btn btn-text btn-block" id="rcCancel" style="margin-top:6px">✕ やめる</button>' : '') +
       '<div class="error hidden" id="rcErr" style="margin-top:8px"></div></div>';
     var on = function (id, f) { if ($(id)) $(id).addEventListener('click', f); };
@@ -6839,7 +6967,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   function recStop() { try { if (REC.rec && REC.rec.state === 'recording') REC.rec.stop(); } catch (e) {} }
   function recBase64(blob) { return new Promise(function (ok, ng) { var fr = new FileReader(); fr.onload = function () { ok(String(fr.result).split(',')[1] || ''); }; fr.onerror = ng; fr.readAsDataURL(blob); }); }
   function openMsgWrite(reply) {
-    recReset();
+    recReset(); REC_MAX = 60; REC_DEL = '🗑 声を消す(文字だけで送る)';
     var me = state.owner, others = MEMBERS.map(function (m) { return m.name; }).filter(function (n) { return n !== me; });
     if (!others.length) {
       openSheet('<div class="grip"></div><h2>💬 伝言を書く</h2><div class="note" style="font-size:18px">この家計簿の家族が、まだ自分だけです。⚙ →「💌 家族を招待する」で家族を招待すると、伝言を送れるようになります。</div><button class="btn btn-tonal btn-block" id="mwX" style="margin-top:12px">閉じる</button>');
@@ -7584,6 +7712,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   setTimeout(function () { try { medCheckBanner(); } catch (e) {} }, 2500);
 
   var HELP = [
+    { k: 'vmemo', icon: '🎙', t: '話して音声メモを残す', why: '思いついたことや、病院・お店で聞いたことを、すぐ残したいとき', res: '話した声と、それを自動で文字にしたものが残ります。あとで文字を読んだり、声を聞いたり、直したり消したりできます。自分だけに見えます。',
+      steps: ['⚙ →[🧩 使う機能を選ぶ]で「🎙 音声メモ」にチェックを付ける', '下の[メモ]→[🎙 音声メモ]を開く', '[🎤 声でメモする]を押して話し、[■ 止める]を押す(3分まで)', '[保存する]を押すと、話した言葉が文字になります', '文字や題名は[✏ 直す]で直せます。[🔍 文字で探す]で探せます', '声は半年たつと自動で消えます(文字は残ります)'], open: function () { if (feat('vmemo')) { NT.tab = 'vmemo'; go('notes'); } else openFeatures(); } },
     { k: 'med', icon: '💊', t: 'お薬を登録して、飲む時間に知らせる', why: '飲んでいる薬を把握したいとき・飲み忘れを防ぎたいとき', res: '薬の名前・飲む時刻・残りの数・はたらき・副作用を、このスマホの中だけに保存します。飲む時刻にアプリを開くと「お薬の時間です」と出ます。',
       steps: ['⚙ →[🧩 使う機能を選ぶ]で「💊 お薬」にチェックを付ける(下に[お薬]が出る)', '下の[お薬]→[📷 お薬の説明書を撮って読む]で、薬局の説明書を撮る', '読み取った内容を確かめる。前からの残りがあれば「前からの残り」に数を入れる', '説明書が何枚かあるときは、確認画面の[📷 次のページ]で続けて撮る(アルバムからは何枚かまとめて選べる)', '[登録する]を押す', '[⏰ お知らせ]で、時刻ごとのON・OFFや時刻を決める', '飲んだら[飲んだ ✅]を押す(残りの数が減る)'], open: function () { if (feat('med')) go('med'); else openFeatures(); } },
     { k: 'receipt', icon: '🧾', t: 'レシートを撮って入れる', why: '買い物をしたとき', res: 'お店・日付・品物・金額をAIが読み取って、買物の一覧と合計に入ります。カードや電子マネーで払ったときは、その残高や引き落としにも入ります。',
