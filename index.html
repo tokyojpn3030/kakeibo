@@ -408,6 +408,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   .inst-table td { border: none; padding: 2px 0; }
   .inst-table td:nth-child(4)::before { content: '支払日 '; font-size: 12px; color: var(--text-2); }
   .inst-table td:nth-child(5) { grid-column: span 2; }
+  .inst-table tr.kirow { border-bottom: none; padding-bottom: 0; }
+  .inst-table tr.kirow td { grid-column: 1 / -1; }
+  .inst-table td.kigap { display: none; }
 }
 .slip-line { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; width: 100%;
   text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -425,7 +428,9 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
 .inst-table th { font-size: 13px; color: var(--text-2); font-weight: 400; text-align: left; padding: 4px 3px; border-bottom: 1px solid var(--line); }
 .inst-table td { padding: 8px 3px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .inst-table td.num { text-align: right; white-space: nowrap; font-weight: 700; }
-.inst-table .ki { font-weight: 700; color: var(--primary); background: none; border: none; padding: 0; font-size: 15px; text-decoration: underline; white-space: nowrap; }
+.inst-table .ki { font-weight: 700; color: var(--primary); background: none; border: none; padding: 0; font-size: 15px; text-decoration: underline; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.inst-table tr.kirow td { border-bottom: none; padding-bottom: 0; }
+.inst-table tr.kirow .ki { font-size: 16px; }
 .inst-table select { width: 100%; font-size: 15px; padding: 6px 2px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); max-width: 100%; }
 .inst-table tr.paid select { background: var(--teal-bg); color: var(--teal-fg); border-color: transparent; font-weight: 700; }
 .inst-table tr.late td.due { color: var(--danger); font-weight: 700; }
@@ -703,6 +708,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         <div class="pm-menu">
           <button class="btn btn-tonal btn-block pm-btn" id="pmOpenList">📋 今月なにを払うのか見たい</button>
           <button class="btn btn-tonal btn-block pm-btn" id="pmOpenGroups">🏦 どの口座にいくら必要か知りたい</button>
+          <button class="btn btn-tonal btn-block pm-btn" id="pmOpenUnpaid">🧾 未払いの一覧を見たい(分類ごと)</button>
           <button class="btn btn-tonal btn-block pm-btn" id="pmOpenSlips">📄 税金・保険料の明細を見たい</button>
           <button class="btn btn-tonal btn-block pm-btn" id="pmOpenPaid">💰 払ったもの(見る・直す・手数料を足す)</button>
           <button class="btn btn-tonal btn-block pm-btn" id="payCard">💳 カードで払った物を見たい・直したい</button>
@@ -895,7 +901,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-16 12:40 版169';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-21 23:20 版170';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版143';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -3399,6 +3405,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   $('pmOpenList').addEventListener('click', openPmList);
   $('pmOpenGroups').addEventListener('click', function () { openPmDetail('', PM.rows); });
   $('pmOpenSlips').addEventListener('click', openPmSlips);
+  $('pmOpenUnpaid').addEventListener('click', function () { openPaidList.fromMenu = true; openPaidList('open'); });
+  $('pmOpenPaid').addEventListener('click', function () { openPaidList.fromMenu = false; }, true);
   $('pmCardRules').addEventListener('click', function () { openCardRules(); });
   $('pmOpenPaid').addEventListener('click', openPmPaid);
   $('pmPrev').addEventListener('click', function () { PM.off--; renderPayMonth(); });
@@ -5396,8 +5404,10 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     var t = today();
     var rows = items.map(function (p) {
       var paid = p.status === '済み', late = !paid && p.due < t;
-      return '<tr class="' + (paid ? 'paid' : '') + (late ? ' late' : '') + '" data-row="' + esc(p.id) + '">' +
-        '<td><button class="ki" data-open="' + esc(p.id) + '">' + esc(p.label || '—') + '</button></td>' +
+      var lab = p.label || '—', long = lab.length > 7;   // 長い名前は、上の行にいっぱいに出す(隣と重ならないように)
+      return (long ? '<tr class="kirow' + (paid ? ' paid' : '') + '"><td colspan="5"><button class="ki" data-open="' + esc(p.id) + '">' + esc(lab) + '</button></td></tr>' : '') +
+        '<tr class="' + (paid ? 'paid' : '') + (late ? ' late' : '') + (long ? ' afterki' : '') + '" data-row="' + esc(p.id) + '">' +
+        (long ? '<td class="kigap"></td>' : '<td><button class="ki" data-open="' + esc(p.id) + '">' + esc(lab) + '</button></td>') +
         '<td class="due">' + rDate(p.due) + '</td>' +
         '<td class="num">' + Number(p.amount || 0).toLocaleString('ja-JP') + '</td>' +
         '<td>' + (paid ? '<label class="pd"><span>' + rDate(p.paidDate || p.due) + '</span><input type="date" data-pdate="' + esc(p.id) + '" value="' + esc(p.paidDate || p.due) + '" max="' + t + '" aria-label="支払日"></label>' : '<span class="note">—</span>') + '</td>' +
@@ -5554,8 +5564,16 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   // 払ったお金の行を押すと、中身(何を・いつ・いくら)を日付の順に出す
   var PAIDL = { month: [], year: [], pre: [], open: [] };
   function bindPaidKv(root) { root.querySelectorAll('[data-pk]').forEach(function (b) { b.addEventListener('click', function () { openPaidList(b.dataset.pk); }); }); }
-  function openPaidList(k) {
-    var l = PAIDL[k] || [], isOpen = k === 'open';
+  function openPaidList(k, cat) {
+    var all = PAIDL[k] || [], isOpen = k === 'open', l = all;
+    // これから払うもの:分類で絞れる(最後に選んだ分類を覚える)
+    var cats = isOpen ? all.map(function (p) { return p.category || 'その他'; }).filter(function (c, i, a) { return a.indexOf(c) === i; }) : [];
+    if (isOpen) {
+      if (cat == null) cat = store.get('payOpenCat') || '';
+      if (cat && cats.indexOf(cat) < 0) cat = '';
+      store.set('payOpenCat', cat);
+      if (cat) l = all.filter(function (p) { return (p.category || 'その他') === cat; });
+    }
     var title = { month: '今月払ったもの', year: '今年払ったもの', pre: '家計簿を始める前に払ったもの(数えない)', open: 'これから払うもの' }[k];
     var dt = function (p) { return isOpen ? p.due : (p.paidDate || p.due); };
     var rows = l.slice().sort(function (a, b) { return dt(a) < dt(b) ? -1 : dt(a) > dt(b) ? 1 : 0; }).map(function (p) {
@@ -5565,8 +5583,12 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         (isOpen ? '<button type="button" class="chip" data-pp2="' + esc(p.id) + '" style="min-height:40px;font-size:15px">✅ 払った</button>' : '') + '</span>';
       return { date: dt(p), label: payName(p), sub: [isOpen ? '期限' : (p.place ? p.place + 'で' : ''), p.category || '', p.memo || ''].filter(Boolean).join(' ・ '), extra: btns, amount: Number(p.amount) || 0, attrs: ' data-pid="' + esc(p.id) + '" role="button" style="cursor:pointer"' };
     });
-    var again = function () { openPaidList(k); };
-    openSheet('<div class="grip"></div><h2>💰 ' + esc(title) + '</h2>' +
+    var again = function () { openPaidList(k, isOpen ? cat : undefined); };
+    var tot = l.reduce(function (s0, p) { return s0 + (Number(p.amount) || 0); }, 0);
+    openSheet('<div class="grip"></div><h2>' + (isOpen ? '🧾 ' : '💰 ') + esc(title) + (isOpen && cat ? '(' + esc(cat) + ')' : '') + '</h2>' +
+      (isOpen && cats.length > 1 ? '<div class="chips" id="poCats" style="margin-bottom:8px">' + [''].concat(cats).map(function (c) {
+        return '<button type="button" class="chip' + (c === cat ? ' on' : '') + '" data-poc="' + esc(c) + '">' + esc(c || '全部') + '</button>'; }).join('') + '</div>' : '') +
+      (isOpen ? '<div class="kv"><span>未払いの合計 <span class="in-sub">' + l.length + '件</span></span><b>' + yen(tot) + '</b></div>' : '') +
       '<div class="note" style="font-size:15px;margin-bottom:6px">' + (isOpen ? '期限' : '払った日') + 'の順です。右下は、そこまでの合計です。押すと詳しく見られます。</div>' +
       (rows.length ? ledgerHtml(rows, 'sum') : '<div class="note" style="font-size:17px">ありません</div>') +
       '<button class="btn btn-tonal btn-block" id="plBack2" style="margin-top:10px">← 戻る</button>');
@@ -5578,7 +5600,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       if (b && b.dataset.pp2) return openPaidForm(b.dataset.pp2);
       openPayDetail(r.dataset.pid);
     }); });
-    $('plBack2').addEventListener('click', openPmPaid);
+    $('plBack2').addEventListener('click', isOpen && openPaidList.fromMenu ? closeSheet : openPmPaid);
+    $('sheet').querySelectorAll('[data-poc]').forEach(function (b) { b.addEventListener('click', function () { openPaidList('open', b.dataset.poc); }); });
   }
   function openPmPaid() {
     openSheet('<div class="grip"></div><h2>💰 払ったお金</h2><div class="card" style="margin-bottom:12px" id="pmPaidBox">' + $('payPaid').innerHTML + '</div>' +
