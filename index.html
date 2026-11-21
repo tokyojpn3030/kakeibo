@@ -921,7 +921,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-24 11:00 版174';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-24 13:20 版175';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版144';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -5500,8 +5500,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   /* 1つの納付書・請求書の内訳(1期を横一列で) */
   function openGroup(key) {
     var g = payGroups().filter(function (x) { return x.key === key; })[0];
-    if (!g) { pay.returnGroup = null; closeSheet(); return; }
-    pay.returnGroup = key;
+    if (!g) { pay.returnGroup = null; pay.editReturn = null; closeSheet(); return; }
+    pay.returnGroup = key; pay.editReturn = null;
     var items = g.items.filter(function (p) { return p.status !== '天引き'; })
       .sort(function (a, b) { return a.due < b.due ? -1 : a.due > b.due ? 1 : 0; });
     var t = today();
@@ -5550,10 +5550,10 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         savePay(Object.assign({}, p, { paidDate: inp.value }), '支払日を変えました').then(function () { openGroup(key); }).catch(fail);
       });
     });
-    $('grClose').addEventListener('click', function () { pay.returnGroup = null; closeSheet(); });
+    $('grClose').addEventListener('click', function () { pay.returnGroup = null; pay.editReturn = null; closeSheet(); });
     $('grDel').addEventListener('click', function () {
       if (!confirm('「' + g.cat + '」の ' + g.n + '件をまとめて削除しますか?(30日間はゴミ箱から戻せます)')) return;
-      this.disabled = true; pay.returnGroup = null;
+      this.disabled = true; pay.returnGroup = null; pay.editReturn = null;
       deletePays(g.items.map(function (x) { return x.id; }), g.n + '件をゴミ箱に移しました');
     });
   }
@@ -5697,7 +5697,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       '<button class="btn btn-tonal btn-block" id="plBack2" style="margin-top:10px">← 戻る</button>');
     bindLedger(again);
     $('sheet').querySelectorAll('[data-pid]').forEach(function (r) { r.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-pe],[data-pf],[data-pp2]'); pay.returnGroup = null;
+      var b = e.target.closest('[data-pe],[data-pf],[data-pp2]'); pay.returnGroup = null; pay.editReturn = again;
       if (b && b.dataset.pe) { var x = findPay(b.dataset.pe); if (x) openPayEdit(x); return; }
       if (b && b.dataset.pf) return openFeeForm(b.dataset.pf);
       if (b && b.dataset.pp2) return openPaidForm(b.dataset.pp2);
@@ -5759,7 +5759,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     bindLedger(openPmTable);
     $('sheet').querySelectorAll('[data-ev]').forEach(function (b) { b.addEventListener('click', function () {
       var e = ev[+b.dataset.ev];
-      if (e.kind === 'slip') { pay.returnGroup = null; return openPayDetail(e.slip.id); }
+      if (e.kind === 'slip') { pay.returnGroup = null; pay.editReturn = null; return openPayDetail(e.slip.id); }
       if (e.kind === 'charge') return openPpBill(e.prepaid, PM.wm, openPmTable);
       openEventItems(e);
     }); });
@@ -5876,12 +5876,23 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><div class="yen">' + yen(p.amount) + '</div>' +
       (p.status === 'これから' ? '<button class="paid-btn" data-paid="' + esc(p.id) + '">払った</button>' : '') + '</div></div>';
   }
+  // 直して保存したあとに戻る一覧(版175)
+  function setEditReturn(root) {
+    if (root.id === 'paAll') { pay.returnGroup = null; pay.editReturn = openPayAll; }
+    else if (root.id === 'sheet') { pay.editReturn = null; }
+    else { pay.returnGroup = null; pay.editReturn = closeSheet; }
+  }
+  function backAfterEdit(id) {
+    if (pay.editReturn) return pay.editReturn();
+    if (pay.returnGroup) return openGroup(pay.returnGroup);
+    openPayDetail(id);
+  }
   function bindPayRows(root) {
     root.querySelectorAll('[data-pid]').forEach(function (r) {
-      r.addEventListener('click', function (e) { if (e.target.closest('[data-paid]')) return; if (root.id !== 'sheet' && root.id !== 'paAll') pay.returnGroup = null; openPayDetail(r.dataset.pid); });
+      r.addEventListener('click', function (e) { if (e.target.closest('[data-paid]')) return; setEditReturn(root); openPayDetail(r.dataset.pid); });
     });
     root.querySelectorAll('[data-paid]').forEach(function (b) {
-      b.addEventListener('click', function () { if (root.id !== 'sheet' && root.id !== 'paAll') pay.returnGroup = null; openPaidForm(b.dataset.paid); });
+      b.addEventListener('click', function () { setEditReturn(root); openPaidForm(b.dataset.paid); });
     });
   }
   function findPay(id) { return pay.list.filter(function (p) { return p.id === id; })[0]; }
@@ -6145,7 +6156,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     });
     if ($('pdGcal')) $('pdGcal').addEventListener('click', function () { window.open(gcalUrl(p), '_blank'); });
     if ($('pdIcs')) $('pdIcs').addEventListener('click', function () { downloadIcs(p); });
-    $('pdEdit').addEventListener('click', function () { openPayEdit(p); });
+    $('pdEdit').addEventListener('click', function () { openPayEdit(p, true); });
     if ($('pdDelAll')) $('pdDelAll').addEventListener('click', function () {
       var g = sameGroup(p);
       if (!confirm('「' + p.title + '」の ' + g.length + '件(天引きの分も含む)をまとめて削除しますか?(30日間はゴミ箱から戻せます)')) return;
@@ -6169,7 +6180,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       renderPay(); closeSheet(); toast(msg);
     }).catch(function (e) { alert(e.message); });
   }
-  function openPayEdit(p) {
+  function openPayEdit(p, fromDetail) {
     openSheet('<div class="grip"></div><h2>✏ 支払いを直す</h2>' +
       '<div class="field"><label for="peTitle">支払いの名前</label><input class="input" id="peTitle" value="' + esc(p.title) + '"></div>' +
       '<div class="field"><label for="peLabel">期(例:第3期)</label><input class="input" id="peLabel" value="' + esc(p.label) + '"></div>' +
@@ -6195,7 +6206,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       show('pePaidBox', st === '済み');
     };
     drawSt();
-    $('peBack').addEventListener('click', function () { openPayDetail(p.id); });
+    $('peBack').addEventListener('click', function () { if (fromDetail || !pay.editReturn) openPayDetail(p.id); else pay.editReturn(); });
     $('peSave').addEventListener('click', function () {
       var n = Object.assign({}, p, {
         title: $('peTitle').value.trim(), label: $('peLabel').value.trim(), due: $('peDue').value,
@@ -6205,14 +6216,14 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       });
       if (!n.title || !n.due) { $('peError').textContent = '名前と日付を入れてください'; show('peError', true); return; }
       var b = this; b.disabled = true;
-      savePay(n, '直しました').then(function () { openPayDetail(p.id); })
+      savePay(n, '直しました').then(function () { backAfterEdit(p.id); })
         .catch(function (e) { b.disabled = false; $('peError').textContent = e.message; show('peError', true); });
     });
   }
   function statusLabel(x) { return x === 'これから' ? 'まだ払っていない' : x === '済み' ? '払った' : '天引き'; }
 
   function openPayAll() {
-    pay.returnGroup = null;
+    pay.returnGroup = null; pay.editReturn = null;
     var list = pay.list.slice().sort(function (a, b) { return a.due < b.due ? 1 : -1; });
     openSheet('<div class="grip"></div><h2>すべての支払い</h2><div class="meta">新しい期限の順。押すと詳しく見られます。</div>' +
       '<div id="paAll">' + (list.length ? list.map(payRowHtml).join('') : '<div class="note">まだありません</div>') + '</div>' +
