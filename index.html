@@ -901,8 +901,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-21 23:20 版170';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
-  var EXPECT_SV = '窓口 版143';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
+  var APP_VERSION = '2026-11-23 13:30 版171';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var EXPECT_SV = '窓口 版144';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
   var COLORS = ['blue', 'pink', 'purple', 'teal', 'amber', 'coral'];
@@ -1221,7 +1221,12 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         }
         if (/^(plans|savePlan|deletePlan|testPlanMail)$/.test(action)) {
           var P; try { P = JSON.parse(store.get('demoPlans') || '[]'); } catch (e) { P = []; }
-          if (action === 'plans') return resolve({ ok: true, plans: P.filter(function (x) { return x.person === data.person; }) });
+          if (action === 'plans') return resolve({ ok: true, plans: P.filter(function (x) { return x.person === data.person; }).map(function (x) {
+            if (x.repeat !== 'year') return x;   // 窓口と同じく、毎年の予定は次の日付にする
+            var t = today(), y = Math.max(+x.date.slice(0, 4), +t.slice(0, 4)), dn = x.done ? x.date.slice(0, 4) : '', nd = function (yy) { var l = new Date(yy, +x.date.slice(5, 7), 0).getDate(); return yy + x.date.slice(4, 8) + pad(Math.min(+x.date.slice(8, 10), l)); };
+            var n = nd(y); while (n < t || String(y) === dn) { y++; n = nd(y); }
+            return Object.assign({}, x, { date: n, done: false, lastDone: dn });
+          }) });
           if (action === 'savePlan') { var pv = Object.assign({}, data.plan); if (pv.id) P = P.map(function (x) { return x.id === pv.id ? pv : x; }); else { pv.id = String(Date.now()); P.push(pv); } store.set('demoPlans', JSON.stringify(P)); return resolve({ ok: true, id: pv.id }); }
           if (action === 'deletePlan') { P = P.filter(function (x) { return x.id !== data.id; }); store.set('demoPlans', JSON.stringify(P)); return resolve({ ok: true }); }
           return resolve({ ok: true });
@@ -2322,8 +2327,8 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     });
   }
   /* ---------- 予定(病院の予約・仕事・やること)。自分の予定だけ見える ---------- */
-  var PLAN_KINDS = [['病院・予約', '🏥'], ['仕事', '💼'], ['やること', '📝'], ['連絡', '📞'], ['その他', '📌']];
-  var PLAN_NOTIFY = [[7, '1週間前'], [3, '3日前'], [1, '前日'], [0, '当日の朝']];
+  var PLAN_KINDS = [['病院・予約', '🏥'], ['仕事', '💼'], ['やること', '📝'], ['連絡', '📞'], ['毎年の備忘', '🗓'], ['その他', '📌']];
+  var PLAN_NOTIFY = [[30, '1か月前'], [14, '2週間前'], [7, '1週間前'], [3, '3日前'], [1, '前日'], [0, '当日の朝']];
   var PL = { list: null, showPast: false };
   function planIcon(k) { var x = PLAN_KINDS.filter(function (p) { return p[0] === k; })[0]; return x ? x[1] : '📌'; }
   function ntPlans() {
@@ -2339,11 +2344,12 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
         '<div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + esc(md(p.date)) + '(' + '日月火水木金土'.charAt(new Date(p.date + 'T00:00:00').getDay()) + ')' + (p.time ? ' ' + esc(p.time) : '') + '</b>' +
         '<span class="' + (d <= 1 && !p.done ? 'in-up' : 'in-sub') + '">' + when + '</span></div>' +
         '<div class="nt-item" style="margin-top:4px"><span class="' + (!p.done && d >= 0 && d <= 1 ? 'hop' : '') + '">' + planEmoji(p) + '</span> ' + esc(p.title) + '</div>' +
+        (p.repeat === 'year' ? '<div class="in-sub">🔁 毎年 ' + Number(p.date.slice(5, 7)) + '月' + Number(p.date.slice(8, 10)) + '日(次は' + p.date.slice(0, 4) + '年)' + (p.lastDone ? '・' + p.lastDone + '年は済み' : '') + '</div>' : '') +
         (p.place ? '<div class="in-sub">📍 ' + esc(p.place) + '</div>' : '') +
         (p.memo ? '<div class="nt-comment">' + esc(p.memo) + '</div>' : '') +
         '<div class="in-sub" style="margin-top:4px">📧 ' + (p.notify.length ? PLAN_NOTIFY.filter(function (x) { return p.notify.indexOf(x[0]) >= 0; }).map(function (x) { return x[1]; }).join('・') : 'メールなし') + '</div>' +
         '<div class="nt-btns"><button class="btn btn-text" data-pe="' + p.id + '">✏ 直す</button>' +
-        '<button class="btn btn-text" data-pn="' + p.id + '">📋 次の予定を作る</button>' +
+        (p.repeat === 'year' ? (d >= 0 && d <= 60 ? '<button class="btn btn-text" data-py="' + p.id + '">✅ ' + p.date.slice(0, 4) + '年の分は済み</button>' : '') : '<button class="btn btn-text" data-pn="' + p.id + '">📋 次の予定を作る</button>') +
         (p.kind === '病院・予約' ? '<button class="btn btn-text" data-pp="' + p.id + '">💴 支払いを記録</button>' : '') + '</div></div>';
     };
     $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="plNew" style="margin-bottom:8px">＋ 予定を入れる</button>' +
@@ -2360,6 +2366,13 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     if ($('plPast')) $('plPast').addEventListener('click', function () { PL.showPast = !PL.showPast; drawPlans(); });
     var find = function (id) { return PL.list.filter(function (p) { return p.id === id; })[0]; };
     $('ntBody').querySelectorAll('[data-pe]').forEach(function (b) { b.addEventListener('click', function () { openPlan(find(b.dataset.pe)); }); });
+    // 毎年の予定:今年の分を済みにする(来年の同じ日にまた出る)
+    $('ntBody').querySelectorAll('[data-py]').forEach(function (b) { b.addEventListener('click', function () {
+      var p = find(b.dataset.py); b.disabled = true;
+      api('savePlan', { plan: Object.assign({}, p, { person: state.owner, done: true, repeat: 'year' }) })
+        .then(function () { TALK.plansAt = 0; TICK.last = {}; G.del('tickerLast'); toast(p.date.slice(0, 4) + '年の分を済みにしました。来年の' + Number(p.date.slice(5, 7)) + '月' + Number(p.date.slice(8, 10)) + '日にまた知らせます'); ntPlans(); })
+        .catch(function (e) { b.disabled = false; toast(e.message); });
+    }); });
     $('ntBody').querySelectorAll('[data-pn]').forEach(function (b) { b.addEventListener('click', function () {
       var p = find(b.dataset.pn), d = shiftMonth(p.date.slice(0, 7), 1);
       var last = new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate();
@@ -2375,27 +2388,37 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     }); });
   }
   function openPlan(v, title) {
-    v = Object.assign({ kind: '病院・予約', date: today(), time: '', title: '', place: '', memo: '', notify: [1, 0], done: false }, v || {});
-    var kind = v.kind, notify = v.notify.slice();
+    v = Object.assign({ kind: '病院・予約', date: today(), time: '', title: '', place: '', memo: '', notify: [1, 0], done: false, repeat: '' }, v || {});
+    var kind = v.kind, notify = v.notify.slice(), repeat = v.repeat || '';
     openSheet('<div class="grip"></div><h2>📅 ' + esc(title || (v.id ? '予定を直す' : '予定を入れる')) + '</h2>' +
       (v.id ? '' : '<button class="btn btn-tonal btn-block" id="plScan" style="min-height:60px;font-size:18px;flex-direction:column;line-height:1.35;margin-bottom:10px">📷 予約の画面・予約票から読み込む<br><span style="font-size:14px;font-weight:400">スクリーンショットや写真を選ぶと、日付・時刻・場所を入れます</span></button>' +
         '<input type="file" accept="image/*" id="plFile" class="vh"><div class="note hidden" id="plScanMsg" style="font-size:16px;margin-bottom:10px"></div>') +
       '<div class="rk-label">種類</div><div class="chips" id="plKind">' + PLAN_KINDS.map(function (k) {
         return '<button type="button" class="chip' + (k[0] === kind ? ' on' : '') + '" data-v="' + k[0] + '">' + k[1] + ' ' + k[0] + '</button>'; }).join('') + '</div>' +
-      '<div class="field" style="margin-top:12px"><label for="plTitle">内容</label><input class="input" id="plTitle" placeholder="例:○○クリニック、△△さんに聞くこと" value="' + esc(v.title) + '"></div>' +
+      '<div class="field" style="margin-top:12px"><label for="plTitle">内容</label><input class="input" id="plTitle" placeholder="例:○○クリニック、△△さんに聞くこと、ドライアイの準備" value="' + esc(v.title) + '"></div>' +
       '<div style="display:flex;gap:10px"><div class="field" style="flex:3"><label for="plDate">日付</label><input class="input" id="plDate" type="date" value="' + esc(v.date) + '"></div>' +
       '<div class="field" style="flex:2"><label for="plTime">時刻</label><input class="input" id="plTime" type="time" value="' + esc(v.time) + '"></div></div>' +
-      '<div class="field"><label for="plPlace">場所(なくてもよい)</label><input class="input" id="plPlace" value="' + esc(v.place) + '"></div>' +
+      '<div class="rk-label">🔁 くり返し</div><div class="chips" id="plRep"><button type="button" class="chip' + (!repeat ? ' on' : '') + '" data-v="">なし</button><button type="button" class="chip' + (repeat === 'year' ? ' on' : '') + '" data-v="year">毎年(同じ月日)</button></div>' +
+      '<div class="note hidden" id="plRepNote" style="font-size:15px;margin-top:4px">毎年この月日に知らせます。今年の分を「済み」にしても消えず、来年また出てきます。</div>' +
+      '<div class="field" style="margin-top:10px"><label for="plPlace">場所(なくてもよい)</label><input class="input" id="plPlace" value="' + esc(v.place) + '"></div>' +
       '<div class="field"><label for="plMemo">メモ(聞くこと・伝えること・持ち物など)</label><textarea class="input" id="plMemo" rows="4">' + esc(v.memo) + '</textarea></div>' +
       '<div class="rk-label">📧 お知らせメール(いくつでも選べます)</div><div class="chips" id="plNotify">' + PLAN_NOTIFY.map(function (x) {
         return '<button type="button" class="chip' + (notify.indexOf(x[0]) >= 0 ? ' on' : '') + '" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
-      (v.id ? '<label class="check" style="margin-top:12px"><input type="checkbox" id="plDone"' + (v.done ? ' checked' : '') + '> <span>済み(終わった)</span></label>' : '') +
+      (v.id ? '<label class="check" style="margin-top:12px"><input type="checkbox" id="plDone"' + (v.done ? ' checked' : '') + '> <span id="plDoneT">' + (repeat === 'year' ? '今年の分は済み(来年また出ます)' : '済み(終わった)') + '</span></label>' : '') +
       '<div class="error hidden" id="plErr"></div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;margin-top:14px"><button class="btn btn-primary btn-block" id="plSave">保存する</button>' +
       '<button class="btn btn-tonal btn-block" id="plBack">やめる</button>' +
       (v.id ? '<button class="btn btn-danger btn-block" id="plDel">この予定を消す</button>' : '') + '</div>');
+    var setRep = function (r) {
+      repeat = r; $('plRep').querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x.dataset.v === r); });
+      show('plRepNote', r === 'year'); if ($('plDoneT')) $('plDoneT').textContent = r === 'year' ? '今年の分は済み(来年また出ます)' : '済み(終わった)';
+    };
+    setRep(repeat);
+    $('plRep').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () { setRep(c.dataset.v); }); });
     $('plKind').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
-      kind = c.dataset.v; $('plKind').querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === c); }); }); });
+      kind = c.dataset.v; $('plKind').querySelectorAll('.chip').forEach(function (x) { x.classList.toggle('on', x === c); });
+      if (kind === '毎年の備忘' && !repeat) setRep('year');   // 毎年の備忘は、最初から「毎年」にする
+    }); });
     $('plNotify').querySelectorAll('.chip').forEach(function (c) { c.addEventListener('click', function () {
       var d = +c.dataset.v, i = notify.indexOf(d); if (i >= 0) notify.splice(i, 1); else notify.push(d); c.classList.toggle('on', i < 0); }); });
     $('plBack').addEventListener('click', closeSheet);
@@ -2433,7 +2456,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       if (!$('plDate').value) return err('日付を入れてください');
       var b = this; b.disabled = true; b.textContent = '保存中…';
       api('savePlan', { plan: { id: v.id || '', person: state.owner, kind: kind, title: t, date: $('plDate').value, time: $('plTime').value, place: $('plPlace').value.trim(),
-        memo: $('plMemo').value.trim(), notify: notify, done: $('plDone') ? $('plDone').checked : false } })
+        memo: $('plMemo').value.trim(), notify: notify, done: $('plDone') ? $('plDone').checked : false, repeat: repeat } })
         .then(function () { TALK.plansAt = 0; TICK.last = {}; G.del('tickerLast'); after('予定を保存しました'); if (!v.id) setTimeout(function () { celebrate(planEmoji({ title: t, kind: kind, memo: $('plMemo') ? $('plMemo').value : '' }), pickOne(['予定を入れたよ。忘れないように、お知らせするね', '「' + t + '」だね。ちゃんと覚えておくよ', 'メモしたよ!当日の朝もお知らせするね',
   '「' + t + '」、ぼくもついていっていい?', 'まかせて!「' + t + '」、忘れそうになったら教えるね', '「' + t + '」の日、晴れるといいね', '予定を入れたね。えらい!ぼくのおやつの予定も入れて?'])); }, 600); TALK.plansAt = 0; })
         .catch(function (e) { b.disabled = false; b.textContent = '保存する'; err(e.message); });
