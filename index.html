@@ -254,6 +254,23 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .rk-chart text { fill: var(--text-2); font-size: 12px; }
 .in-card { margin-bottom: 12px; }
 .nt-card { margin-bottom: 12px; }
+/* 詰めた一覧(1件を1〜2行に。押すと、くわしい内容と操作が開く) */
+.cit { display: flex; gap: 8px; align-items: flex-start; background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; }
+.cit.hot { border-left-color: var(--danger); }
+.cbd { flex: 1; min-width: 0; cursor: pointer; }
+.cl1 { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; line-height: 1.35; font-size: 17px; }
+.cl1 b { font-size: 17px; }
+.cw { font-size: 15px; color: var(--text-2); }
+.cw.up { color: var(--danger); font-weight: 700; }
+.ct { font-weight: 700; word-break: break-word; }
+.cl2 { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 15px; color: var(--text-2); margin-top: 2px; line-height: 1.4; }
+.cm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 140px; min-width: 0; }
+.cic { display: flex; gap: 6px; flex: none; }
+.cb { width: 40px; height: 38px; border-radius: 10px; border: none; background: var(--surface-2); color: var(--text); font-size: 17px; padding: 0; }
+.cx-more { margin-top: 6px; cursor: auto; }
+.cx-more[hidden] { display: none; }
+.cbd.open .cl2 .cm { display: none; }
+.cbtn { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .nt-item { font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
 .nt-rate { font-size: 16px; font-weight: 700; margin: 2px 0; }
 .nt-emoji { font-size: 40px; line-height: 1; }
@@ -901,7 +918,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-23 13:30 版171';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-23 15:10 版172';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版144';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2181,21 +2198,36 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     if (!NT.data) return;
     ({ list: ntList, rank: ntRank, shop: ntShop, stores: ntStores })[NT.tab]();
   }
+  // 詰めた一覧の1件。o = { hot, color, l1, l2, right, more }
+  function cx(o) {
+    return '<div class="cit' + (o.hot ? ' hot' : '') + '"' + (o.color ? ' style="border-left-color:' + o.color + '"' : '') + '><div class="cbd" data-cx>' +
+      '<div class="cl1">' + o.l1 + '</div>' + (o.l2 ? '<div class="cl2">' + o.l2 + '</div>' : '') +
+      (o.more ? '<div class="cx-more" hidden>' + o.more + '</div>' : '') + '</div>' +
+      (o.right || o.more ? '<div class="cic">' + (o.right || '') + (o.more ? '<button type="button" class="cb" data-cxt aria-label="くわしく・ほかの操作">⋯</button>' : '') + '</div>' : '') + '</div>';
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target, tg = t.closest && t.closest('[data-cxt]'), box;
+    if (tg) box = tg.closest('.cit').querySelector('.cbd');
+    else {
+      if (!t.closest || t.closest('button, a, input, textarea, select, label, .cx-more')) return;
+      box = t.closest('[data-cx]'); if (!box) return;
+    }
+    var m = box.querySelector('.cx-more'); if (!m) return;
+    m.hidden = !m.hidden; box.classList.toggle('open', !m.hidden);
+  });
   function reviewCard(r) {
     var R = RATE[r.rating] || RATE.ok, si = storeInfo(r.store);
     var other = r.person !== state.owner && r.rating === 'again';
-    return '<div class="card nt-card" style="border-left:6px solid ' + R.c + '">' +
-      '<div style="display:flex;gap:12px;align-items:flex-start">' +
-      (r.photo ? '<img src="' + esc(r.photo) + '" alt="" class="nt-photo">' : '<div class="nt-emoji">' + R.e + '</div>') +
-      '<div style="flex:1;min-width:0"><div class="nt-item">' + esc(r.item) + '</div>' +
-      '<div class="nt-rate" style="color:' + R.c + '">' + R.e + ' ' + R.t + '</div>' +
-      '<div class="in-sub">' + esc(r.store || 'お店の名前なし') + (r.date ? ' ・ ' + esc(md(r.date)) : '') + ' ・ ' + nm(r.person) + '</div></div></div>' +
+    var more = (r.photo ? '<img src="' + esc(r.photo) + '" alt="" class="nt-photo" style="margin-bottom:6px">' : '') +
       (other ? '<div class="nt-badge">👭 ' + nm(r.person) + 'さんのおすすめ</div>' : '') +
       (r.tags.length ? '<div style="margin-top:6px">' + r.tags.map(function (t) { return '<span class="nt-tag">🎂 ' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
       (r.comment ? '<div class="nt-comment">' + esc(r.comment) + '</div>' : '') +
       (si && (si.phone || si.address) ? '<div style="margin-top:6px">' + telLink(si.phone) + mapLink(si.address) + '</div>' : '') +
-      '<div class="nt-btns">' + (r.rating !== 'bad' ? '<button class="btn btn-tonal" data-shop="' + esc(r.id) + '">🛒 買い物メモに入れる</button>' : '') +
-      '<button class="btn btn-text" data-edit="' + esc(r.id) + '">✏ 直す</button></div></div>';
+      '<div class="nt-btns">' + (r.rating !== 'bad' ? '<button class="btn btn-tonal" data-shop="' + esc(r.id) + '">🛒 買い物メモに入れる</button>' : '') + '</div>';
+    return cx({ color: R.c,
+      l1: '<span class="ct">' + R.e + ' ' + esc(r.item) + '</span><span class="cw" style="color:' + R.c + ';font-weight:700">' + R.t + '</span>' + (other ? '<span class="cw">👭</span>' : '') + (r.photo ? '<span class="cw">📷</span>' : ''),
+      l2: '<span>' + esc(r.store || 'お店の名前なし') + (r.date ? ' ・ ' + esc(md(r.date)) : '') + ' ・ ' + nm(r.person) + '</span>' + (r.comment ? '<span class="cm">' + esc(r.comment) + '</span>' : ''),
+      right: '<button type="button" class="cb" data-edit="' + esc(r.id) + '" aria-label="直す">✏</button>', more: more });
   }
   function bindCards(root) {
     root.querySelectorAll('[data-edit]').forEach(function (b) { b.addEventListener('click', function () {
@@ -2296,12 +2328,10 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       (keys.map(function (k) {
         var s = names[k], n = NT.data.reviews.filter(function (r) { return normStore(r.store) === normStore(k); });
         var again = n.filter(function (r) { return r.rating === 'again'; }).length;
-        return '<div class="card nt-card"><div class="nt-item">' + esc(k) + '</div>' +
-          (n.length ? '<div class="in-sub">評価 ' + n.length + '件' + (again ? '(😋 また買いたい ' + again + '件)' : '') + '</div>' : '') +
-          '<div style="margin-top:6px">' + telLink(s.phone) + mapLink(s.address) + '</div>' +
-          (s.holiday ? '<div class="in-sub" style="margin-top:4px">定休日:' + esc(s.holiday) + '</div>' : '') +
-          (s.memo ? '<div class="nt-comment">' + esc(s.memo) + '</div>' : '') +
-          '<div class="nt-btns"><button class="btn btn-text" data-st="' + esc(k) + '">✏ 直す</button></div></div>';
+        return cx({ l1: '<span class="ct">🏪 ' + esc(k) + '</span>' + (n.length ? '<span class="cw">評価 ' + n.length + '件' + (again ? '(😋' + again + ')' : '') + '</span>' : ''),
+          l2: (s.phone ? '<span>📞 ' + esc(s.phone) + '</span>' : '') + (s.holiday ? '<span>定休日:' + esc(s.holiday) + '</span>' : '') + (s.memo ? '<span class="cm">' + esc(s.memo) + '</span>' : ''),
+          right: '<button type="button" class="cb" data-st="' + esc(k) + '" aria-label="直す">✏</button>',
+          more: '<div>' + telLink(s.phone) + mapLink(s.address) + '</div>' + (s.memo ? '<div class="nt-comment">' + esc(s.memo) + '</div>' : '') });
       }).join('') || '<div class="note">まだお店の情報がありません。</div>');
     $('ntBody').innerHTML = html;
     $('stNew').addEventListener('click', function () { openStore({}); });
@@ -2338,19 +2368,22 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   }
   function drawPlans() {
     var t = today(), up = PL.list.filter(function (p) { return p.date >= t && !p.done; }), past = PL.list.filter(function (p) { return p.date < t || p.done; }).reverse();
-    var card = function (p, i) {
-      var d = daysBetween(t, p.date), when = p.done ? '✅ 済み' : d === 0 ? '今日' : d === 1 ? '明日' : d > 0 ? 'あと' + d + '日' : '';
-      return '<div class="card nt-card"' + (d <= 1 && !p.done && d >= 0 ? ' style="border-left:6px solid var(--danger)"' : '') + '>' +
-        '<div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + esc(md(p.date)) + '(' + '日月火水木金土'.charAt(new Date(p.date + 'T00:00:00').getDay()) + ')' + (p.time ? ' ' + esc(p.time) : '') + '</b>' +
-        '<span class="' + (d <= 1 && !p.done ? 'in-up' : 'in-sub') + '">' + when + '</span></div>' +
-        '<div class="nt-item" style="margin-top:4px"><span class="' + (!p.done && d >= 0 && d <= 1 ? 'hop' : '') + '">' + planEmoji(p) + '</span> ' + esc(p.title) + '</div>' +
-        (p.repeat === 'year' ? '<div class="in-sub">🔁 毎年 ' + Number(p.date.slice(5, 7)) + '月' + Number(p.date.slice(8, 10)) + '日(次は' + p.date.slice(0, 4) + '年)' + (p.lastDone ? '・' + p.lastDone + '年は済み' : '') + '</div>' : '') +
+    var card = function (p) {
+      var d = daysBetween(t, p.date), hot = d <= 1 && !p.done && d >= 0, when = p.done ? '✅ 済み' : d === 0 ? '今日' : d === 1 ? '明日' : d > 0 ? 'あと' + d + '日' : '';
+      var nts = PLAN_NOTIFY.filter(function (x) { return p.notify.indexOf(x[0]) >= 0; }).map(function (x) { return x[1]; });
+      var more = (p.memo ? '<div class="nt-comment" style="margin-top:0">' + esc(p.memo) + '</div>' : '') +
         (p.place ? '<div class="in-sub">📍 ' + esc(p.place) + '</div>' : '') +
-        (p.memo ? '<div class="nt-comment">' + esc(p.memo) + '</div>' : '') +
-        '<div class="in-sub" style="margin-top:4px">📧 ' + (p.notify.length ? PLAN_NOTIFY.filter(function (x) { return p.notify.indexOf(x[0]) >= 0; }).map(function (x) { return x[1]; }).join('・') : 'メールなし') + '</div>' +
+        (p.repeat === 'year' ? '<div class="in-sub">🔁 毎年 ' + Number(p.date.slice(5, 7)) + '月' + Number(p.date.slice(8, 10)) + '日(次は' + p.date.slice(0, 4) + '年)' + (p.lastDone ? '・' + p.lastDone + '年は済み' : '') + '</div>' : '') +
+        '<div class="in-sub">📧 ' + (nts.length ? nts.join('・') : 'メールなし') + '</div>' +
         '<div class="nt-btns"><button class="btn btn-text" data-pe="' + p.id + '">✏ 直す</button>' +
         (p.repeat === 'year' ? (d >= 0 && d <= 60 ? '<button class="btn btn-text" data-py="' + p.id + '">✅ ' + p.date.slice(0, 4) + '年の分は済み</button>' : '') : '<button class="btn btn-text" data-pn="' + p.id + '">📋 次の予定を作る</button>') +
-        (p.kind === '病院・予約' ? '<button class="btn btn-text" data-pp="' + p.id + '">💴 支払いを記録</button>' : '') + '</div></div>';
+        (p.kind === '病院・予約' ? '<button class="btn btn-text" data-pp="' + p.id + '">💴 支払いを記録</button>' : '') + '</div>';
+      return cx({ hot: hot,
+        l1: '<b>' + esc(md(p.date)) + '(' + '日月火水木金土'.charAt(new Date(p.date + 'T00:00:00').getDay()) + ')' + (p.time ? ' ' + esc(p.time) : '') + '</b>' +
+          (when ? '<span class="cw' + (hot ? ' up' : '') + '">' + when + '</span>' : '') +
+          '<span class="ct"><span class="' + (hot ? 'hop' : '') + '">' + planEmoji(p) + '</span> ' + esc(p.title) + '</span>' + (p.place ? '<span class="cw">📍' + esc(p.place) + '</span>' : ''),
+        l2: (p.memo ? '<span class="cm">' + esc(p.memo) + '</span>' : '') + '<span>📧' + (nts.length ? nts.map(function (x) { return x.replace('当日の朝', '当日'); }).join('・') : 'なし') + '</span>' + (p.repeat === 'year' ? '<span>🔁毎年</span>' : ''),
+        right: '<button type="button" class="cb" data-pe="' + p.id + '" aria-label="直す">✏</button>', more: more });
     };
     $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="plNew" style="margin-bottom:8px">＋ 予定を入れる</button>' +
       '<div class="note" style="font-size:15px;margin-bottom:12px">予定は <b>自分だけ</b> に見えます。お知らせのメールは、毎朝8時ごろ「💴 支払いの設定・お知らせ」のメールアドレスに届きます。' +
@@ -6808,15 +6841,18 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
           : '<button type="button" class="btn btn-tonal btn-block" data-mp="' + esc(m.id) + '" data-lb="' + esc(lb) + '" style="margin-top:8px">' + esc(lb) + '</button>';
         if (m.voice.text) voice += '<div style="margin-top:6px;font-size:17px;line-height:1.6;white-space:pre-wrap;word-break:break-word"><span class="in-sub">📝 声の文字:</span>' + esc(m.voice.text) + '</div>';
       }
-      return '<div class="card nt-card"' + (MSG.fresh[m.id] ? ' style="border-left:6px solid var(--danger)"' : '') + '>' +
-        '<div class="in-line" style="border:none;padding:0"><b style="font-size:19px">' + (MSG.fresh[m.id] ? '🆕 ' : '') + head + '</b><span class="in-sub" style="white-space:nowrap">' + msgWhen(m.at) + '</span></div>' +
-        (allRead ? '<div style="margin-top:4px;font-weight:700;color:var(--primary)">✅ みんな読みました</div>' : '') +
-        (orig ? '<div class="in-sub" style="margin-top:4px">↩ 「' + esc((orig.text || (orig.voice && orig.voice.text) || '声の伝言').slice(0, 30)) + '」への返事</div>' : '') +
-        (m.text ? '<div style="font-size:19px;line-height:1.6;margin-top:6px;white-space:pre-wrap;word-break:break-word">' + esc(m.text) + '</div>' : '') + voice +
+      var body1 = (m.text || (m.voice && m.voice.text) || (m.voice ? '🔊 声の伝言' : '')).split('\n')[0];
+      return cx({ hot: !!MSG.fresh[m.id],
+        l1: '<b>' + (MSG.fresh[m.id] ? '🆕 ' : '') + head + '</b><span class="cw">' + msgWhen(m.at) + '</span>',
+        l2: '<span class="cm">' + esc(body1) + '</span>' + (m.voice && !m.voice.expired ? '<span>🔊' + (m.voice.sec || '?') + '秒</span>' : '') +
+          (allRead ? '<span style="color:var(--primary);font-weight:700">✅みんな読みました</span>' : ''),
+        right: mine ? '' : '<button type="button" class="cb" data-mr="' + esc(m.id) + '" aria-label="返事をする">↩</button>',
+        more: (orig ? '<div class="in-sub" style="margin-top:4px">↩ 「' + esc((orig.text || (orig.voice && orig.voice.text) || '声の伝言').slice(0, 30)) + '」への返事</div>' : '') +
+        (m.text ? '<div style="font-size:18px;line-height:1.6;white-space:pre-wrap;word-break:break-word">' + esc(m.text) + '</div>' : '') + voice +
         (mine && m.to.length > 1 ? '<div class="in-sub" style="margin-top:4px">' + m.to.length + '人に送った伝言です</div>' : '') +
         (readTxt ? '<div class="in-sub" style="margin-top:6px;line-height:1.7">' + readTxt + '</div>' : '') +
         '<div class="nt-btns">' + (mine ? '' : '<button class="btn btn-text" data-mr="' + esc(m.id) + '">↩ 返事をする</button>') +
-        '<button class="btn btn-text" data-md="' + esc(m.id) + '">🗑 消す</button></div></div>';
+        '<button class="btn btn-text" data-md="' + esc(m.id) + '">🗑 消す</button></div>' });
     };
     var got = list.filter(function (m) { return m.from !== me; }), sent = list.filter(function (m) { return m.from === me; });
     $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="msNew" style="margin-bottom:8px">＋ 伝言を書く・声で送る</button>' +
@@ -6875,12 +6911,14 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     var list = q ? all.filter(function (m) { return (m.title + ' ' + m.text).normalize('NFKC').toLowerCase().indexOf(q) >= 0; }) : all;
     var card = function (m) {
       var lb = '▶ 🔊 聞く(' + (m.voice ? recClock(m.voice.sec || 0) : '') + ')';
-      return '<div class="card nt-card">' +
-        '<div class="in-line" style="border:none;padding:0;align-items:flex-start"><b style="font-size:19px;word-break:break-word">🎙 ' + esc(m.title || '(題名なし)') + '</b><span class="in-sub" style="white-space:nowrap">' + vmWhen(m.at) + '</span></div>' +
-        (m.text ? '<div class="vm-text">' + esc(m.text) + '</div>' : '') +
-        (m.voice ? (m.voice.expired ? '<div class="in-sub" style="margin-top:6px">🔇 声は保存期間(半年)が過ぎたので消えました。文字は残っています。</div>'
-          : '<button type="button" class="btn btn-tonal btn-block" data-vp="' + esc(m.id) + '" data-lb="' + esc(lb) + '" style="margin-top:8px">' + esc(lb) + '</button>') : '') +
-        '<div class="nt-btns"><button class="btn btn-text" data-ve="' + esc(m.id) + '">✏ 直す</button><button class="btn btn-text" data-vd="' + esc(m.id) + '">🗑 消す</button></div></div>';
+      return cx({
+        l1: '<span class="ct">🎙 ' + esc(m.title || '(題名なし)') + '</span><span class="cw">' + vmWhen(m.at) + '</span>',
+        l2: (m.text ? '<span class="cm">' + esc(m.text.split('\n')[0]) + '</span>' : '') + (m.voice ? (m.voice.expired ? '<span>🔇</span>' : '<span>▶ ' + recClock(m.voice.sec || 0) + '</span>') : ''),
+        right: '<button type="button" class="cb" data-ve="' + esc(m.id) + '" aria-label="直す">✏</button>',
+        more: (m.text ? '<div class="vm-text" style="max-height:none;margin-top:0">' + esc(m.text) + '</div>' : '') +
+          (m.voice ? (m.voice.expired ? '<div class="in-sub" style="margin-top:6px">🔇 声は保存期間(半年)が過ぎたので消えました。文字は残っています。</div>'
+            : '<button type="button" class="btn btn-tonal btn-block" data-vp="' + esc(m.id) + '" data-lb="' + esc(lb) + '" style="margin-top:8px">' + esc(lb) + '</button>') : '') +
+          '<div class="nt-btns"><button class="btn btn-text" data-ve="' + esc(m.id) + '">✏ 直す</button><button class="btn btn-text" data-vd="' + esc(m.id) + '">🗑 消す</button></div>' });
     };
     $('ntBody').innerHTML = '<button class="btn btn-primary btn-block" id="vmNew" style="margin-bottom:8px">🎤 声でメモする</button>' +
       '<button class="btn btn-tonal btn-block" id="vmNewText" style="margin-bottom:10px">✍ 文字でメモする</button>' +
@@ -7230,9 +7268,10 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     var als = medAlerts(m);
     if (als.length) {
       h += '<div class="section-title">📦 残りのお知らせ</div>' + als.map(function (a, i) {
-        return '<div class="card" style="border-left:6px solid ' + (a.left <= 7 ? 'var(--danger)' : 'var(--warn, #e0a000)') + ';margin-bottom:10px;font-size:17px;line-height:1.7">' +
-          '<div style="font-size:18px;font-weight:700">💊 ' + esc(a.x.name) + '</div>' + medAlertText(a) +
-          '<button class="btn btn-tonal btn-block" data-mplan="' + i + '" style="margin-top:8px">📅 受診の予定を予定表に入れる</button></div>';
+        return cx({ hot: a.left <= 7, color: a.left <= 7 ? '' : '#e0a000',
+          l1: '<span class="ct">💊 ' + esc(a.x.name) + '</span><span class="cw up">' + (a.left <= 0 ? '今日で無くなります' : 'あと' + a.left + '日分') + '</span>',
+          l2: '<span>残り ' + medFmt(a.x.stock) + esc(a.x.unit) + '</span><span>' + esc(medJp(a.out)) + 'に無くなります</span>',
+          more: '<div style="font-size:17px;line-height:1.7">' + medAlertText(a) + '</div><button class="btn btn-tonal btn-block" data-mplan="' + i + '" style="margin-top:8px">📅 受診の予定を予定表に入れる</button>' });
       }).join('');
     }
     if (!m.meds.length) {
@@ -7244,24 +7283,22 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       MED_SLOTS.forEach(function (s) {
         var list = medUsed(m, s[0]); if (!list.length) return;
         var c = m.slots[s[0]], done = tk[s[0]], isDue = due.indexOf(s[0]) >= 0;
-        h += '<div class="card med-slot' + (done ? ' done' : isDue ? ' due' : '') + '">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
-          '<div style="font-size:20px;font-weight:700">' + esc(s[1]) + ' <span class="note" style="font-size:16px">' + (c.on && m.all ? '⏰ ' + esc(c.t) : '🔕 お知らせなし') + '</span></div>' +
-          (done ? '<div style="font-size:17px;color:var(--good);font-weight:700">✅ ' + esc(done) + ' 飲みました</div>' : '') + '</div>' +
-          '<ul class="med-ul">' + list.map(function (x) { return '<li>' + esc(x.name) + ' <b>' + medFmt(x.dose[s[0]]) + esc(x.unit) + '</b></li>'; }).join('') + '</ul>' +
-          (done ? '<button class="btn btn-text" data-mundo="' + s[0] + '" style="min-height:40px">取り消す</button>'
-                : '<button class="btn btn-primary btn-block" data-mtake="' + s[0] + '">飲んだ ✅</button>') +
-          '</div>';
+        // 1つの時刻を2行ほどに:時刻・飲むお薬(横に並べる)・右に[飲んだ]
+        h += '<div class="cit' + (isDue ? ' hot' : '') + '"' + (done ? ' style="border-left-color:var(--good)"' : '') + '><div class="cbd" style="cursor:auto">' +
+          '<div class="cl1"><b>' + esc(s[1]) + '</b><span class="cw">' + (c.on && m.all ? '⏰' + esc(c.t) : '🔕') + '</span>' +
+          (done ? '<span style="color:var(--good);font-weight:700;font-size:15px">✅ ' + esc(done) + ' 飲みました</span>' : isDue ? '<span class="cw up">時間です</span>' : '') + '</div>' +
+          '<div class="cl2" style="color:var(--text);font-size:16px">' + list.map(function (x) { return '<span>' + esc(x.name) + ' <b>' + medFmt(x.dose[s[0]]) + esc(x.unit) + '</b></span>'; }).join('') + '</div></div>' +
+          '<div class="cic">' + (done ? '<button class="btn btn-text" data-mundo="' + s[0] + '" style="min-height:40px;padding:0 8px">取消</button>'
+                : '<button class="btn btn-primary" data-mtake="' + s[0] + '" style="min-height:44px;padding:0 12px">飲んだ✅</button>') + '</div></div>';
       });
       // 飲んでいる薬の一覧
       h += '<div class="section-title" style="margin-top:16px">💊 飲んでいるお薬(' + m.meds.length + ')</div>';
       h += m.meds.map(function (x, i) {
         var when = MED_SLOTS.filter(function (s) { return Number(x.dose[s[0]]) > 0; }).map(function (s) { return s[2] + medFmt(x.dose[s[0]]); }).join('・');
-        return '<button class="card med-item" data-mi="' + i + '">' +
-          '<div class="med-name">' + esc(x.name) + '</div>' +
-          '<div class="in-sub">' + esc(x.timing || '') + (when ? '(' + esc(when) + esc(x.unit) + ')' : '') + '</div>' +
-          '<div style="font-size:17px;margin-top:2px">' + medLeft(x) + (als.some(function (a) { return a.x.id === x.id; }) ? ' <span style="color:var(--danger);font-weight:700">⚠ 残り少ない</span>' : '') + '</div>' +
-          '<div class="note" style="margin-top:4px">▶ はたらき・副作用を見る</div></button>';
+        var low = als.some(function (a) { return a.x.id === x.id; });
+        return '<button type="button" class="cit cbtn' + (low ? ' hot' : '') + '" data-mi="' + i + '"><span class="cbd" style="display:block">' +
+          '<span class="cl1"><span class="ct">' + esc(x.name) + '</span>' + (when ? '<span class="cw">' + esc(when) + esc(x.unit) + '</span>' : '') + '</span>' +
+          '<span class="cl2"><span>' + medLeft(x) + '</span>' + (low ? '<span style="color:var(--danger);font-weight:700">⚠ 残り少ない</span>' : '') + '<span>▶ はたらき・副作用</span></span></span></button>';
       }).join('');
       // 病院・薬局
       var p = m.places;
