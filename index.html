@@ -270,6 +270,9 @@ main { padding: 0 16px; max-width: 640px; margin: 0 auto; }
 .cx-more { margin-top: 6px; cursor: auto; }
 .cx-more[hidden] { display: none; }
 .cbd.open .cl2 .cm { display: none; }
+.ig-chip { font-size: 16px; min-height: 40px; padding: 4px 12px; }
+.ig-chip b { margin-left: 2px; }
+.ig-link { background: none; border: none; padding: 0; font: inherit; color: inherit; text-decoration: underline dotted; cursor: pointer; }
 .cbtn { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .nt-item { font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
 .nt-rate { font-size: 16px; font-weight: 700; margin: 2px 0; }
@@ -918,7 +921,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-23 15:10 版172';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-23 15:40 版173';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版144';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -2779,16 +2782,60 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     return o;
   }
   function monthIncome(who) { return (state.incomes || []).filter(function (x) { return !who || x.person === who; }).reduce(function (a, x) { return a + x.amount; }, 0); }
+  // 支払いの種類を短く:税・保険・請求(それ以外)
+  function payGroupOf(p) { var c = String(p.category || '') + ' ' + String(p.title || ''); return /保険/.test(c) ? '保険' : /税/.test(c) ? '税' : '請求'; }
+  var PAY_GROUPS = ['税', '保険', '請求'];
+  function monthPayList(who, kind, g) {
+    var m = state.month;
+    return (state.allPays || []).filter(function (p) {
+      if (who && p.person !== who) return false;
+      if (payGroupOf(p) !== g) return false;
+      if (kind === 'paid') return p.status === '済み' && !beforeStart(p.paidDate || p.due) && (p.paidDate || p.due || '').slice(0, 7) === m;
+      return p.status !== '済み' && p.status !== '天引き' && !beforeStart(p.due) && (p.due || '').slice(0, 7) === m;
+    });
+  }
   function renderIncomeLine(id, spent, who) {
     if (!$(id)) return;
     if (!feat('income')) { show(id, false); return; }
     if (!state.incomeOk || state.incomeMonth !== state.month) { show(id, false); return; }
     var inc = monthIncome(who), py = monthPay(who), left = inc - spent - py.paid - py.due;
     if (!inc) { $(id).innerHTML = '💰 この月の収入は、まだ入っていません' + (id === 'histIncome' ? '<br><span style="font-size:15px">下の「💰 収入を入れる・見る」から入れると、残りが出ます</span>' : ''); show(id, true); return; }
-    $(id).innerHTML = '💰 収入 <b>' + yen(inc) + '</b><br>− 買い物 ' + yen(spent) +
-      (py.paid ? '<br>− 支払い(払った分) ' + yen(py.paid) : '') + (py.due ? '<br>− 支払い(これから・この月が期限) ' + yen(py.due) : '') + '<br>' +
-      '残り <b style="font-size:24px;color:' + (left < 0 ? 'var(--danger)' : 'inherit') + '">' + yen(left) + '</b>' + (left < 0 ? '(使いすぎ)' : '');
+    // 横に並べる。押すと中身が開く
+    var chip = function (k, label, amt) { return '<button type="button" class="chip ig-chip" data-ig="' + k + '">' + label + ' <b>' + yen(amt) + '</b></button>'; };
+    var chips = [chip('buy', '🛒買い物', spent)];
+    ['paid', 'due'].forEach(function (kind) { PAY_GROUPS.forEach(function (g) {
+      var sum = monthPayList(who, kind, g).reduce(function (a, p) { return a + (Number(p.amount) || 0); }, 0);
+      if (sum) chips.push(chip(kind + ':' + g, '🧾' + g + (kind === 'due' ? '(未)' : ''), sum));
+    }); });
+    $(id).innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline">' +
+      '<button type="button" class="ig-link" data-ig="inc">💰 収入 <b>' + yen(inc) + '</b></button>' +
+      '<span>残り <b style="font-size:24px;color:' + (left < 0 ? 'var(--danger)' : 'inherit') + '">' + yen(left) + '</b>' + (left < 0 ? '(使いすぎ)' : '') + '</span></div>' +
+      '<div class="chips" style="margin-top:6px;gap:6px">' + chips.join('') + '</div>';
+    $(id).querySelectorAll('[data-ig]').forEach(function (b) { b.addEventListener('click', function () { openIncomeChip(b.dataset.ig, who); }); });
     show(id, true);
+  }
+  function openIncomeChip(k, who) {
+    if (k === 'buy') return openHistDetail();
+    if (k === 'inc') return openIncomes();
+    var kind = k.split(':')[0], g = k.split(':')[1], l = monthPayList(who, kind, g).slice();
+    var dt = function (p) { return kind === 'paid' ? (p.paidDate || p.due) : p.due; };
+    l.sort(function (a, b) { return dt(a) < dt(b) ? -1 : 1; });
+    var tot = l.reduce(function (a, p) { return a + (Number(p.amount) || 0); }, 0);
+    openSheet('<div class="grip"></div><h2>🧾 ' + esc(g) + (kind === 'due' ? '(未・今月が期限)' : '(今月払った分)') + '</h2>' +
+      '<div class="note" style="font-size:15px;margin-bottom:6px">' + (g === '税' ? '住民税・固定資産税・自動車税など' : g === '保険' ? '社会保険料・国民健康保険・任意継続保険料など' : '公共料金・家賃・振込・手数料など(税・保険のほか)') + '</div>' +
+      '<div class="kv"><span>合計 <span class="in-sub">' + l.length + '件</span></span><b>' + yen(tot) + '</b></div>' +
+      l.map(function (p) {
+        return cx({ hot: kind === 'due' && p.due < today(),
+          l1: '<b>' + esc(md(dt(p))) + '</b><span class="ct" style="flex:1">' + payName(p) + '</span><span class="ct">' + yen(Number(p.amount) || 0) + '</span>',
+          l2: '<span>' + esc(p.category || '') + '</span>' + (kind === 'due' ? '<span>期限 ' + esc(md(p.due)) + '</span>' : (p.place ? '<span>' + esc(p.place) + '</span>' : '')),
+          right: kind === 'due' ? '<button type="button" class="btn btn-tonal" data-igp="' + esc(p.id) + '" style="min-height:40px;padding:0 10px;font-size:15px">✅ 払った</button>' : '' });
+      }).join('') +
+      '<button class="btn btn-tonal btn-block" id="igBack" style="margin-top:10px">閉じる</button>');
+    $('igBack').addEventListener('click', closeSheet);
+    $('sheet').querySelectorAll('[data-igp]').forEach(function (b) { b.addEventListener('click', function () {
+      if (!findPay(b.dataset.igp)) pay.list = (state.allPays || []).slice();
+      pay.returnGroup = null; openPaidForm(b.dataset.igp);
+    }); });
   }
   /* ---------- 年金の決まり(このスマホに保存) ----------
      年金は偶数月(2・4・6・8・10・12月)の15日に、2か月分が入る(15日が土日・祝日なら、その前の平日)。
@@ -5511,7 +5558,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     });
   }
   // 明細で変更したあと:内訳から来たときは内訳に戻る
-  function afterPayChange() { if (pay.returnGroup) openGroup(pay.returnGroup); else closeSheet(); }
+  function afterPayChange() { if (pay.returnGroup) openGroup(pay.returnGroup); else closeSheet(); try { if (state.incomeOk) loadIncomes(state.month); } catch (e) {} }
 
   /* ---------- 支払いの画面のいちばん上:その月の支払い額(納付書・カード・電子マネーを全部合わせる) ---------- */
   var PM = { off: 0, seq: 0 };
