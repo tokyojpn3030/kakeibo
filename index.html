@@ -921,7 +921,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
   'use strict';
 
   /* ---------- 設定と状態 ---------- */
-  var APP_VERSION = '2026-11-23 15:40 版173';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
+  var APP_VERSION = '2026-11-24 11:00 版174';   // ⚙ 設定の一番下に出る。新しい版か確かめる目印
   var EXPECT_SV = '窓口 版144';   // このアプリが使う窓口(Apps Script)の版。窓口を変えたら、ここと窓口の SERVER_VERSION を同じにする
   var CFG = window.KAKEIBO_CONFIG || { API_URL: '', MEMBERS: [] };
   var CENTRAL = CFG.CENTRAL_URL || '';   // 全部の家で共通の窓口
@@ -7298,6 +7298,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
       '<button class="btn btn-tonal" id="medHand" style="flex:1;white-space:nowrap;padding:0 8px">✍ 手で足す</button></div>' +
       '<div style="display:flex;gap:8px"><button class="btn btn-tonal" id="medCal" style="flex:1;white-space:nowrap;padding:0 8px">📅 飲んだ記録</button>' +
       '<button class="btn btn-tonal" id="medSet" style="flex:1;white-space:nowrap;padding:0 8px">⏰ お知らせ</button></div>' +
+      '<button class="btn btn-tonal btn-block" id="medList">💊 飲んでいるお薬の一覧(' + m.meds.length + ')</button>' +
       '<input type="file" id="medFileCam" accept="image/*" capture="environment" class="hidden">' +
       '<input type="file" id="medFile" accept="image/*" multiple class="hidden"></div>';
     if (!m.all) h += '<div class="warn" style="font-size:17px">🔕 お知らせは全部お休み中です(⏰ お知らせ で戻せます)</div>';
@@ -7367,6 +7368,7 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     });
     $('medHand').addEventListener('click', function () { medEditor({ date: today(), meds: [{ name: '', unit: '錠' }] }, true); });
     $('medSet').addEventListener('click', medSettings);
+    $('medList').addEventListener('click', medListSheet);
     $('medCal').addEventListener('click', function () { medCal(today().slice(0, 7)); });
     $('medBody').querySelectorAll('[data-mplan]').forEach(function (b) { b.addEventListener('click', function () {
       var a = als[+b.dataset.mplan], hosp = m.places.hospital || '';
@@ -7633,6 +7635,39 @@ b.hk { background: #fff3a8; color: #3a2e00; padding: 0 4px; border-radius: 4px; 
     });
   }
 
+  // 💊 飲んでいるお薬の一覧(登録がないときも開いて、そう伝える)
+  function medListSheet() {
+    var m = medLoad(), als = medAlerts(m), p = m.places;
+    var note = '<div class="note" style="font-size:15px;margin-top:8px">お薬の記録は、このスマホ・このブラウザの中だけにあります。ほかのスマホや別のブラウザで登録した分は、ここには出ません。</div>';
+    if (!m.meds.length) {
+      openSheet('<div class="grip"></div><h2>💊 飲んでいるお薬</h2>' +
+        '<div class="card" style="font-size:19px;line-height:1.7"><b>まだ1つも登録されていません。</b><br>薬局でもらったお薬の説明書を撮るか、手で入れてください。</div>' + note +
+        '<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">' +
+        '<button class="btn btn-primary btn-block" id="mlCam">📷 説明書を撮って読む</button>' +
+        '<div style="display:flex;gap:8px"><button class="btn btn-tonal" id="mlAlb" style="flex:1;white-space:nowrap;padding:0 8px">🖼 写真を選ぶ</button>' +
+        '<button class="btn btn-tonal" id="mlHand" style="flex:1;white-space:nowrap;padding:0 8px">✍ 手で足す</button></div>' +
+        '<button class="btn btn-text btn-block" id="mlX">閉じる</button></div>');
+      $('mlCam').addEventListener('click', function () { closeSheet(); $('medFileCam').click(); });
+      $('mlAlb').addEventListener('click', function () { closeSheet(); $('medFile').click(); });
+      $('mlHand').addEventListener('click', function () { medEditor({ date: today(), meds: [{ name: '', unit: '錠' }] }, true); });
+      $('mlX').addEventListener('click', closeSheet);
+      return;
+    }
+    openSheet('<div class="grip"></div><h2>💊 飲んでいるお薬(' + m.meds.length + ')</h2>' +
+      m.meds.map(function (x, i) {
+        var when = MED_SLOTS.filter(function (s) { return Number(x.dose[s[0]]) > 0; }).map(function (s) { return s[2] + medFmt(x.dose[s[0]]); }).join('・');
+        var low = als.some(function (a) { return a.x.id === x.id; });
+        return '<button type="button" class="cit cbtn' + (low ? ' hot' : '') + '" data-mli="' + i + '"><span class="cbd" style="display:block">' +
+          '<span class="cl1"><span class="ct">' + esc(x.name) + '</span>' + (when ? '<span class="cw">' + esc(when) + esc(x.unit) + '</span>' : '') + '</span>' +
+          '<span class="cl2"><span>' + medLeft(x) + '</span>' + (low ? '<span style="color:var(--danger);font-weight:700">⚠ 残り少ない</span>' : '') + '<span>▶ はたらき・副作用</span></span></span></button>';
+      }).join('') +
+      (p.hospital || p.pharmacy ? '<div class="card" style="font-size:17px;line-height:1.7;margin-top:6px">' +
+        (p.hospital ? '<div>🏥 ' + esc(p.hospital) + (p.hospitalTel ? ' ' + telLink(p.hospitalTel) : '') + '</div>' : '') +
+        (p.pharmacy ? '<div>💊 ' + esc(p.pharmacy) + (p.pharmacyTel ? ' ' + telLink(p.pharmacyTel) : '') + '</div>' : '') + '</div>' : '') +
+      note + '<button class="btn btn-text btn-block" id="mlX" style="margin-top:8px">閉じる</button>');
+    $('sheet').querySelectorAll('[data-mli]').forEach(function (b) { b.addEventListener('click', function () { medDetail(+b.dataset.mli); }); });
+    $('mlX').addEventListener('click', closeSheet);
+  }
   function medDetail(i) {
     var m = medLoad(), x = m.meds[i]; if (!x) return;
     var when = MED_SLOTS.filter(function (s) { return Number(x.dose[s[0]]) > 0; }).map(function (s) { return s[1] + ' ' + medFmt(x.dose[s[0]]) + esc(x.unit); }).join('、');
